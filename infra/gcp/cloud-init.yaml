@@ -1,0 +1,42 @@
+#cloud-config
+# ══════════════════════════════════════════════════════════════
+# GCP GitLab Runner - Cloud-Init Configuration
+# ══════════════════════════════════════════════════════════════
+# This runs on first boot when VM is created.
+# For updates, use gcp-runner-bootstrap.sh instead.
+# ══════════════════════════════════════════════════════════════
+
+package_update: true
+package_upgrade: true
+
+packages:
+  # Python
+  - python3
+  - python3-venv
+  - python3-pip
+  - python3-dev
+  # Build tools
+  - build-essential
+  - git
+  - curl
+  - wget
+  # Docker dependencies
+  - ca-certificates
+  - gnupg
+  - lsb-release
+
+runcmd:
+  # Install Docker
+  - curl -fsSL https://get.docker.com | sh
+  - systemctl enable docker
+  - systemctl start docker
+  
+  # Install GitLab Runner
+  - curl -L "https://packages.gitlab.com/install/repositories/runner/gitlab-runner/script.deb.sh" | bash
+  - apt-get install -y gitlab-runner
+  - systemctl enable gitlab-runner
+  
+  # Signal completion
+  - touch /var/log/cloud-init-complete
+
+final_message: "GCP GitLab Runner VM ready after $UPTIME seconds"
