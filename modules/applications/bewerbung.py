@@ -38,13 +38,13 @@ except ImportError:
 # PFADE
 # ══════════════════════════════════════════════════════════════════════════════
 
-ROOT_DIR = Path(__file__).parent.parent
+ROOT_DIR = Path(__file__).parent.parent.parent  # modules/applications/ → root
 CONFIG_DIR = ROOT_DIR / "config"
 ATTACHMENTS_DIR = ROOT_DIR / "attachments"
 TEMPLATES_DIR = ROOT_DIR / "templates"
 
-CREDENTIALS_FILE = CONFIG_DIR / "credentials.json"
-TOKEN_FILE = CONFIG_DIR / "token.pickle"
+CREDENTIALS_FILE = CONFIG_DIR / "google" / "credentials.json"
+TOKEN_FILE = CONFIG_DIR / "google" / "token.pickle"
 SETTINGS_FILE = CONFIG_DIR / "settings.yaml"
 
 # ══════════════════════════════════════════════════════════════════════════════
