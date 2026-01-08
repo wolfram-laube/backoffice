@@ -3,8 +3,12 @@
 # ══════════════════════════════════════════════════════════════
 #
 # Runner Setup:
-#   - mac-shell (tags: shell, macos, local) → Läuft immer
-#   - mac-docker (tags: docker, macos)      → Nur wenn Docker läuft
+#   - mac-shell  (tags: shell, macos)     → Mac, läuft bei Login
+#   - mac-docker (tags: docker, macos)    → Mac, wenn Docker läuft
+#   - gcp-shell  (tags: shell, gcp)       → GCP VM, 24/7
+#   - gcp-docker (tags: docker, gcp)      → GCP VM, 24/7
+#
+# Priorität: GCP (immer online) > Mac (bei Bedarf)
 #
 # ══════════════════════════════════════════════════════════════
 
@@ -24,19 +28,28 @@ cache:
     - venv/
 
 # ══════════════════════════════════════════════════════════════
-# DEFAULT: Shell Runner (läuft immer)
+# DEFAULT: Shell Runner (GCP oder Mac)
 # ══════════════════════════════════════════════════════════════
 
 default:
   tags:
-    - shell
-    - macos
+    - shell  # Nimmt ersten verfügbaren: gcp-shell oder mac-shell
 
 # ══════════════════════════════════════════════════════════════
 # TEMPLATES
 # ══════════════════════════════════════════════════════════════
 
-.python-setup: &python-setup
+.python-setup-linux: &python-setup-linux
+  before_script:
+    - python3 -m venv venv
+    - source venv/bin/activate
+    - pip install --upgrade pip
+    - pip install -r requirements.txt
+
+.python-setup-mac: &python-setup-mac
+  tags:
+    - shell
+    - macos
   before_script:
     - python3 -m venv venv || python -m venv venv
     - source venv/bin/activate
@@ -48,7 +61,7 @@ default:
 # ══════════════════════════════════════════════════════════════
 
 lint:flake8:
-  <<: *python-setup
+  <<: *python-setup-linux
   stage: lint
   script:
     - pip install flake8
@@ -56,7 +69,7 @@ lint:flake8:
   allow_failure: true
 
 lint:black:
-  <<: *python-setup
+  <<: *python-setup-linux
   stage: lint
   script:
     - pip install black
@@ -68,7 +81,7 @@ lint:black:
 # ══════════════════════════════════════════════════════════════
 
 test:syntax:
-  <<: *python-setup
+  <<: *python-setup-linux
   stage: test
   script:
     - python3 -m py_compile modules/applications/bewerbung.py
@@ -78,20 +91,20 @@ test:syntax:
     - echo "✓ Syntax OK"
 
 test:imports:
-  <<: *python-setup
+  <<: *python-setup-linux
   stage: test
   script:
     - python3 -c "from common.models import Client, Project, Contact; print('✓ common.models')"
-    - python3 -c "from modules.applications.service import ApplicationService; print('✓ modules.applications')" || echo "⚠️ Import needs bewerbung fix"
+    - python3 -c "from modules.applications.service import ApplicationService; print('✓ modules.applications')" || echo "⚠️ Import check"
     - echo "✓ Import check done"
   allow_failure: true
 
 test:unit:
-  <<: *python-setup
+  <<: *python-setup-linux
   stage: test
   script:
     - pip install pytest pytest-cov
-    - pytest tests/ -v --cov=modules --cov=common --cov-report=term-missing || echo "No tests yet"
+    - pytest tests/ -v --cov=modules --cov=common --cov-report=term-missing --cov-report=html || echo "No tests yet"
   coverage: '/TOTAL.*\s+(\d+%)/'
   artifacts:
     paths:
@@ -106,7 +119,7 @@ test:unit:
 # ══════════════════════════════════════════════════════════════
 
 build:wheel:
-  <<: *python-setup
+  <<: *python-setup-linux
   stage: build
   script:
     - pip install build
@@ -125,31 +138,52 @@ build:wheel:
 # STAGE: PACKAGE
 # ══════════════════════════════════════════════════════════════
 
-package:binary:
-  <<: *python-setup
+# Linux Binary (auf GCP)
+package:linux:
+  <<: *python-setup-linux
+  stage: package
+  tags:
+    - shell
+    - gcp
+    - linux
+  script:
+    - pip install pyinstaller
+    - pyinstaller --onefile --name freelancer-admin-linux cli.py
+    - chmod +x dist/freelancer-admin-linux
+  artifacts:
+    paths:
+      - dist/freelancer-admin-linux
+    expire_in: 4 weeks
+  rules:
+    - if: $CI_COMMIT_TAG
+  when: manual
+
+# macOS Binary
+package:macos:
+  <<: *python-setup-mac
   stage: package
   script:
     - pip install pyinstaller
-    - pyinstaller --onefile --name freelancer-admin cli.py
-    - chmod +x dist/freelancer-admin
-    - ./dist/freelancer-admin --help || echo "Binary built"
+    - pyinstaller --onefile --name freelancer-admin-macos cli.py
+    - chmod +x dist/freelancer-admin-macos
   artifacts:
     paths:
-      - dist/freelancer-admin
+      - dist/freelancer-admin-macos
     expire_in: 4 weeks
-    name: "freelancer-admin-binary-${CI_COMMIT_SHORT_SHA}"
   rules:
     - if: $CI_COMMIT_TAG
-  when: manual  # Nur bei Bedarf
+  when: manual
 
 # ══════════════════════════════════════════════════════════════
-# DOCKER BUILD (braucht Docker Runner oder manuell)
+# DOCKER BUILD
 # ══════════════════════════════════════════════════════════════
 
-docker:build:
+# Docker auf GCP (bevorzugt - immer online)
+docker:build:gcp:
   stage: package
   tags:
-    - docker  # Nur auf Docker-Runner (wenn Docker läuft)
+    - docker
+    - gcp
   image: docker:24
   services:
     - docker:24-dind
@@ -174,11 +208,11 @@ docker:build:
         - Dockerfile
         - modules/**/*
         - common/**/*
-  when: manual  # Manuell triggern wenn Docker läuft
-  allow_failure: true  # Nicht blockierend wenn Docker nicht läuft
+  when: manual
+  allow_failure: true
 
-# Alternative: Docker build auf Shell (wenn Docker Desktop läuft)
-docker:build:shell:
+# Docker auf Mac (Fallback)
+docker:build:mac:
   stage: package
   tags:
     - shell
@@ -191,7 +225,6 @@ docker:build:shell:
       fi
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
     - docker build -t $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA .
-    - docker build -t $CI_REGISTRY_IMAGE:latest .
     - docker push $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA
     - docker push $CI_REGISTRY_IMAGE:latest
   rules:
@@ -203,15 +236,15 @@ docker:build:shell:
   allow_failure: true
 
 # ══════════════════════════════════════════════════════════════
-# PAGES (Coverage Report)
+# PAGES
 # ══════════════════════════════════════════════════════════════
 
 pages:
   stage: package
   script:
     - mkdir -p public
-    - cp -r htmlcov/* public/ 2>/dev/null || echo "No coverage report"
-    - echo "<h1>Freelancer Admin CI</h1>" > public/index.html
+    - cp -r htmlcov/* public/ 2>/dev/null || echo "No coverage"
+    - echo "<h1>Freelancer Admin CI</h1><p>Build ${CI_COMMIT_SHORT_SHA}</p>" > public/index.html
   artifacts:
     paths:
       - public
