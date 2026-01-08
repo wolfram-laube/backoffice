@@ -1,38 +1,4 @@
 # ══════════════════════════════════════════════════════════════
-# SENSIBLE DATEN - NIEMALS COMMITTEN!
-# ══════════════════════════════════════════════════════════════
-
-# Google OAuth Credentials
-config/credentials.json
-config/token.pickle
-*.pickle
-
-# ══════════════════════════════════════════════════════════════
-# PRIVATE FILES - CVs und Zertifikate
-# ══════════════════════════════════════════════════════════════
-
-# Wolfram
-attachments/Profil_Laube_w_Summary_DE.pdf
-attachments/Profil_Laube_w_Summary_EN.pdf
-attachments/Studienerfolg_08900915_1.pdf
-
-# Ian Matejka
-attachments/CV_Ian_Matejka_DE.pdf
-attachments/IanMatejkaCV1013MCM.pdf
-
-# Michael Matejka
-attachments/CV_Michael_Matejka_DE.pdf
-attachments/Michael_Matejka_CV_102025.pdf
-
-# Generische Pattern als Backup
-attachments/*.pdf
-attachments/*.docx
-
-# Aber README und .gitkeep behalten!
-!attachments/.gitkeep
-!attachments/README.md
-
-# ══════════════════════════════════════════════════════════════
 # Python
 # ══════════════════════════════════════════════════════════════
 
@@ -85,10 +51,10 @@ htmlcov/
 .nox/
 
 # ══════════════════════════════════════════════════════════════
-# Misc
+# Runtime (generiert, nicht committen)
 # ══════════════════════════════════════════════════════════════
 
+config/token.pickle
 *.log
 *.tmp
-.env
 .env.local
