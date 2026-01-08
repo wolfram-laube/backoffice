@@ -1,131 +1,141 @@
-# Bewerbungs-Tool
+# 🪓 Freelancer Admin - Viking Edition
 
-Automatisiertes Tool für Freelance-Bewerbungen mit Gmail-Draft-Erstellung und freelancermap-Integration.
+Modulares Admin-Tool für Freelancer: Bewerbungen, Rechnungen, Timesheets, Controlling, Steuern.
 
-## Features
+> *"41% German precision, 34% Slavic improvisation, 20% Viking courage, 5% English politeness"*
 
-- 📧 **Gmail Draft erstellen** mit Attachments (OAuth)
-- 🌐 **Browser öffnen** für schnelle Bewerbungen
-- 📋 **Text kopieren** für freelancermap-Formulare
-- 👥 **Team-Support** (Wolfram, Ian, Michael CVs)
-
-## Quick Start
+## 🚀 Quick Start
 
 ```bash
-# 1. Repository klonen
-git clone git@gitlab.com:blauweiss/bewerbung-tool.git
-cd bewerbung-tool
+# Klonen
+git clone git@gitlab.com:wolfram_laube/blauweiss_llc/freelancer-admin.git
+cd freelancer-admin
 
-# 2. Virtual Environment (empfohlen)
-python -m venv venv
-source venv/bin/activate  # Linux/Mac
-# oder: venv\Scripts\activate  # Windows
-
-# 3. Dependencies installieren
+# Dependencies
 pip install -r requirements.txt
 
-# 4. Credentials einrichten (siehe docs/SETUP_OAUTH.md)
-cp config/credentials.json.example config/credentials.json
-# Dann credentials.json mit deinen Google OAuth Daten füllen
-
-# 5. CVs in attachments/ legen
-# (nicht im Repo, siehe .gitignore)
-
-# 6. Starten
-python src/bewerbung.py
+# Unified CLI
+python cli.py applications list
+python cli.py invoicing new --client "ACME" --hours 40
+python cli.py timesheets log --project acme --hours 8 -d "Code review"
 ```
 
-## Projektstruktur
+## 📁 Struktur
 
 ```
-bewerbung-tool/
-├── src/
-│   ├── bewerbung.py          # Hauptprogramm
-│   ├── gmail_client.py       # Gmail API Wrapper
-│   ├── templates.py          # Bewerbungstexte
-│   └── config.py             # Konfiguration
+freelancer-admin/
 │
-├── config/
-│   ├── credentials.json      # Google OAuth (NICHT im Git!)
-│   ├── credentials.json.example
-│   └── settings.yaml         # Einstellungen (Rate, Kontakt, etc.)
+├── modules/                    # Isolierte Tools
+│   ├── applications/           # 📧 Bewerbungen & CV
+│   ├── invoicing/              # 🧾 Rechnungen
+│   ├── timesheets/             # ⏱️  Zeiterfassung
+│   ├── controlling/            # 📊 Auswertungen
+│   └── tax/                    # 🧮 Steuern
 │
-├── attachments/              # CVs und Zertifikate (NICHT im Git!)
-│   ├── .gitkeep
-│   └── README.md
+├── common/                     # Shared Code
+│   ├── storage/                # S3/GDrive Abstraction
+│   ├── auth/                   # Google OAuth etc.
+│   ├── models/                 # Datenmodelle
+│   └── templates/              # Shared Templates
 │
-├── templates/
-│   ├── bewerbungen.yaml      # Bewerbungstexte als YAML
-│   └── html/
-│       ├── gmail_compose.html
-│       └── freelancermap.html
+├── config/                     # Credentials
+│   ├── google/                 # OAuth & Service Account
+│   ├── storage/                # S3/GCS/rclone
+│   └── settings.yaml           # App Settings
 │
-├── docs/
-│   ├── SETUP_OAUTH.md        # Google OAuth Anleitung
-│   └── USAGE.md              # Benutzung
-│
-├── tests/
-│   └── test_gmail_client.py
-│
-├── .gitignore
-├── .gitlab-ci.yml            # CI/CD (optional)
-├── requirements.txt
-├── pyproject.toml            # Modern Python packaging
-└── README.md
+├── attachments/                # CVs, Zertifikate
+├── cli.py                      # Unified Entry Point
+└── portal/                     # (Später) Web-UI
 ```
 
-## Konfiguration
+## 📦 Module
 
-### settings.yaml
-
-```yaml
-bewerber:
-  name: "Wolfram Laube"
-  telefon: "+43 664 4011521"
-  email: "wolfram.laube@blauweiss-edv.at"
-  stundensatz: 105
-
-attachments:
-  standard:
-    - "Profil_Laube_w_Summary_DE.pdf"
-    - "Studienerfolg_08900915_1.pdf"
-  optional:
-    - "Profil_Laube_w_Summary_EN.pdf"
-    - "CV_Ian_Matejka_DE.pdf"
-    - "CV_Michael_Matejka_DE.pdf"
-```
-
-## Roadmap
-
-- [x] v1.0 - CLI Tool
-- [x] v1.1 - GitLab CI/CD + Docker
-- [ ] v2.0 - Web UI (FastAPI)
-- [ ] v2.1 - GCP Cloud Run Deployment
-- [ ] v3.0 - Integration mit freelancermap-Scraper
-
-## Docker
+### 📧 Applications
+Bewerbungen erstellen, Gmail Drafts, CV-Verwaltung.
 
 ```bash
-# Image aus GitLab Registry ziehen
-docker pull registry.gitlab.com/blauweiss/bewerbung-tool:latest
-
-# Lokal bauen
-docker build -t bewerbung-tool .
-
-# Web-Server starten (Port 8000)
-docker run -p 8000:8000 bewerbung-tool
-
-# CLI im Container
-docker run bewerbung-tool python src/bewerbung.py --list
+python cli.py applications list
+python cli.py applications send ibsc --mode draft
 ```
 
-**GitLab Registry:** Nach jedem Push auf `main` wird automatisch ein neues Image gebaut:
-```
-registry.gitlab.com/blauweiss/bewerbung-tool:latest
-registry.gitlab.com/blauweiss/bewerbung-tool:<commit-sha>
-registry.gitlab.com/blauweiss/bewerbung-tool:<tag>  # bei Git Tags
+### 🧾 Invoicing
+Rechnungen aus Typst-Templates generieren.
+
+```bash
+python cli.py invoicing new --client "nemensis AG" --hours 40
+python cli.py invoicing list --year 2025
 ```
 
-## Lizenz
+### ⏱️ Timesheets
+Arbeitszeit erfassen und Reports erstellen.
 
-Privat / Blauweiss EDV e.U.
+```bash
+python cli.py timesheets log --project nemensis --hours 8 -d "Architecture review"
+python cli.py timesheets report --project nemensis --month 1
+```
+
+### 📊 Controlling
+Finanzübersicht, Forecasts, Exporte für Steuerberater.
+
+```bash
+python cli.py controlling summary --year 2025
+python cli.py controlling forecast --months 3
+```
+
+### 🧮 Tax
+UVA, EÜR, Dokumentensammlung fürs Finanzamt.
+
+```bash
+python cli.py tax uva --year 2025 --quarter 4
+python cli.py tax collect --year 2025
+```
+
+## 🔐 Credentials Setup
+
+### Google OAuth (Gmail, GDrive)
+```bash
+# credentials.json liegt bereits in config/google/
+# Beim ersten Aufruf öffnet sich der Browser für OAuth-Flow
+```
+
+### GCP Storage (S3-kompatibel)
+```bash
+# 1. GCP Console → Cloud Storage → Settings → Interoperability
+# 2. HMAC Key erstellen
+# 3. Speichern als config/storage/gcs-hmac.json
+```
+
+## 🐳 Docker
+
+```bash
+docker build -t freelancer-admin .
+docker run -p 8000:8000 freelancer-admin
+
+# Oder aus GitLab Registry:
+docker pull registry.gitlab.com/wolfram_laube/blauweiss_llc/freelancer-admin:latest
+```
+
+## 🔄 CI/CD
+
+Pipeline baut automatisch:
+- Python Wheel
+- Docker Image → GitLab Registry
+- Binaries (bei Tags)
+
+## 📜 Roadmap
+
+- [x] v1.0 - Applications Module (Bewerbungen)
+- [ ] v1.1 - Invoicing Migration (aus corporate/)
+- [ ] v1.2 - Timesheets Implementation
+- [ ] v1.3 - Controlling Basics
+- [ ] v2.0 - Web Portal (FastAPI + React)
+- [ ] v2.1 - Storage Integration (GCS/S3)
+- [ ] v3.0 - Mobile App? 🤔
+
+## 📄 Lizenz
+
+Privat / Blauweiss LLC
+
+---
+
+*Built with ☕ and 🪓 by a Viking Freelancer*
