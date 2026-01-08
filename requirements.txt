@@ -1,0 +1,18 @@
+# Google API
+google-auth-oauthlib>=1.0.0
+google-api-python-client>=2.100.0
+google-auth>=2.23.0
+
+# Utilities
+pyperclip>=1.8.2
+pyyaml>=6.0.1
+
+# Future Web UI
+# fastapi>=0.104.0
+# uvicorn>=0.24.0
+# jinja2>=3.1.2
+
+# Development
+pytest>=7.4.0
+black>=23.10.0
+flake8>=6.1.0

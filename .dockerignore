@@ -1,0 +1,48 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.py[cod]
+*.pyo
+*.egg-info
+dist/
+build/
+*.egg
+venv/
+.venv/
+ENV/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Testing
+.pytest_cache/
+htmlcov/
+.coverage
+.tox/
+
+# CI/CD
+.gitlab-ci.yml
+
+# Docs
+docs/
+*.md
+!README.md
+
+# Private/Sensitive (sollten eh nicht im Repo sein)
+config/credentials.json
+config/token.pickle
+attachments/*.pdf
+attachments/*.docx
+
+# Misc
+*.log
+.DS_Store
+*.tmp
+.env
+.env.local

@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bewerbung-tool"
+version = "1.0.0"
+description = "Automatisiertes Tool für Freelance-Bewerbungen"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "Private"}
+authors = [
+    {name = "Wolfram Laube", email = "wolfram.laube@blauweiss-edv.at"}
+]
+
+dependencies = [
+    "google-auth-oauthlib>=1.0.0",
+    "google-api-python-client>=2.100.0",
+    "google-auth>=2.23.0",
+    "pyperclip>=1.8.2",
+    "pyyaml>=6.0.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "black>=23.10.0",
+    "flake8>=6.1.0",
+]
+web = [
+    "fastapi>=0.104.0",
+    "uvicorn>=0.24.0",
+    "jinja2>=3.1.2",
+]
+
+[project.scripts]
+bewerbung = "src.bewerbung:main"
+
+[tool.black]
+line-length = 100
+target-version = ['py38', 'py39', 'py310', 'py311']
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,0 +1,51 @@
+# ══════════════════════════════════════════════════════════════
+# BEWERBUNGS-TOOL KONFIGURATION
+# ══════════════════════════════════════════════════════════════
+
+bewerber:
+  name: "Wolfram Laube"
+  telefon: "+43 664 4011521"
+  email: "wolfram.laube@blauweiss-edv.at"
+  stundensatz: 105
+  verfuegbarkeit: "Ab sofort"
+  remote: "100% Remote"
+
+# Team-Mitglieder für gemeinsame Bewerbungen
+team:
+  ian:
+    name: "Ian Matejka"
+    rolle: "AI/ML Engineer"
+    cv_de: "CV_Ian_Matejka_DE.pdf"
+    cv_en: "IanMatejkaCV1013MCM.pdf"
+  
+  michael:
+    name: "Michael Matejka"
+    rolle: "Business Development Executive"
+    cv_de: "CV_Michael_Matejka_DE.pdf"
+    cv_en: "Michael_Matejka_CV_102025.pdf"
+
+# Standard-Attachments (werden immer angehängt)
+attachments:
+  standard:
+    - "Profil_Laube_w_Summary_DE.pdf"
+    - "Studienerfolg_08900915_1.pdf"
+  
+  optional:
+    - "Profil_Laube_w_Summary_EN.pdf"
+    - "CV_Ian_Matejka_DE.pdf"
+    - "CV_Michael_Matejka_DE.pdf"
+    - "IanMatejkaCV1013MCM.pdf"
+    - "Michael_Matejka_CV_102025.pdf"
+
+# Pfade
+paths:
+  attachments: "./attachments"
+  templates: "./templates"
+  credentials: "./config/credentials.json"
+  token: "./config/token.pickle"
+
+# Signatur für E-Mails
+signatur: |
+  Mit freundlichen Grüßen,
+  Wolfram Laube
+  +43 664 4011521
