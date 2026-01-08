@@ -3,9 +3,9 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "bewerbung-tool"
-version = "1.0.0"
-description = "Automatisiertes Tool für Freelance-Bewerbungen"
+name = "freelancer-admin"
+version = "1.1.0"
+description = "Modulares Admin-Tool für Freelancer: Bewerbungen, Rechnungen, Timesheets"
 readme = "README.md"
 requires-python = ">=3.8"
 license = {text = "Private"}
@@ -32,9 +32,15 @@ web = [
     "uvicorn>=0.24.0",
     "jinja2>=3.1.2",
 ]
+storage = [
+    "boto3>=1.28.0",
+]
 
 [project.scripts]
-bewerbung = "src.bewerbung:main"
+freelancer-admin = "cli:main"
+
+[tool.setuptools.packages.find]
+include = ["modules*", "common*"]
 
 [tool.black]
 line-length = 100
