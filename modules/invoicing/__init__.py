@@ -1,5 +1,2 @@
-"""Invoice generation and management."""
-
-from .service import InvoiceService
-
-__all__ = ['InvoiceService']
+-e from .service import InvoiceService
+__all__ = ["InvoiceService"]
