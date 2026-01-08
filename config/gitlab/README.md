@@ -1,33 +1,16 @@
-# GitLab Credentials
+# GitLab Runner Tokens
 
-## Personal Access Token (PAT)
-Für API-Zugriff (Repo-Operationen, Commits, etc.)
+## Mac Runner
+**File:** `runner-mac.token`
+**Tags:** `shell, macos, local`
+**Usage:** `./scripts/setup-runner.sh`
 
-**Datei:** `pat.token`
+## GCP Runner  
+**File:** `runner-gcp.token`
+**Tags:** `shell, gcp, linux`
+**Usage:** `./scripts/setup-gcp-runner.sh`
 
-Erstellen: https://gitlab.com/-/user_settings/personal_access_tokens
-Scopes: `api`, `write_repository`
-
-## Runner Registration Token
-Für Runner-Registrierung auf Mac/GCP
-
-**Datei:** `runner.token`
-
-Holen: https://gitlab.com/wolfram_laube/blauweiss_llc/freelancer-admin/-/settings/ci_cd
-→ Runners → "New project runner"
-
-## Verwendung
-
-```bash
-# PAT für API calls
-export GITLAB_PAT=$(cat config/gitlab/pat.token)
-
-# Runner Setup
-./scripts/setup-runner.sh $(cat config/gitlab/runner.token)
-```
-
-## Revoken
-
-Falls kompromittiert:
-- PAT: https://gitlab.com/-/user_settings/personal_access_tokens → Revoke
-- Runner Token: GitLab UI → Runners → Reset registration token
+## Regenerating Tokens
+If compromised, regenerate at:
+https://gitlab.com/wolfram_laube/blauweiss_llc/freelancer-admin/-/settings/ci_cd
+→ Runners → Edit → Reset token
