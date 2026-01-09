@@ -75,7 +75,7 @@
   gutter: 1cm,
   [
     // Logo
-    #text(size: 24pt, fill: rgb("#1e5a99"), weight: "bold")[BLAUWEISS-EDV LLC]
+    #image("logo-blauweiss.png", width: 5cm)
   ],
   [
     // Company address on right

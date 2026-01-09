@@ -88,7 +88,7 @@ class InvoiceService:
     def _check_typst(self) -> bool:
         """Check if Typst is installed."""
         try:
-            subprocess.run(["typst", "--version"], capture_output=True, check=True)
+            subprocess.run(["/home/claude/typst", "--version"], capture_output=True, check=True)
             return True
         except (subprocess.CalledProcessError, FileNotFoundError):
             return False
@@ -206,9 +206,15 @@ class InvoiceService:
         
         typst_file.write_text(typst_content)
         
+        # Copy logo to output dir
+        import shutil
+        logo_src = self.templates_dir / "logo-blauweiss.png"
+        if logo_src.exists():
+            shutil.copy(logo_src, self.output_dir / "logo-blauweiss.png")
+        
         # Compile with Typst
         result = subprocess.run(
-            ["typst", "compile", "--font-path", str(self.templates_dir.parent / "fonts"), str(typst_file), str(pdf_file)],
+            ["/home/claude/typst", "compile", "--font-path", str(self.templates_dir.parent / "fonts"), str(typst_file), str(pdf_file)],
             capture_output=True,
             text=True,
             cwd=self.templates_dir,  # So it finds fonts and logo
