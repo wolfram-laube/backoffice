@@ -3,13 +3,6 @@
 # GCP GitLab Runner - Idempotent Bootstrap
 # ══════════════════════════════════════════════════════════════
 # Run on VM to ensure correct state. Safe to run multiple times.
-#
-# Usage (from Mac):
-#   gcloud compute ssh gitlab-runner --zone=europe-west3-a \
-#       --command="curl -sL https://gitlab.com/.../bootstrap.sh | sudo bash"
-#
-# Or copy to VM and run:
-#   sudo ./gcp-runner-bootstrap.sh [RUNNER_TOKEN]
 # ══════════════════════════════════════════════════════════════
 
 set -e
@@ -30,17 +23,14 @@ echo "📦 Installing system packages..."
 apt-get update -qq
 
 PACKAGES=(
-    # Python
     python3
     python3-venv
     python3-pip
     python3-dev
-    # Build tools
     build-essential
     git
     curl
     wget
-    # Docker dependencies
     ca-certificates
     gnupg
     lsb-release
@@ -67,7 +57,6 @@ else
     echo "   ✓ Docker already installed"
 fi
 
-# Ensure gitlab-runner user can use Docker
 if id gitlab-runner &>/dev/null; then
     usermod -aG docker gitlab-runner 2>/dev/null || true
 fi
@@ -89,12 +78,27 @@ else
 fi
 
 # ─────────────────────────────────────────────────────────────
-# 4. Register Runner (if token provided)
+# 4. Install as systemd service (AUTO-START ON BOOT!)
+# ─────────────────────────────────────────────────────────────
+echo "🔧 Installing gitlab-runner as systemd service..."
+
+if [ ! -f /etc/systemd/system/gitlab-runner.service ]; then
+    gitlab-runner install --user=gitlab-runner
+    echo "   ✓ Systemd service installed"
+else
+    echo "   ✓ Systemd service already exists"
+fi
+
+systemctl daemon-reload
+systemctl enable gitlab-runner
+systemctl start gitlab-runner
+
+# ─────────────────────────────────────────────────────────────
+# 5. Register Runner (if token provided)
 # ─────────────────────────────────────────────────────────────
 if [ -n "$RUNNER_TOKEN" ]; then
     echo "🔑 Registering runner..."
     
-    # Check if already registered
     if gitlab-runner list 2>&1 | grep -q "$RUNNER_NAME"; then
         echo "   ✓ Runner already registered"
     else
@@ -109,16 +113,13 @@ if [ -n "$RUNNER_TOKEN" ]; then
 fi
 
 # ─────────────────────────────────────────────────────────────
-# 5. Start Runner Service
+# 6. Restart to apply all changes
 # ─────────────────────────────────────────────────────────────
-echo "🚀 Starting runner service..."
-
-gitlab-runner start || true
-systemctl enable gitlab-runner
-systemctl start gitlab-runner
+echo "🔄 Restarting gitlab-runner service..."
+systemctl restart gitlab-runner
 
 # ─────────────────────────────────────────────────────────────
-# 6. Verify
+# 7. Verify
 # ─────────────────────────────────────────────────────────────
 echo ""
 echo "═══════════════════════════════════════════════════════════"
@@ -130,6 +131,9 @@ echo "  Python:        $(python3 --version 2>&1)"
 echo "  Docker:        $(docker --version 2>&1)"
 echo "  GitLab Runner: $(gitlab-runner --version 2>&1 | head -1)"
 echo ""
-echo "Runner status:"
+echo "Service status:"
+systemctl status gitlab-runner --no-pager | head -5
+echo ""
+echo "Registered runners:"
 gitlab-runner list
 echo ""
