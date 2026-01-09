@@ -52,7 +52,7 @@
 // === PAGE SETUP ===
 #set page(
   paper: "a4",
-  margin: (top: 2.5cm, bottom: 3cm, left: 2cm, right: 1.5cm),
+  margin: (top: 1.5cm, bottom: 1.5cm, left: 2cm, right: 1.5cm),
   footer: [
     #set text(size: 8pt, fill: gray)
     #line(length: 100%, stroke: 0.5pt + gray)
@@ -67,7 +67,7 @@
   ]
 )
 
-#set text(font: "Space Grotesk", size: 10pt)
+#set text(font: "Space Grotesk", size: 9pt)
 
 // === HEADER WITH LOGO ===
 #grid(
@@ -91,14 +91,14 @@
       #company_city \
       #company_country
       
-      #v(0.3cm)
+      #v(0.2cm)
       #text(fill: cyan)[#company_phone] \
       #text(fill: cyan)[#company_email]
     ]
   ]
 )
 
-#v(1cm)
+#v(0.2cm)
 
 // === CUSTOMER ADDRESS ===
 #customer_name \
@@ -108,7 +108,7 @@
 #customer_reg_nr \
 VAT ID: #customer_vat_id
 
-#v(1cm)
+#v(0.2cm)
 
 // === INVOICE TITLE ===
 #grid(
@@ -118,13 +118,13 @@ VAT ID: #customer_vat_id
   [#strong[Date:] #text(fill: cyan)[#invoice_date]],
 )
 
-#v(0.5cm)
+#v(0.2cm)
 
 // === BANK DETAILS NOTICE ===
 #box(
   width: 100%,
   fill: rgb("#fff3cd"),
-  inset: 8pt,
+  inset: 6pt,
   radius: 3pt,
 )[
   #text(size: 9pt)[
@@ -133,19 +133,19 @@ VAT ID: #customer_vat_id
   ]
 ]
 
-#v(0.5cm)
+#v(0.2cm)
 
 // === LETTER TEXT ===
 Dear Sir or Madam,
 
 With reference to project contract no. #strong[#project_nr], we hereby invoice the following services, enclosed with the service report:
 
-#v(0.3cm)
+#v(0.2cm)
 
 #box(
   width: 100%,
   fill: rgb("#f0f0f0"),
-  inset: 8pt,
+  inset: 6pt,
   radius: 3pt,
 )[
   #text(size: 9pt)[
@@ -154,7 +154,7 @@ With reference to project contract no. #strong[#project_nr], we hereby invoice t
   ]
 ]
 
-#v(0.5cm)
+#v(0.2cm)
 
 // === LINE ITEMS TABLE ===
 #let total = line_items.map(p => p.at(1) * p.at(3)).sum()
@@ -163,7 +163,7 @@ With reference to project contract no. #strong[#project_nr], we hereby invoice t
   columns: (2fr, 1fr, 1fr, 1fr),
   align: (left, right, right, right),
   stroke: 0.5pt + gray,
-  inset: 8pt,
+  inset: 6pt,
   
   // Header
   table.header(
@@ -186,14 +186,14 @@ With reference to project contract no. #strong[#project_nr], we hereby invoice t
   [*EUR #str(calc.round(total, digits: 2))*],
 )
 
-#v(0.3cm)
+#v(0.2cm)
 
 #text(size: 9pt, fill: gray)[
   No VAT charged – reverse charge applies, customer is liable for VAT \
   Customer VAT ID: #customer_vat_id
 ]
 
-#v(0.5cm)
+#v(0.2cm)
 
 // === PAYMENT TERMS ===
 We thank you for your trust and the good cooperation. Please remit the invoice amount to the bank account stated above according to the agreed payment terms.
@@ -201,17 +201,17 @@ We thank you for your trust and the good cooperation. Please remit the invoice a
 For this invoice:
 - #discount_text
 
-#v(1cm)
+#v(0.2cm)
 
 Kind regards,
 
-#v(1.5cm)
+#v(0.5cm)
 
 // Signature area
 #line(length: 5cm, stroke: 0.5pt + gray)
 #text(size: 8pt, fill: gray)[Authorized Signature]
 
-#v(0.5cm)
+#v(0.2cm)
 
 *Enclosure:*
 - Service Report
