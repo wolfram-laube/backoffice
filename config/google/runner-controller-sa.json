@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "myk8sproject-207017",
+  "private_key_id": "f3f115a190b4e47a7950c1503e858185899ab636",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEuwIBADANBgkqhkiG9w0BAQEFAASCBKUwggShAgEAAoIBAQCXBpsqIkkSqhiX\nfYaHIlQ4BFI6Vu/lUeBO7EsD4GJ2W67trilEuvI72dqfzGOnYUgcz2GEb3bqt0Lx\nuVzmBe8FdQmftJ38WaTEHqvS8gk2aRRCAgAj1ysNofMqRb0ZkvAWt6MOG2YLl7DV\nT3C63YsnOiMyhamhUkeL8WPG8xxmwxxndXWgWGlFsPJ30h2Yxa77jTQ7jKdUU3/Q\n92zFnBW/XV4z7bqSpTcrJeVcnE/PvQ96aJZ2ijbHfvzYPvCNEar57uQyQTi1KfOE\nbsSbJLX/b8QMS+C3ikPdo647WErqe0U5kempfdtIB1CC4HAx7iEgXi3xTPNlCGhU\nQ6zVyGuhAgMBAAECgf9D+sL4nVq92bdBMCiG60O9czR9zhr/4pZQXd54koMtOlej\nCVjKG7eI1Kbz4mMvyzovBs5+UuTUJo4JSX1VHwRX6+1tnuz+HCTb65b1M5iNadqC\nNyRP2RgoBjAXZMOZn1gOBkiRMQQCc9LpnwGaiQL56dFk5853nKh8YybmYexiQiRQ\n5WptI25UGAtYJscCSznX+QFlWHxqfrS30h+Fb8sUDr56NK556DHPRVmIxY/c4R4q\na6aNtLtRTh1HEia0lCXA6LnScTT/pbI/UK7SqOuWo4xHHsTC2RQE0bR84XPSbX61\n6w0swKKZNwush6iS6jW/xBhyTQ6ih5fRrB49OQECgYEAyJ3E0k6nQmX76zpXEshG\nuAkJ87zbn4jPWHYfuTdqBszpWUF338mXA6DbfDwOqqWXkKNhXoDY7hAzu+lCIFmh\nkHi+r8E7hWrezkDhAYEH85QWqJztQvUvbifMSXwaVmVYtk7UfwicPdwRUy4wJzop\nEZ1GontFEaQ12BjoFeZJ3WECgYEAwLgcRICAysA7ZoJuWsrxQIKYN2J/n8pKAI8c\nIWZP082cwn/DN86wwK+ecBDuOtLrlBVEUvROJWVKX5MNyslw078RtBtGnh45kxIZ\nAVtxjXY0qdemPTl3ot6nQDO5tEcyRzNzzJGvsar5hIAKWr+C5Ipnv6w2w/GVjty1\nB5nM9kECgYAbGAuj55F5SzK5sxhdZgT/B+F7NI9ovV5bcSCZsB02q+f78PaSl7Q4\nfjoGTkogy9prY1VcIQSrKi8Cet8+ZTyHuXbvX6Z9P1C2BFcfD+EWCXMB9Keqelic\nhO13IzafYnKXtI/IVE5doGIKnNtOAPHY+ie2+/T5C/dlpv95La/eIQKBgQCTkyiK\nSEDXgXa7G7v3qJovRRHcr399VAFxBiWLafZNAZE922oZLRxqoNDZjg1vXB5rihGE\n2HGS70qRf2E7XSAZ9aFP4ucjo4+BEIW3ZVfB9LeFK46wKXZ0cL1wS2u0IiTdIwhU\nqWb5zSw/C3FiZm6MJXQm8XAKgc9904KIrHyoQQKBgCAWFCRhuHz8tDfh89XqOj41\n2F/cn6VBqyXpWwBhW40IqaetIleOkCttt0Tx1kuugBDSGwPu6AoKaIaw5/qwb/ou\nTM7nKPdm1ls30yegkQ4mh85jCuq+QxTW4q0D2R5kCV12D9WkdDs9pPickKzj4ymh\nhSKQmFneFPOSXNfkPgbF\n-----END PRIVATE KEY-----\n",
+  "client_email": "gitlab-runner-controller@myk8sproject-207017.iam.gserviceaccount.com",
+  "client_id": "114799658136408013427",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/gitlab-runner-controller%40myk8sproject-207017.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}
