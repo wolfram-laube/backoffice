@@ -128,12 +128,11 @@ class InvoiceService:
             replacement = f'#let {key} = {value}'
             content = re.sub(pattern, replacement, content)
         
-        # Replace line items
+        # Replace line items (handle nested parentheses)
         content = re.sub(
-            r'#let line_items = \([^)]+\)',
-            f'#let line_items = (\n  {items_typst},\n)',
-            content,
-            flags=re.DOTALL
+            r'#let line_items = \([\s\S]*?\n\)',
+            f'#let line_items = (\n  {items_typst}\n)',
+            content
         )
         
         return content
