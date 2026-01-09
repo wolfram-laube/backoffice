@@ -67,7 +67,7 @@
   ]
 )
 
-#set text(font: "Helvetica Neue", size: 10pt)
+#set text(font: "Space Grotesk", size: 10pt)
 
 // === HEADER WITH LOGO ===
 #grid(
