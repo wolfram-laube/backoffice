@@ -208,7 +208,7 @@ class InvoiceService:
         
         # Compile with Typst
         result = subprocess.run(
-            ["typst", "compile", str(typst_file), str(pdf_file)],
+            ["typst", "compile", "--font-path", str(self.templates_dir.parent / "fonts"), str(typst_file), str(pdf_file)],
             capture_output=True,
             text=True,
             cwd=self.templates_dir,  # So it finds fonts and logo
