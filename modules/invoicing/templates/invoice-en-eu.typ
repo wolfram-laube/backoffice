@@ -67,7 +67,7 @@
   ]
 )
 
-#set text(font: "Inter", size: 10pt)
+#set text(font: "Helvetica Neue", size: 10pt)
 
 // === HEADER WITH LOGO ===
 #grid(
@@ -75,7 +75,7 @@
   gutter: 1cm,
   [
     // Logo
-    #image("logo-blauweiss.png", width: 6cm)
+    #text(size: 24pt, fill: rgb("#1e5a99"), weight: "bold")[BLAUWEISS-EDV LLC]
   ],
   [
     // Company address on right
