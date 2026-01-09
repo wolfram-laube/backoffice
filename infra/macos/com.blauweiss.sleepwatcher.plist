@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.blauweiss.sleepwatcher</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/local/opt/sleepwatcher/sbin/sleepwatcher</string>
+        <string>-V</string>
+        <string>-s</string>
+        <string>/Users/wolfram_e_laube/.runner-sleep</string>
+        <string>-w</string>
+        <string>/Users/wolfram_e_laube/.runner-wake</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+</dict>
+</plist>
