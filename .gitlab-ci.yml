@@ -4,10 +4,6 @@ stages:
   - build
   - deploy
 
-# Default tags
-default:
-  tags: [shell, macos]
-
 # ═══════════════════════════════════════════════════════════════
 # LINTING
 # ═══════════════════════════════════════════════════════════════
@@ -62,7 +58,6 @@ build:wheel:
 
 invoice:generate:
   stage: build
-  tags: [shell]
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
       changes:
