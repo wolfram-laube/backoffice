@@ -253,3 +253,44 @@ pages:
   needs:
     - job: test:unit
       optional: true
+
+# ═══════════════════════════════════════════════════════════════
+# INVOICE GENERATION
+# ═══════════════════════════════════════════════════════════════
+
+invoice:generate:
+  stage: build
+  tags: [shell]
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      changes:
+        - timesheets/**/*.yaml
+        - timesheets/**/*.yml
+  before_script:
+    - pip install pyyaml --break-system-packages -q || pip install pyyaml -q
+  script:
+    - echo "🧾 Generating invoice packages from timesheets..."
+    - mkdir -p invoices
+    - |
+      for timesheet in $(git diff --name-only HEAD~1 HEAD 2>/dev/null | grep -E 'timesheets/.*\.ya?ml$' || ls timesheets/*.yaml 2>/dev/null); do
+        if [ -f "$timesheet" ]; then
+          echo "📄 Processing: $timesheet"
+          python3 -c "
+import sys
+sys.path.insert(0, '.')
+from pathlib import Path
+from modules.timesheets.service import timesheet_to_invoice_package
+try:
+    invoice, report = timesheet_to_invoice_package(Path('$timesheet'), Path('invoices'))
+    print(f'✅ Generated: {invoice.name}, {report.name}')
+except Exception as e:
+    print(f'❌ Error: {e}')
+"
+        fi
+      done
+    - ls -la invoices/ || echo "No invoices generated"
+  artifacts:
+    paths:
+      - invoices/*.pdf
+    expire_in: 90 days
+    when: always
