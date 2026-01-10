@@ -1,5 +1,6 @@
 # Timesheet: Krongaard AG - Januar 2026
 # =====================================
+# Updated: Pipeline Test
 
 customer:
   name: "Krongaard AG"
@@ -26,5 +27,5 @@ entries:
     hours: 8
     description: "Code Review & Documentation"
   - date: 2026-01-10
-    hours: 4
+    hours: 5
     description: "Invoice Automation System"
