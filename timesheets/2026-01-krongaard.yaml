@@ -1,5 +1,5 @@
 # Timesheet: Krongaard AG - Januar 2026
-# =====================================
+# Final version
 
 customer:
   name: "Krongaard AG"
@@ -28,3 +28,4 @@ entries:
   - date: 2026-01-10
     hours: 6
     description: "Invoice Automation System"
+  # Total: 35.5 hrs = EUR 3,727.50
