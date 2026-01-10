@@ -67,6 +67,15 @@ invoice:generate:
       when: manual
   before_script:
     - pip install pyyaml --break-system-packages -q 2>/dev/null || pip install pyyaml -q
+    - |
+      if ! command -v typst &> /dev/null; then
+        echo "Installing Typst..."
+        curl -L -o /tmp/typst.tar.xz https://github.com/typst/typst/releases/download/v0.12.0/typst-x86_64-unknown-linux-musl.tar.xz
+        cd /tmp && tar -xf typst.tar.xz
+        sudo mv typst-x86_64-unknown-linux-musl/typst /usr/local/bin/ 2>/dev/null || mv typst-x86_64-unknown-linux-musl/typst ~/bin/
+        export PATH="$HOME/bin:$PATH"
+      fi
+      typst --version
   script:
     - python3 scripts/generate-invoices.py
   artifacts:
