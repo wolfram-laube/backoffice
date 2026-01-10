@@ -1,0 +1,27 @@
+# Timesheet: Krongaard AG - Januar 2026
+# =====================================
+
+customer:
+  name: "Krongaard AG"
+  address: "Königstraße 10"
+  city: "20095 Hamburg"
+  country: "Germany"
+  vat_id: "DE287315258"
+
+project_nr: "KRO-2026-001"
+period: "January 2026"
+rate: 105.00
+
+entries:
+  - date: 2026-01-06
+    hours: 8
+    description: "Kubernetes Migration"
+  - date: 2026-01-07
+    hours: 6.5
+    description: "CI/CD Pipeline Setup"
+  - date: 2026-01-08
+    hours: 7
+    description: "Kubernetes Migration"
+  - date: 2026-01-09
+    hours: 8
+    description: "Code Review & Documentation"
