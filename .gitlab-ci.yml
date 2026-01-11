@@ -1,63 +1,106 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+#  BLAUWEISS PORTAL - CI/CD PIPELINE
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+#  Runner-Strategie:
+#  ─────────────────
+#  • Standard Jobs (lint, test, build) → GitLab Shared Runners (free, Docker)
+#  • Deploy Jobs (Cloud Run, K8s)      → Eigene Runner (Mac/GCP, shell)
+#  • K8s Showcase                      → GCP Runner mit k3s
+#
+#  Tags:
+#  ─────
+#  • (none)     → Shared Runner (Docker)
+#  • [deploy]   → Mac oder GCP (shell, für gcloud/kubectl)
+#  • [k8s]      → Nur GCP (hat k3s installiert)
+#  • [mac]      → Nur Mac (wenn spezifisch nötig)
+#
+# ═══════════════════════════════════════════════════════════════════════════════
+
 stages:
   - lint
   - test
   - build
   - deploy
 
-# ═══════════════════════════════════════════════════════════════
-# LINTING
-# ═══════════════════════════════════════════════════════════════
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  LINTING - Shared Runners (Docker)
+# ═══════════════════════════════════════════════════════════════════════════════
 
 lint:flake8:
   stage: lint
+  image: python:3.11-slim
   script:
-    - pip install flake8 -q --break-system-packages 2>/dev/null || pip install flake8 -q
+    - pip install flake8 -q
     - flake8 modules/ --max-line-length=120 --ignore=E501,W503 || true
   allow_failure: true
 
 lint:black:
   stage: lint
+  image: python:3.11-slim
   script:
-    - pip install black -q --break-system-packages 2>/dev/null || pip install black -q
+    - pip install black -q
     - black --check modules/ || true
   allow_failure: true
 
-# ═══════════════════════════════════════════════════════════════
-# TESTING
-# ═══════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════════
+#  TESTING - Shared Runners (Docker)
+# ═══════════════════════════════════════════════════════════════════════════════
 
 test:syntax:
   stage: test
+  image: python:3.11-slim
   script:
-    - python3 -m py_compile modules/**/*.py || find modules -name "*.py" -exec python3 -m py_compile {} \;
+    - find modules -name "*.py" -exec python -m py_compile {} \;
 
 test:imports:
   stage: test
+  image: python:3.11-slim
   script:
-    - python3 -c "from modules.applications import ApplicationService" || true
-    - python3 -c "from modules.invoicing import InvoiceService" || true
+    - pip install pyyaml -q
+    - python -c "from modules.invoicing import InvoiceService" || true
 
-# ═══════════════════════════════════════════════════════════════
-# BUILD
-# ═══════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════════
+#  BUILD - Shared Runners (Docker)
+# ═══════════════════════════════════════════════════════════════════════════════
 
-build:wheel:
+build:backend:
   stage: build
+  image: docker:24
+  services:
+    - docker:24-dind
+  variables:
+    DOCKER_TLS_CERTDIR: "/certs"
+  before_script:
+    - echo "$GCP_SA_KEY" > /tmp/sa-key.json
+    - cat /tmp/sa-key.json | docker login -u _json_key --password-stdin https://gcr.io
   script:
-    - pip install build -q --break-system-packages 2>/dev/null || pip install build -q
-    - python3 -m build --wheel 2>/dev/null || echo "No pyproject.toml yet"
-  artifacts:
-    paths:
-      - dist/*.whl
-    expire_in: 7 days
-  allow_failure: true
+    - |
+      if [ -f "backend/Dockerfile" ]; then
+        docker build -t gcr.io/myk8sproject-207017/blauweiss-api:$CI_COMMIT_SHA ./backend
+        docker push gcr.io/myk8sproject-207017/blauweiss-api:$CI_COMMIT_SHA
+        docker tag gcr.io/myk8sproject-207017/blauweiss-api:$CI_COMMIT_SHA gcr.io/myk8sproject-207017/blauweiss-api:latest
+        docker push gcr.io/myk8sproject-207017/blauweiss-api:latest
+        echo "✅ Backend image pushed"
+      else
+        echo "⏭️ No backend/Dockerfile yet"
+      fi
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+      changes:
+        - backend/**/*
+    - if: $CI_COMMIT_MESSAGE =~ /\[build\]/
 
-# ═══════════════════════════════════════════════════════════════
-# INVOICE GENERATION (triggered by timesheet changes)
-# ═══════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════════
+#  INVOICE GENERATION - Shell Runner (braucht Typst)
+# ═══════════════════════════════════════════════════════════════════════════════
 
 invoice:generate:
   stage: build
+  tags: [deploy]  # Mac oder GCP - beide haben shell
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
       changes:
@@ -68,13 +111,12 @@ invoice:generate:
     - |
       if ! command -v typst &> /dev/null; then
         echo "Installing Typst..."
-        curl -L -o /tmp/typst.tar.xz https://github.com/typst/typst/releases/download/v0.12.0/typst-x86_64-unknown-linux-musl.tar.xz 2>/dev/null
+        curl -sL -o /tmp/typst.tar.xz https://github.com/typst/typst/releases/download/v0.12.0/typst-x86_64-unknown-linux-musl.tar.xz
         cd /tmp && tar -xf typst.tar.xz
         mkdir -p $HOME/bin
-        mv typst-x86_64-unknown-linux-musl/typst $HOME/bin/
+        mv typst-x86_64-unknown-linux-musl/typst $HOME/bin/ 2>/dev/null || mv typst-*/typst $HOME/bin/
         export PATH="$HOME/bin:$PATH"
       fi
-      typst --version || echo "Typst not available on this runner"
   script:
     - export PATH="$HOME/bin:$PATH"
     - mkdir -p invoices
@@ -85,254 +127,136 @@ invoice:generate:
     expire_in: 90 days
   allow_failure: true
 
-# ═══════════════════════════════════════════════════════════════
-# K8S INFRASTRUCTURE
-# ═══════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════════
+#  DEPLOY: CLOUD RUN (Production) - Shell Runner
+# ═══════════════════════════════════════════════════════════════════════════════
 
-# Einmaliges Setup - manuell triggern
-k8s:setup-gcp:
+deploy:cloudrun:
   stage: deploy
+  tags: [deploy]  # Mac oder GCP
   rules:
-    - if: $CI_PIPELINE_SOURCE == "web"
+    - if: $CI_COMMIT_BRANCH == "main"
+      changes:
+        - backend/**/*
+    - if: $CI_COMMIT_MESSAGE =~ /\[deploy\]/
       when: manual
-    - if: $CI_COMMIT_MESSAGE =~ /\[k8s-setup\]/
-  variables:
-    GCP_VM: "gitlab-runner"
-    GCP_ZONE: "europe-west3-a"
-    GCP_PROJECT: "myk8sproject-207017"
   before_script:
-    - |
-      echo "$GCP_SA_KEY" > /tmp/sa-key.json
-      gcloud auth activate-service-account --key-file=/tmp/sa-key.json
-      gcloud config set project $GCP_PROJECT
+    - echo "$GCP_SA_KEY" > /tmp/sa-key.json
+    - gcloud auth activate-service-account --key-file=/tmp/sa-key.json
+    - gcloud config set project myk8sproject-207017
   script:
     - |
-      echo "☸️ K8s Setup auf GCP"
-      echo "════════════════════════════════════════════"
+      echo "🚀 Deploying to Cloud Run..."
       
-      # 1. VM starten falls nicht running
-      VM_STATUS=$(gcloud compute instances describe $GCP_VM --zone=$GCP_ZONE --format='get(status)' 2>/dev/null || echo "UNKNOWN")
-      if [ "$VM_STATUS" != "RUNNING" ]; then
-        echo "🚀 Starte GCP VM..."
-        gcloud compute instances start $GCP_VM --zone=$GCP_ZONE --quiet
-        sleep 60
-      fi
-      
-      EXTERNAL_IP=$(gcloud compute instances describe $GCP_VM --zone=$GCP_ZONE --format='get(networkInterfaces[0].accessConfigs[0].natIP)')
-      echo "🌐 IP: $EXTERNAL_IP"
-      
-      # 2. k3s installieren (idempotent)
-      echo "☸️ k3s Setup..."
-      gcloud compute ssh $GCP_VM --zone=$GCP_ZONE --quiet --command="
-        if ! command -v k3s &> /dev/null; then
-          echo 'Installing k3s...'
-          curl -sfL https://get.k3s.io | sh -s - \
-            --write-kubeconfig-mode 644 \
-            --disable traefik \
-            --disable servicelb \
-            --tls-san $EXTERNAL_IP
-          sleep 15
-          mkdir -p ~/.kube
-          sudo cp /etc/rancher/k3s/k3s.yaml ~/.kube/config
-          sudo chown \$(id -u):\$(id -g) ~/.kube/config
-          
-          # Ingress-Nginx
-          kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.9.4/deploy/static/provider/baremetal/deploy.yaml
-          kubectl create namespace blauweiss --dry-run=client -o yaml | kubectl apply -f -
-        else
-          echo 'k3s already installed'
-        fi
-        kubectl get nodes
-      "
-      
-      # 3. GitLab Secret erstellen
-      echo "🔑 GitLab Secret..."
-      gcloud compute ssh $GCP_VM --zone=$GCP_ZONE --quiet --command="
-        kubectl create secret generic gitlab-credentials \
-          --namespace=blauweiss \
-          --from-literal=GITLAB_TOKEN='$GITLAB_TOKEN' \
-          --from-literal=GITLAB_PROJECT_ID='$CI_PROJECT_ID' \
-          --dry-run=client -o yaml | kubectl apply -f -
-      "
-      
-      # 4. Manifests deployen
-      echo "🚀 Deploy Manifests..."
-      gcloud compute ssh $GCP_VM --zone=$GCP_ZONE --quiet --command="
-        kubectl apply -f https://gitlab.com/wolfram_laube/blauweiss_llc/freelancer-admin/-/raw/main/infra/k8s/00-namespace.yaml
-        kubectl apply -f https://gitlab.com/wolfram_laube/blauweiss_llc/freelancer-admin/-/raw/main/infra/k8s/02-configmap-frontend.yaml
-        kubectl apply -f https://gitlab.com/wolfram_laube/blauweiss_llc/freelancer-admin/-/raw/main/infra/k8s/10-timesheet-api.yaml
-        kubectl apply -f https://gitlab.com/wolfram_laube/blauweiss_llc/freelancer-admin/-/raw/main/infra/k8s/11-timesheet-frontend.yaml
-        kubectl apply -f https://gitlab.com/wolfram_laube/blauweiss_llc/freelancer-admin/-/raw/main/infra/k8s/20-ingress.yaml
+      if gcloud run services describe blauweiss-api --region=europe-west1 &>/dev/null; then
+        gcloud run deploy blauweiss-api \
+          --image gcr.io/myk8sproject-207017/blauweiss-api:$CI_COMMIT_SHA \
+          --region europe-west1 \
+          --platform managed \
+          --allow-unauthenticated
         
-        echo ''
-        echo '📦 Pods:'
-        kubectl get pods -n blauweiss
-        echo ''
-        echo '🌐 Services:'
-        kubectl get svc -n blauweiss
-      "
-      
-      echo ""
-      echo "════════════════════════════════════════════"
-      echo "✅ K8s Setup Complete!"
-      echo "🌐 Portal: http://$EXTERNAL_IP:30080"
-      echo "════════════════════════════════════════════"
+        URL=$(gcloud run services describe blauweiss-api --region=europe-west1 --format='value(status.url)')
+        echo "✅ Deployed: $URL"
+      else
+        echo "⏭️ Cloud Run service not yet created"
+        echo "   Run: gcloud run deploy blauweiss-api --image gcr.io/myk8sproject-207017/blauweiss-api:latest --region europe-west1"
+      fi
 
-# Auto-Deploy bei Manifest-Änderungen
-k8s:deploy:
+# ═══════════════════════════════════════════════════════════════════════════════
+#  DEPLOY: K8s SHOWCASE - GCP Runner mit k3s
+# ═══════════════════════════════════════════════════════════════════════════════
+
+deploy:k8s:
   stage: deploy
+  tags: [k8s]  # Nur GCP Runner (hat k3s)
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
       changes:
         - infra/k8s/**/*
-        - portal/frontend/**/*
+        - backend/**/*
+        - portal/**/*
+    - if: $CI_COMMIT_MESSAGE =~ /\[k8s-deploy\]/
   script:
     - |
-      echo "🚀 K8s Deploy (Manifest Update)"
+      export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
       
-      # GCP Auth
-      echo "$GCP_SA_KEY" > /tmp/sa-key.json
-      gcloud auth activate-service-account --key-file=/tmp/sa-key.json
+      echo "☸️ Deploying to K8s Showcase..."
       
-      # Deploy auf GCP k3s
-      gcloud compute ssh gitlab-runner --zone=europe-west3-a --quiet --command="
-        kubectl apply -f https://gitlab.com/wolfram_laube/blauweiss_llc/freelancer-admin/-/raw/main/infra/k8s/ --recursive 2>/dev/null || true
-        kubectl rollout restart deployment -n blauweiss 2>/dev/null || true
-        kubectl get pods -n blauweiss
-      " || echo "GCP deploy skipped (VM might be off)"
+      # Manifests anwenden
+      kubectl apply -f infra/k8s/all-in-one.yaml
+      
+      # Secret aktualisieren
+      kubectl create secret generic gitlab-credentials \
+        --namespace=blauweiss \
+        --from-literal=GITLAB_TOKEN="$GITLAB_TOKEN" \
+        --from-literal=GITLAB_PROJECT_ID="$CI_PROJECT_ID" \
+        --dry-run=client -o yaml | kubectl apply -f -
+      
+      # Rollout
+      kubectl rollout restart deployment -n blauweiss 2>/dev/null || true
+      
+      echo ""
+      echo "📦 Pods:"
+      kubectl get pods -n blauweiss
+      
+      EXTERNAL_IP=$(curl -s ifconfig.me)
+      echo ""
+      echo "═══════════════════════════════════════"
+      echo "✅ K8s Showcase: http://$EXTERNAL_IP:30080"
+      echo "═══════════════════════════════════════"
 
-# ═══════════════════════════════════════════════════════════════
-# PAGES (Timesheet App + Documentation)
-# ═══════════════════════════════════════════════════════════════
+# K8s Setup - einmalig oder bei Infrastruktur-Änderungen
+k8s:setup:
+  stage: deploy
+  tags: [k8s]
+  rules:
+    - if: $CI_COMMIT_MESSAGE =~ /\[k8s-setup\]/
+    - when: manual
+  script:
+    - |
+      export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+      
+      echo "☸️ K8s Setup..."
+      
+      # Ingress-Nginx installieren
+      kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.9.4/deploy/static/provider/baremetal/deploy.yaml
+      
+      sleep 30
+      
+      # NodePort auf 30080
+      kubectl patch svc ingress-nginx-controller -n ingress-nginx --type=json \
+        -p='[{"op": "replace", "path": "/spec/ports/0/nodePort", "value": 30080}]' || true
+      
+      # Namespace
+      kubectl create namespace blauweiss --dry-run=client -o yaml | kubectl apply -f -
+      
+      echo "✅ K8s Setup complete"
+      kubectl get nodes
+      kubectl get pods -n ingress-nginx
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  PAGES - Shared Runner (statisches Frontend)
+# ═══════════════════════════════════════════════════════════════════════════════
 
 pages:
   stage: deploy
+  image: node:20-slim
   script:
-    - mkdir -p public
-    - cp public/timesheet.html public/index.html 2>/dev/null || echo "<h1>Freelancer Admin</h1>" > public/index.html
+    - |
+      mkdir -p public
+      
+      # Frontend bauen wenn vorhanden
+      if [ -d "frontend" ] && [ -f "frontend/package.json" ]; then
+        cd frontend
+        npm ci
+        npm run build
+        mv dist/* ../public/
+      else
+        # Fallback: statische Files kopieren
+        cp portal/frontend/index.html public/index.html 2>/dev/null || echo "<h1>Blauweiss Portal</h1>" > public/index.html
+      fi
   artifacts:
     paths:
       - public
   only:
     - main
-
-
-# Quick deploy job mit korrektem Auth
-
-# Simpler deploy - keine Shell-Escaping Probleme
-
-# Smart deploy - erkennt ob Mac oder GCP
-k8s:smart-deploy:
-  stage: deploy
-  rules:
-    - if: $CI_COMMIT_MESSAGE =~ /\[k8s-deploy\]/
-  script:
-    - |
-      echo "🔍 Erkenne Runner..."
-      HOSTNAME=$(hostname)
-      echo "   Hostname: $HOSTNAME"
-      
-      if [[ "$HOSTNAME" == "gitlab-runner" ]]; then
-        echo "☁️ Läuft auf GCP - direkt deployen"
-        export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
-        
-        kubectl apply -f infra/k8s/all-in-one.yaml
-        
-        kubectl create secret generic gitlab-credentials \
-          --namespace=blauweiss \
-          --from-literal=GITLAB_TOKEN="$GITLAB_TOKEN" \
-          --from-literal=GITLAB_PROJECT_ID="77555895" \
-          --dry-run=client -o yaml | kubectl apply -f -
-        
-        echo ""
-        echo "📦 Pods:"
-        kubectl get pods -n blauweiss -o wide
-        echo ""
-        echo "🌐 Services:"
-        kubectl get svc -n blauweiss
-        
-        # IP ausgeben
-        EXTERNAL_IP=$(curl -s ifconfig.me)
-        echo ""
-        echo "═══════════════════════════════════════"
-        echo "✅ Portal: http://$EXTERNAL_IP:30080"
-        echo "═══════════════════════════════════════"
-        
-      else
-        echo "🍎 Läuft auf Mac - SSH zu GCP"
-        echo "$GCP_SA_KEY" > /tmp/sa-key.json
-        gcloud auth activate-service-account --key-file=/tmp/sa-key.json
-        
-        cat infra/k8s/all-in-one.yaml | gcloud compute ssh gitlab-runner --zone=europe-west3-a --quiet --command="
-          export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
-          cat > /tmp/manifests.yaml
-          kubectl apply -f /tmp/manifests.yaml
-          kubectl create secret generic gitlab-credentials --namespace=blauweiss --from-literal=GITLAB_TOKEN='$GITLAB_TOKEN' --from-literal=GITLAB_PROJECT_ID='77555895' --dry-run=client -o yaml | kubectl apply -f -
-          echo ''
-          kubectl get pods -n blauweiss
-          kubectl get svc -n blauweiss
-        "
-      fi
-
-k8s:fix-ingress:
-  stage: deploy
-  rules:
-    - if: $CI_COMMIT_MESSAGE =~ /\[fix-ingress\]/
-  script:
-    - |
-      export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
-      
-      echo "🌐 Installing Ingress-Nginx..."
-      kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.9.4/deploy/static/provider/baremetal/deploy.yaml
-      
-      echo "⏳ Waiting for Ingress Controller..."
-      sleep 30
-      
-      echo "🔧 Patching NodePort to 30080..."
-      kubectl patch svc ingress-nginx-controller -n ingress-nginx --type=json \
-        -p='[{"op": "replace", "path": "/spec/ports/0/nodePort", "value": 30080}]' || true
-      
-      echo ""
-      echo "📋 Ingress-Nginx Status:"
-      kubectl get pods -n ingress-nginx
-      kubectl get svc -n ingress-nginx
-      
-      echo ""
-      echo "📦 Blauweiss Pods:"
-      kubectl get pods -n blauweiss
-      
-      EXTERNAL_IP=$(curl -s ifconfig.me)
-      echo ""
-      echo "✅ Portal: http://$EXTERNAL_IP:30080"
-
-k8s:open-port:
-  stage: deploy
-  rules:
-    - if: $CI_COMMIT_MESSAGE =~ /\[open-port\]/
-  script:
-    - |
-      echo "🔓 Opening port 30080..."
-      
-      # GCP Firewall via gcloud (falls Rechte vorhanden)
-      gcloud compute firewall-rules create allow-k8s-portal \
-        --allow tcp:30080,tcp:80,tcp:443 \
-        --source-ranges=0.0.0.0/0 \
-        --description="K8s Portal" \
-        --project=myk8sproject-207017 2>/dev/null || echo "Firewall rule exists or no permission"
-      
-      # Alternative: Check ob Port erreichbar
-      EXTERNAL_IP=$(curl -s ifconfig.me)
-      echo "🌐 External IP: $EXTERNAL_IP"
-      
-      # Local test
-      echo "🧪 Local test..."
-      curl -s --connect-timeout 5 http://localhost:30080 | head -5 || echo "Port 30080 not responding locally"
-      
-      # Ingress-Nginx NodePort checken
-      export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
-      echo ""
-      echo "📋 Ingress-Nginx Service:"
-      kubectl get svc -n ingress-nginx ingress-nginx-controller -o wide
-      
-      echo ""
-      echo "🌐 Try: http://$EXTERNAL_IP:30080"
