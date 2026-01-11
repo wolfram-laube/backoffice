@@ -215,3 +215,38 @@ pages:
       - public
   only:
     - main
+
+
+# Quick deploy job mit korrektem Auth
+k8s:deploy-manifests:
+  stage: deploy
+  rules:
+    - if: $CI_COMMIT_MESSAGE =~ /\[k8s-deploy\]/
+  script:
+    - |
+      echo "🚀 K8s Manifest Deploy"
+      echo "$GCP_SA_KEY" > /tmp/sa-key.json
+      gcloud auth activate-service-account --key-file=/tmp/sa-key.json
+      
+      gcloud compute ssh gitlab-runner --zone=europe-west3-a --quiet --command="
+        export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+        
+        # Namespace + Secret
+        kubectl create namespace blauweiss --dry-run=client -o yaml | kubectl apply -f -
+        kubectl create secret generic gitlab-credentials \
+          --namespace=blauweiss \
+          --from-literal=GITLAB_TOKEN='$GITLAB_TOKEN' \
+          --from-literal=GITLAB_PROJECT_ID='77555895' \
+          --dry-run=client -o yaml | kubectl apply -f -
+        
+        # Manifests via API
+        for f in 02-configmap-frontend 10-timesheet-api 11-timesheet-frontend 20-ingress; do
+          curl -sH 'PRIVATE-TOKEN: $GITLAB_TOKEN' \
+            "https://gitlab.com/api/v4/projects/77555895/repository/files/infra%2Fk8s%2F\${f}.yaml/raw?ref=main" \
+            | kubectl apply -f - || echo "Warning: \$f"
+        done
+        
+        echo ''
+        kubectl get pods -n blauweiss -o wide
+        kubectl get svc -n blauweiss
+      "
