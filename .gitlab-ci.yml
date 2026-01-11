@@ -99,3 +99,128 @@ pages:
       - public
   only:
     - main
+# ═══════════════════════════════════════════════════════════════
+# K8S INFRASTRUCTURE JOBS
+# ═══════════════════════════════════════════════════════════════
+
+# Manuell triggerbarer Job für k3s Setup
+k8s:setup-gcp:
+  stage: deploy
+  tags: [shell]  # Läuft auf Mac oder GCP Runner
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "web"
+      when: manual
+    - if: $CI_COMMIT_MESSAGE =~ /\[k8s-setup\]/
+  variables:
+    GCP_VM: "gitlab-runner"
+    GCP_ZONE: "europe-west3-a"
+    GCP_PROJECT: "myk8sproject-207017"
+  before_script:
+    - |
+      # GCP Auth via Service Account
+      echo "$GCP_SA_KEY" > /tmp/sa-key.json
+      gcloud auth activate-service-account --key-file=/tmp/sa-key.json
+      gcloud config set project $GCP_PROJECT
+  script:
+    - |
+      echo "☸️ K8s Setup auf GCP"
+      echo "════════════════════════════════════════════"
+      
+      # 1. VM starten falls nicht running
+      VM_STATUS=$(gcloud compute instances describe $GCP_VM --zone=$GCP_ZONE --format='get(status)' 2>/dev/null || echo "UNKNOWN")
+      if [ "$VM_STATUS" != "RUNNING" ]; then
+        echo "🚀 Starte GCP VM..."
+        gcloud compute instances start $GCP_VM --zone=$GCP_ZONE --quiet
+        sleep 60
+      fi
+      
+      EXTERNAL_IP=$(gcloud compute instances describe $GCP_VM --zone=$GCP_ZONE --format='get(networkInterfaces[0].accessConfigs[0].natIP)')
+      echo "🌐 IP: $EXTERNAL_IP"
+      
+      # 2. k3s installieren (idempotent)
+      echo "☸️ k3s Setup..."
+      gcloud compute ssh $GCP_VM --zone=$GCP_ZONE --quiet --command="
+        if ! command -v k3s &> /dev/null; then
+          echo 'Installing k3s...'
+          curl -sfL https://get.k3s.io | sh -s - \
+            --write-kubeconfig-mode 644 \
+            --disable traefik \
+            --disable servicelb \
+            --tls-san $EXTERNAL_IP
+          sleep 15
+          mkdir -p ~/.kube
+          sudo cp /etc/rancher/k3s/k3s.yaml ~/.kube/config
+          sudo chown \$(id -u):\$(id -g) ~/.kube/config
+          
+          # Ingress-Nginx
+          kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.9.4/deploy/static/provider/baremetal/deploy.yaml
+          kubectl create namespace blauweiss --dry-run=client -o yaml | kubectl apply -f -
+        else
+          echo 'k3s already installed'
+        fi
+        kubectl get nodes
+      "
+      
+      # 3. GitLab Secret erstellen
+      echo "🔑 GitLab Secret..."
+      gcloud compute ssh $GCP_VM --zone=$GCP_ZONE --quiet --command="
+        kubectl create secret generic gitlab-credentials \
+          --namespace=blauweiss \
+          --from-literal=GITLAB_TOKEN='$GITLAB_TOKEN' \
+          --from-literal=GITLAB_PROJECT_ID='$CI_PROJECT_ID' \
+          --dry-run=client -o yaml | kubectl apply -f -
+      "
+      
+      # 4. Manifests deployen
+      echo "🚀 Deploy Manifests..."
+      gcloud compute ssh $GCP_VM --zone=$GCP_ZONE --quiet --command="
+        kubectl apply -f https://gitlab.com/wolfram_laube/blauweiss_llc/freelancer-admin/-/raw/main/infra/k8s/00-namespace.yaml
+        kubectl apply -f https://gitlab.com/wolfram_laube/blauweiss_llc/freelancer-admin/-/raw/main/infra/k8s/02-configmap-frontend.yaml
+        kubectl apply -f https://gitlab.com/wolfram_laube/blauweiss_llc/freelancer-admin/-/raw/main/infra/k8s/10-timesheet-api.yaml
+        kubectl apply -f https://gitlab.com/wolfram_laube/blauweiss_llc/freelancer-admin/-/raw/main/infra/k8s/11-timesheet-frontend.yaml
+        kubectl apply -f https://gitlab.com/wolfram_laube/blauweiss_llc/freelancer-admin/-/raw/main/infra/k8s/20-ingress.yaml
+        
+        echo ''
+        echo '📦 Pods:'
+        kubectl get pods -n blauweiss
+        echo ''
+        echo '🌐 Services:'
+        kubectl get svc -n blauweiss
+      "
+      
+      echo ""
+      echo "════════════════════════════════════════════"
+      echo "✅ K8s Setup Complete!"
+      echo "🌐 Portal: http://$EXTERNAL_IP:30080"
+      echo "════════════════════════════════════════════"
+
+# Auto-Deploy bei Manifest-Änderungen
+k8s:deploy:
+  stage: deploy
+  tags: [shell]
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+      changes:
+        - infra/k8s/**/*
+        - portal/frontend/**/*
+  script:
+    - |
+      echo "🚀 K8s Deploy (Manifest Update)"
+      
+      # GCP Auth
+      echo "$GCP_SA_KEY" > /tmp/sa-key.json
+      gcloud auth activate-service-account --key-file=/tmp/sa-key.json
+      
+      # Deploy auf GCP k3s
+      gcloud compute ssh gitlab-runner --zone=europe-west3-a --quiet --command="
+        kubectl apply -f https://gitlab.com/wolfram_laube/blauweiss_llc/freelancer-admin/-/raw/main/infra/k8s/ --recursive
+        kubectl rollout restart deployment -n blauweiss
+        kubectl get pods -n blauweiss
+      " || echo "GCP deploy skipped (VM might be off)"
+      
+      # Optional: auch auf Mac deployen wenn docker-desktop context verfügbar
+      if kubectl config get-contexts docker-desktop &>/dev/null; then
+        kubectl config use-context docker-desktop
+        kubectl apply -f infra/k8s/ --recursive
+        kubectl rollout restart deployment -n blauweiss
+      fi
