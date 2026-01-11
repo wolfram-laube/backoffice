@@ -304,3 +304,35 @@ k8s:fix-ingress:
       EXTERNAL_IP=$(curl -s ifconfig.me)
       echo ""
       echo "✅ Portal: http://$EXTERNAL_IP:30080"
+
+k8s:open-port:
+  stage: deploy
+  rules:
+    - if: $CI_COMMIT_MESSAGE =~ /\[open-port\]/
+  script:
+    - |
+      echo "🔓 Opening port 30080..."
+      
+      # GCP Firewall via gcloud (falls Rechte vorhanden)
+      gcloud compute firewall-rules create allow-k8s-portal \
+        --allow tcp:30080,tcp:80,tcp:443 \
+        --source-ranges=0.0.0.0/0 \
+        --description="K8s Portal" \
+        --project=myk8sproject-207017 2>/dev/null || echo "Firewall rule exists or no permission"
+      
+      # Alternative: Check ob Port erreichbar
+      EXTERNAL_IP=$(curl -s ifconfig.me)
+      echo "🌐 External IP: $EXTERNAL_IP"
+      
+      # Local test
+      echo "🧪 Local test..."
+      curl -s --connect-timeout 5 http://localhost:30080 | head -5 || echo "Port 30080 not responding locally"
+      
+      # Ingress-Nginx NodePort checken
+      export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+      echo ""
+      echo "📋 Ingress-Nginx Service:"
+      kubectl get svc -n ingress-nginx ingress-nginx-controller -o wide
+      
+      echo ""
+      echo "🌐 Try: http://$EXTERNAL_IP:30080"
