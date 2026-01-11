@@ -220,24 +220,56 @@ pages:
 # Quick deploy job mit korrektem Auth
 
 # Simpler deploy - keine Shell-Escaping Probleme
-k8s:apply:
+
+# Smart deploy - erkennt ob Mac oder GCP
+k8s:smart-deploy:
   stage: deploy
   rules:
     - if: $CI_COMMIT_MESSAGE =~ /\[k8s-deploy\]/
   script:
-    - echo "$GCP_SA_KEY" > /tmp/sa-key.json
-    - gcloud auth activate-service-account --key-file=/tmp/sa-key.json
     - |
-      # Manifest auf VM kopieren und applyen
-      cat infra/k8s/all-in-one.yaml | gcloud compute ssh gitlab-runner --zone=europe-west3-a --quiet --command="
+      echo "🔍 Erkenne Runner..."
+      HOSTNAME=$(hostname)
+      echo "   Hostname: $HOSTNAME"
+      
+      if [[ "$HOSTNAME" == "gitlab-runner" ]]; then
+        echo "☁️ Läuft auf GCP - direkt deployen"
         export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
-        cat > /tmp/manifests.yaml
-        kubectl apply -f /tmp/manifests.yaml
-        kubectl create secret generic gitlab-credentials --namespace=blauweiss --from-literal=GITLAB_TOKEN='$GITLAB_TOKEN' --from-literal=GITLAB_PROJECT_ID='77555895' --dry-run=client -o yaml | kubectl apply -f -
-        echo ''
-        echo 'Pods:'
-        kubectl get pods -n blauweiss
-        echo ''
-        echo 'Services:'
+        
+        kubectl apply -f infra/k8s/all-in-one.yaml
+        
+        kubectl create secret generic gitlab-credentials \
+          --namespace=blauweiss \
+          --from-literal=GITLAB_TOKEN="$GITLAB_TOKEN" \
+          --from-literal=GITLAB_PROJECT_ID="77555895" \
+          --dry-run=client -o yaml | kubectl apply -f -
+        
+        echo ""
+        echo "📦 Pods:"
+        kubectl get pods -n blauweiss -o wide
+        echo ""
+        echo "🌐 Services:"
         kubectl get svc -n blauweiss
-      "
+        
+        # IP ausgeben
+        EXTERNAL_IP=$(curl -s ifconfig.me)
+        echo ""
+        echo "═══════════════════════════════════════"
+        echo "✅ Portal: http://$EXTERNAL_IP:30080"
+        echo "═══════════════════════════════════════"
+        
+      else
+        echo "🍎 Läuft auf Mac - SSH zu GCP"
+        echo "$GCP_SA_KEY" > /tmp/sa-key.json
+        gcloud auth activate-service-account --key-file=/tmp/sa-key.json
+        
+        cat infra/k8s/all-in-one.yaml | gcloud compute ssh gitlab-runner --zone=europe-west3-a --quiet --command="
+          export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+          cat > /tmp/manifests.yaml
+          kubectl apply -f /tmp/manifests.yaml
+          kubectl create secret generic gitlab-credentials --namespace=blauweiss --from-literal=GITLAB_TOKEN='$GITLAB_TOKEN' --from-literal=GITLAB_PROJECT_ID='77555895' --dry-run=client -o yaml | kubectl apply -f -
+          echo ''
+          kubectl get pods -n blauweiss
+          kubectl get svc -n blauweiss
+        "
+      fi
