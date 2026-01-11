@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Timesheet | Blauweiss Portal</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⏱️</text></svg>">
+</head>
+<body>
+    <div id="root"></div>
+    <script type="text/babel">
+// API Base URL - Backend hält den Token sicher!
+const API_BASE = window.location.hostname === 'localhost' 
+    ? 'http://localhost:8000' 
+    : '/api';
+
+const TimesheetApp = () => {
+  const [customer, setCustomer] = React.useState({
+    name: 'Krongaard AG',
+    address: 'Königstraße 10',
+    city: '20095 Hamburg',
+    country: 'Germany',
+    vat_id: 'DE287315258'
+  });
+  
+  const [projectNr, setProjectNr] = React.useState('KRO-2026-001');
+  const [rate, setRate] = React.useState(105);
+  const [entries, setEntries] = React.useState([]);
+  const [newEntry, setNewEntry] = React.useState({
+    date: new Date().toISOString().split('T')[0],
+    hours: 8,
+    description: ''
+  });
+  
+  const [status, setStatus] = React.useState(null);
+  const [pipelineUrl, setPipelineUrl] = React.useState(null);
+  const [artifactUrl, setArtifactUrl] = React.useState(null);
+  const [errorMsg, setErrorMsg] = React.useState('');
+  const [apiHealth, setApiHealth] = React.useState(null);
+
+  // Load from localStorage
+  React.useEffect(() => {
+    const saved = localStorage.getItem('timesheet-data-v2');
+    if (saved) {
+      const data = JSON.parse(saved);
+      setCustomer(data.customer || customer);
+      setProjectNr(data.projectNr || projectNr);
+      setRate(data.rate || rate);
+      setEntries(data.entries || []);
+    }
+    
+    // Check API health
+    fetch(`${API_BASE}/health`)
+      .then(r => r.json())
+      .then(d => setApiHealth(d))
+      .catch(() => setApiHealth({ status: 'offline' }));
+  }, []);
+
+  // Save to localStorage
+  React.useEffect(() => {
+    localStorage.setItem('timesheet-data-v2', JSON.stringify({
+      customer, projectNr, rate, entries
+    }));
+  }, [customer, projectNr, rate, entries]);
+
+  const addEntry = () => {
+    if (newEntry.description && newEntry.hours > 0) {
+      setEntries([...entries, { ...newEntry }]);
+      setNewEntry({ date: newEntry.date, hours: 8, description: '' });
+    }
+  };
+
+  const removeEntry = (index) => setEntries(entries.filter((_, i) => i !== index));
+  const clearAll = () => { if (confirm('Alle Einträge löschen?')) setEntries([]); };
+
+  const totalHours = entries.reduce((sum, e) => sum + e.hours, 0);
+  const totalAmount = totalHours * rate;
+
+  // 🚀 Commit via Backend API - kein Token im Browser!
+  const commitAndGenerate = async () => {
+    if (entries.length === 0) {
+      setErrorMsg('Keine Einträge vorhanden!');
+      return;
+    }
+
+    setStatus('committing');
+    setErrorMsg('');
+    setPipelineUrl(null);
+    setArtifactUrl(null);
+
+    try {
+      const resp = await fetch(`${API_BASE}/api/commit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customer,
+          project_nr: projectNr,
+          rate,
+          entries
+        })
+      });
+
+      const data = await resp.json();
+      
+      if (!data.success) {
+        throw new Error(data.error || 'Commit failed');
+      }
+
+      setPipelineUrl(data.pipeline_url);
+      setStatus('pipeline');
+
+      // Poll for completion
+      if (data.pipeline_url) {
+        const pipelineId = data.pipeline_url.split('/').pop();
+        let attempts = 0;
+        
+        while (attempts < 60) {
+          await new Promise(r => setTimeout(r, 5000));
+          
+          const statusResp = await fetch(`${API_BASE}/api/pipelines/${pipelineId}/status`);
+          const statusData = await statusResp.json();
+          
+          if (statusData.status === 'success') {
+            const artifactResp = await fetch(`${API_BASE}/api/pipelines/${pipelineId}/artifacts`);
+            const artifactData = await artifactResp.json();
+            if (artifactData.download_url) {
+              setArtifactUrl(artifactData.download_url);
+            }
+            setStatus('success');
+            return;
+          } else if (statusData.status === 'failed') {
+            throw new Error('Pipeline failed');
+          }
+          
+          attempts++;
+        }
+      }
+
+      setStatus('success');
+
+    } catch (err) {
+      console.error(err);
+      setErrorMsg(err.message);
+      setStatus('error');
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-900 text-white p-4 md:p-6">
+      <div className="max-w-4xl mx-auto">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold text-cyan-400">⏱️ Blauweiss Portal</h1>
+            <p className="text-slate-400 text-sm">Timesheet → Invoice (K8s Backend)</p>
+          </div>
+          <div className={`px-3 py-1 rounded text-xs ${apiHealth?.status === 'ok' ? 'bg-green-900 text-green-300' : 'bg-red-900 text-red-300'}`}>
+            {apiHealth?.status === 'ok' ? '🟢 API Online' : '🔴 API Offline'}
+          </div>
+        </div>
+
+        {/* Customer & Project */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          <div className="bg-slate-800 rounded-lg p-4">
+            <h2 className="text-lg font-semibold text-cyan-400 mb-3">👤 Kunde</h2>
+            <input className="w-full bg-slate-700 rounded px-3 py-2 mb-2 text-sm" placeholder="Firmenname"
+              value={customer.name} onChange={(e) => setCustomer({...customer, name: e.target.value})} />
+            <input className="w-full bg-slate-700 rounded px-3 py-2 mb-2 text-sm" placeholder="Adresse"
+              value={customer.address} onChange={(e) => setCustomer({...customer, address: e.target.value})} />
+            <input className="w-full bg-slate-700 rounded px-3 py-2 mb-2 text-sm" placeholder="PLZ Ort"
+              value={customer.city} onChange={(e) => setCustomer({...customer, city: e.target.value})} />
+            <input className="w-full bg-slate-700 rounded px-3 py-2 mb-2 text-sm" placeholder="Land"
+              value={customer.country} onChange={(e) => setCustomer({...customer, country: e.target.value})} />
+            <input className="w-full bg-slate-700 rounded px-3 py-2 text-sm" placeholder="VAT ID"
+              value={customer.vat_id} onChange={(e) => setCustomer({...customer, vat_id: e.target.value})} />
+          </div>
+
+          <div className="bg-slate-800 rounded-lg p-4">
+            <h2 className="text-lg font-semibold text-cyan-400 mb-3">📋 Projekt</h2>
+            <input className="w-full bg-slate-700 rounded px-3 py-2 mb-3 text-sm" placeholder="Projekt-Nr."
+              value={projectNr} onChange={(e) => setProjectNr(e.target.value)} />
+            <div className="flex items-center gap-2">
+              <span className="text-slate-400 text-sm">Stundensatz:</span>
+              <input type="number" className="w-24 bg-slate-700 rounded px-3 py-2 text-sm"
+                value={rate} onChange={(e) => setRate(Number(e.target.value))} />
+              <span className="text-slate-400 text-sm">€/h</span>
+            </div>
+          </div>
+        </div>
+
+        {/* New Entry */}
+        <div className="bg-slate-800 rounded-lg p-4 mb-6">
+          <h2 className="text-lg font-semibold text-cyan-400 mb-3">➕ Neuer Eintrag</h2>
+          <div className="flex flex-wrap gap-2 md:gap-3">
+            <input type="date" className="bg-slate-700 rounded px-3 py-2 text-sm"
+              value={newEntry.date} onChange={(e) => setNewEntry({...newEntry, date: e.target.value})} />
+            <div className="flex items-center gap-1">
+              <input type="number" step="0.5" min="0" max="24" className="w-16 bg-slate-700 rounded px-2 py-2 text-sm"
+                value={newEntry.hours} onChange={(e) => setNewEntry({...newEntry, hours: Number(e.target.value)})} />
+              <span className="text-slate-400 text-sm">h</span>
+            </div>
+            <input className="flex-1 min-w-[200px] bg-slate-700 rounded px-3 py-2 text-sm"
+              placeholder="Beschreibung" value={newEntry.description}
+              onChange={(e) => setNewEntry({...newEntry, description: e.target.value})}
+              onKeyDown={(e) => e.key === 'Enter' && addEntry()} />
+            <button onClick={addEntry} className="bg-cyan-600 hover:bg-cyan-500 px-4 py-2 rounded font-semibold text-sm">
+              + Add
+            </button>
+          </div>
+        </div>
+
+        {/* Entries */}
+        <div className="bg-slate-800 rounded-lg p-4 mb-6">
+          <div className="flex justify-between items-center mb-3">
+            <h2 className="text-lg font-semibold text-cyan-400">📝 Einträge</h2>
+            {entries.length > 0 && (
+              <button onClick={clearAll} className="text-red-400 hover:text-red-300 text-sm">🗑️</button>
+            )}
+          </div>
+          {entries.length === 0 ? (
+            <p className="text-slate-500 italic text-sm">Noch keine Einträge...</p>
+          ) : (
+            <div className="space-y-2">
+              {entries.map((entry, i) => (
+                <div key={i} className="flex items-center gap-2 bg-slate-700 rounded px-3 py-2 text-sm">
+                  <span className="text-slate-400 w-24">{entry.date}</span>
+                  <span className="text-cyan-400 w-12 text-right">{entry.hours}h</span>
+                  <span className="flex-1 truncate">{entry.description}</span>
+                  <span className="text-green-400 w-20 text-right">€{(entry.hours * rate).toFixed(0)}</span>
+                  <button onClick={() => removeEntry(i)} className="text-red-400 hover:text-red-300">✕</button>
+                </div>
+              ))}
+            </div>
+          )}
+          
+          {entries.length > 0 && (
+            <div className="flex justify-end gap-4 mt-4 pt-4 border-t border-slate-600">
+              <span className="text-cyan-400 font-bold">{totalHours}h</span>
+              <span className="text-green-400 font-bold text-xl">€{totalAmount.toFixed(2)}</span>
+            </div>
+          )}
+        </div>
+
+        {/* Action Buttons */}
+        {entries.length > 0 && (
+          <div className="bg-slate-800 rounded-lg p-4 mb-6">
+            <button
+              onClick={commitAndGenerate}
+              disabled={status === 'committing' || status === 'pipeline' || apiHealth?.status !== 'ok'}
+              className="w-full bg-green-600 hover:bg-green-500 disabled:bg-slate-600 disabled:cursor-not-allowed px-6 py-3 rounded font-bold text-lg flex items-center justify-center gap-2"
+            >
+              {status === 'committing' && '⏳ Committing...'}
+              {status === 'pipeline' && '🔄 Pipeline läuft...'}
+              {(status === null || status === 'success' || status === 'error') && '🚀 Invoice generieren'}
+            </button>
+
+            {errorMsg && (
+              <div className="mt-4 bg-red-900/50 text-red-300 px-4 py-2 rounded">❌ {errorMsg}</div>
+            )}
+
+            {pipelineUrl && (
+              <div className="mt-4 text-sm">
+                🔗 <a href={pipelineUrl} target="_blank" className="text-cyan-400 hover:underline">Pipeline</a>
+              </div>
+            )}
+
+            {status === 'success' && (
+              <div className="mt-4 bg-green-900/50 text-green-300 px-4 py-3 rounded flex items-center justify-between">
+                <span>✅ Invoice generiert!</span>
+                {artifactUrl && (
+                  <a href={artifactUrl} className="bg-green-600 hover:bg-green-500 px-4 py-1 rounded text-white">
+                    📄 Download PDF
+                  </a>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        <p className="text-center text-slate-600 text-xs mt-6">
+          Blauweiss Portal | K8s: Mac ↔ GCP | 🔒 Token sicher im Backend
+        </p>
+      </div>
+    </div>
+  );
+};
+
+ReactDOM.createRoot(document.getElementById('root')).render(<TimesheetApp />);
+    </script>
+</body>
+</html>

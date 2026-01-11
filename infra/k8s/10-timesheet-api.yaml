@@ -1,0 +1,168 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: timesheet-api
+  namespace: blauweiss
+  labels:
+    app: timesheet-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: timesheet-api
+  template:
+    metadata:
+      labels:
+        app: timesheet-api
+    spec:
+      containers:
+      - name: api
+        image: python:3.11-slim
+        command: ["/bin/sh", "-c"]
+        args:
+          - |
+            pip install --no-cache-dir fastapi uvicorn httpx pyyaml -q
+            cat > /app/main.py << 'PYEOF'
+            from fastapi import FastAPI, HTTPException
+            from fastapi.middleware.cors import CORSMiddleware
+            from pydantic import BaseModel
+            from typing import List, Optional
+            import httpx, os, asyncio
+            from datetime import datetime
+
+            app = FastAPI(title="Timesheet API")
+            app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+
+            GITLAB_TOKEN = os.getenv("GITLAB_TOKEN")
+            GITLAB_PROJECT_ID = os.getenv("GITLAB_PROJECT_ID", "77555895")
+            GITLAB_API = "https://gitlab.com/api/v4"
+
+            class Customer(BaseModel):
+                name: str
+                address: str
+                city: str
+                country: str
+                vat_id: str
+
+            class TimesheetEntry(BaseModel):
+                date: str
+                hours: float
+                description: str
+
+            class Timesheet(BaseModel):
+                customer: Customer
+                project_nr: str
+                rate: float
+                entries: List[TimesheetEntry]
+
+            @app.get("/health")
+            def health():
+                return {"status": "ok", "token_configured": bool(GITLAB_TOKEN)}
+
+            @app.post("/api/commit")
+            async def commit_timesheet(ts: Timesheet):
+                if not GITLAB_TOKEN:
+                    raise HTTPException(500, "Token not configured")
+                
+                yaml = f'''# Timesheet: {ts.customer.name}
+            customer:
+              name: "{ts.customer.name}"
+              address: "{ts.customer.address}"
+              city: "{ts.customer.city}"
+              country: "{ts.customer.country}"
+              vat_id: "{ts.customer.vat_id}"
+            project_nr: "{ts.project_nr}"
+            rate: {ts.rate}
+            entries:
+            '''
+                for e in ts.entries:
+                    yaml += f'''  - date: {e.date}
+                hours: {e.hours}
+                description: "{e.description}"
+            '''
+                
+                month = ts.entries[0].date[:7] if ts.entries else datetime.now().strftime("%Y-%m")
+                cust = "".join(c for c in ts.customer.name.lower() if c.isalpha())[:12]
+                filename = f"timesheets/{month}-{cust}.yaml"
+                headers = {"PRIVATE-TOKEN": GITLAB_TOKEN}
+                
+                async with httpx.AsyncClient() as client:
+                    check = await client.get(f"{GITLAB_API}/projects/{GITLAB_PROJECT_ID}/repository/files/{filename.replace('/', '%2F')}", headers=headers, params={"ref": "main"})
+                    action = "update" if check.status_code == 200 else "create"
+                    
+                    total = sum(e.hours for e in ts.entries)
+                    resp = await client.post(f"{GITLAB_API}/projects/{GITLAB_PROJECT_ID}/repository/commits", headers=headers, json={
+                        "branch": "main",
+                        "commit_message": f"Timesheet: {ts.customer.name} ({total}h)",
+                        "actions": [{"action": action, "file_path": filename, "content": yaml}]
+                    })
+                    
+                    if resp.status_code != 201:
+                        return {"success": False, "error": resp.text}
+                    
+                    await asyncio.sleep(2)
+                    pr = await client.get(f"{GITLAB_API}/projects/{GITLAB_PROJECT_ID}/pipelines", headers=headers, params={"per_page": 1})
+                    pipeline_url = pr.json()[0].get("web_url") if pr.status_code == 200 else None
+                    
+                    return {"success": True, "commit_id": resp.json().get("short_id"), "pipeline_url": pipeline_url}
+
+            @app.get("/api/pipelines/{pid}/status")
+            async def pipeline_status(pid: int):
+                async with httpx.AsyncClient() as client:
+                    r = await client.get(f"{GITLAB_API}/projects/{GITLAB_PROJECT_ID}/pipelines/{pid}", headers={"PRIVATE-TOKEN": GITLAB_TOKEN})
+                    return {"status": r.json().get("status"), "web_url": r.json().get("web_url")}
+
+            @app.get("/api/pipelines/{pid}/artifacts")
+            async def pipeline_artifacts(pid: int):
+                async with httpx.AsyncClient() as client:
+                    r = await client.get(f"{GITLAB_API}/projects/{GITLAB_PROJECT_ID}/pipelines/{pid}/jobs", headers={"PRIVATE-TOKEN": GITLAB_TOKEN})
+                    for j in r.json():
+                        if "invoice" in j.get("name", "") and j.get("artifacts_file"):
+                            return {"download_url": f"https://gitlab.com/wolfram_laube/blauweiss_llc/freelancer-admin/-/jobs/{j['id']}/artifacts/download"}
+                    return {"download_url": None}
+            PYEOF
+            cd /app && uvicorn main:app --host 0.0.0.0 --port 8000
+        ports:
+        - containerPort: 8000
+        env:
+        - name: GITLAB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: gitlab-credentials
+              key: GITLAB_TOKEN
+        - name: GITLAB_PROJECT_ID
+          valueFrom:
+            secretKeyRef:
+              name: gitlab-credentials
+              key: GITLAB_PROJECT_ID
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: timesheet-api
+  namespace: blauweiss
+spec:
+  selector:
+    app: timesheet-api
+  ports:
+  - port: 8000
+    targetPort: 8000
