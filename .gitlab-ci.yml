@@ -86,27 +86,12 @@ invoice:generate:
   allow_failure: true
 
 # ═══════════════════════════════════════════════════════════════
-# PAGES (Timesheet App + Documentation)
+# K8S INFRASTRUCTURE
 # ═══════════════════════════════════════════════════════════════
 
-pages:
-  stage: deploy
-  script:
-    - mkdir -p public
-    - cp public/timesheet.html public/index.html 2>/dev/null || echo "<h1>Freelancer Admin</h1>" > public/index.html
-  artifacts:
-    paths:
-      - public
-  only:
-    - main
-# ═══════════════════════════════════════════════════════════════
-# K8S INFRASTRUCTURE JOBS
-# ═══════════════════════════════════════════════════════════════
-
-# Manuell triggerbarer Job für k3s Setup
+# Einmaliges Setup - manuell triggern
 k8s:setup-gcp:
   stage: deploy
-  tags: [shell]  # Läuft auf Mac oder GCP Runner
   rules:
     - if: $CI_PIPELINE_SOURCE == "web"
       when: manual
@@ -117,7 +102,6 @@ k8s:setup-gcp:
     GCP_PROJECT: "myk8sproject-207017"
   before_script:
     - |
-      # GCP Auth via Service Account
       echo "$GCP_SA_KEY" > /tmp/sa-key.json
       gcloud auth activate-service-account --key-file=/tmp/sa-key.json
       gcloud config set project $GCP_PROJECT
@@ -197,7 +181,6 @@ k8s:setup-gcp:
 # Auto-Deploy bei Manifest-Änderungen
 k8s:deploy:
   stage: deploy
-  tags: [shell]
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
       changes:
@@ -213,14 +196,22 @@ k8s:deploy:
       
       # Deploy auf GCP k3s
       gcloud compute ssh gitlab-runner --zone=europe-west3-a --quiet --command="
-        kubectl apply -f https://gitlab.com/wolfram_laube/blauweiss_llc/freelancer-admin/-/raw/main/infra/k8s/ --recursive
-        kubectl rollout restart deployment -n blauweiss
+        kubectl apply -f https://gitlab.com/wolfram_laube/blauweiss_llc/freelancer-admin/-/raw/main/infra/k8s/ --recursive 2>/dev/null || true
+        kubectl rollout restart deployment -n blauweiss 2>/dev/null || true
         kubectl get pods -n blauweiss
       " || echo "GCP deploy skipped (VM might be off)"
-      
-      # Optional: auch auf Mac deployen wenn docker-desktop context verfügbar
-      if kubectl config get-contexts docker-desktop &>/dev/null; then
-        kubectl config use-context docker-desktop
-        kubectl apply -f infra/k8s/ --recursive
-        kubectl rollout restart deployment -n blauweiss
-      fi
+
+# ═══════════════════════════════════════════════════════════════
+# PAGES (Timesheet App + Documentation)
+# ═══════════════════════════════════════════════════════════════
+
+pages:
+  stage: deploy
+  script:
+    - mkdir -p public
+    - cp public/timesheet.html public/index.html 2>/dev/null || echo "<h1>Freelancer Admin</h1>" > public/index.html
+  artifacts:
+    paths:
+      - public
+  only:
+    - main
