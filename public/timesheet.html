@@ -13,7 +13,11 @@
 <body>
     <div id="root"></div>
     <script type="text/babel">
+const GITLAB_PROJECT_ID = '77555895';
+const GITLAB_API = 'https://gitlab.com/api/v4';
+
 const TimesheetApp = () => {
+  const [token, setToken] = React.useState(localStorage.getItem('gitlab-token') || '');
   const [customer, setCustomer] = React.useState({
     name: 'Krongaard AG',
     address: 'Königstraße 10',
@@ -30,6 +34,11 @@ const TimesheetApp = () => {
     hours: 8,
     description: ''
   });
+  
+  const [status, setStatus] = React.useState(null); // null, 'committing', 'pipeline', 'success', 'error'
+  const [pipelineUrl, setPipelineUrl] = React.useState(null);
+  const [artifactUrl, setArtifactUrl] = React.useState(null);
+  const [errorMsg, setErrorMsg] = React.useState('');
 
   // Load from localStorage
   React.useEffect(() => {
@@ -50,32 +59,26 @@ const TimesheetApp = () => {
     }));
   }, [customer, projectNr, rate, entries]);
 
+  // Save token
+  React.useEffect(() => {
+    if (token) localStorage.setItem('gitlab-token', token);
+  }, [token]);
+
   const addEntry = () => {
     if (newEntry.description && newEntry.hours > 0) {
       setEntries([...entries, { ...newEntry }]);
-      setNewEntry({
-        date: newEntry.date,
-        hours: 8,
-        description: ''
-      });
+      setNewEntry({ date: newEntry.date, hours: 8, description: '' });
     }
   };
 
-  const removeEntry = (index) => {
-    setEntries(entries.filter((_, i) => i !== index));
-  };
-
-  const clearAll = () => {
-    if (confirm('Alle Einträge löschen?')) {
-      setEntries([]);
-    }
-  };
+  const removeEntry = (index) => setEntries(entries.filter((_, i) => i !== index));
+  const clearAll = () => { if (confirm('Alle Einträge löschen?')) setEntries([]); };
 
   const totalHours = entries.reduce((sum, e) => sum + e.hours, 0);
   const totalAmount = totalHours * rate;
 
   const generateYAML = () => {
-    const yaml = `# Timesheet: ${customer.name}
+    return `# Timesheet: ${customer.name}
 # Generated: ${new Date().toISOString()}
 
 customer:
@@ -93,24 +96,132 @@ ${entries.map(e => `  - date: ${e.date}
     hours: ${e.hours}
     description: "${e.description}"`).join('\n')}
 `;
-    return yaml;
+  };
+
+  const getFilename = () => {
+    const month = entries[0]?.date?.substring(0, 7) || new Date().toISOString().substring(0, 7);
+    const customerShort = customer.name.toLowerCase().replace(/[^a-z]/g, '').substring(0, 12);
+    return `${month}-${customerShort}.yaml`;
+  };
+
+  // 🚀 COMMIT & TRIGGER PIPELINE
+  const commitAndGenerate = async () => {
+    if (!token) {
+      setErrorMsg('Bitte GitLab PAT eingeben!');
+      return;
+    }
+    if (entries.length === 0) {
+      setErrorMsg('Keine Einträge vorhanden!');
+      return;
+    }
+
+    setStatus('committing');
+    setErrorMsg('');
+    setPipelineUrl(null);
+    setArtifactUrl(null);
+
+    try {
+      const filename = getFilename();
+      const yaml = generateYAML();
+      const filePath = `timesheets/${filename}`;
+
+      // 1. Check if file exists
+      let action = 'create';
+      try {
+        const checkRes = await fetch(
+          `${GITLAB_API}/projects/${GITLAB_PROJECT_ID}/repository/files/${encodeURIComponent(filePath)}?ref=main`,
+          { headers: { 'PRIVATE-TOKEN': token } }
+        );
+        if (checkRes.ok) action = 'update';
+      } catch (e) {}
+
+      // 2. Commit YAML
+      const commitRes = await fetch(`${GITLAB_API}/projects/${GITLAB_PROJECT_ID}/repository/commits`, {
+        method: 'POST',
+        headers: {
+          'PRIVATE-TOKEN': token,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          branch: 'main',
+          commit_message: `⏱️ Timesheet: ${customer.name} (${totalHours}h)`,
+          actions: [{
+            action: action,
+            file_path: filePath,
+            content: yaml
+          }]
+        })
+      });
+
+      if (!commitRes.ok) {
+        const err = await commitRes.json();
+        throw new Error(err.message || 'Commit failed');
+      }
+
+      const commitData = await commitRes.json();
+      console.log('Committed:', commitData.short_id);
+
+      // 3. Wait for pipeline
+      setStatus('pipeline');
+      await new Promise(r => setTimeout(r, 3000));
+
+      // 4. Get latest pipeline
+      const pipelineRes = await fetch(
+        `${GITLAB_API}/projects/${GITLAB_PROJECT_ID}/pipelines?per_page=1`,
+        { headers: { 'PRIVATE-TOKEN': token } }
+      );
+      const pipelines = await pipelineRes.json();
+      const pipeline = pipelines[0];
+      setPipelineUrl(pipeline.web_url);
+
+      // 5. Poll for completion
+      let attempts = 0;
+      while (attempts < 60) {
+        await new Promise(r => setTimeout(r, 5000));
+        
+        const statusRes = await fetch(
+          `${GITLAB_API}/projects/${GITLAB_PROJECT_ID}/pipelines/${pipeline.id}`,
+          { headers: { 'PRIVATE-TOKEN': token } }
+        );
+        const pipelineStatus = await statusRes.json();
+
+        if (pipelineStatus.status === 'success') {
+          // 6. Get artifact
+          const jobsRes = await fetch(
+            `${GITLAB_API}/projects/${GITLAB_PROJECT_ID}/pipelines/${pipeline.id}/jobs`,
+            { headers: { 'PRIVATE-TOKEN': token } }
+          );
+          const jobs = await jobsRes.json();
+          const invoiceJob = jobs.find(j => j.name.includes('invoice') && j.artifacts_file);
+
+          if (invoiceJob) {
+            setArtifactUrl(`https://gitlab.com/wolfram_laube/blauweiss_llc/freelancer-admin/-/jobs/${invoiceJob.id}/artifacts/download`);
+          }
+          
+          setStatus('success');
+          return;
+        } else if (pipelineStatus.status === 'failed') {
+          throw new Error('Pipeline failed');
+        }
+        
+        attempts++;
+      }
+
+      throw new Error('Pipeline timeout');
+
+    } catch (err) {
+      console.error(err);
+      setErrorMsg(err.message);
+      setStatus('error');
+    }
   };
 
   const downloadYAML = () => {
-    const yaml = generateYAML();
-    const blob = new Blob([yaml], { type: 'text/yaml' });
-    const url = URL.createObjectURL(blob);
+    const blob = new Blob([generateYAML()], { type: 'text/yaml' });
     const a = document.createElement('a');
-    const month = entries[0]?.date?.substring(0, 7) || new Date().toISOString().substring(0, 7);
-    const customerShort = customer.name.toLowerCase().replace(/[^a-z]/g, '').substring(0, 10);
-    a.href = url;
-    a.download = `${month}-${customerShort}.yaml`;
+    a.href = URL.createObjectURL(blob);
+    a.download = getFilename();
     a.click();
-  };
-
-  const copyYAML = () => {
-    navigator.clipboard.writeText(generateYAML());
-    alert('YAML kopiert!');
   };
 
   return (
@@ -119,64 +230,47 @@ ${entries.map(e => `  - date: ${e.date}
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-2xl md:text-3xl font-bold text-cyan-400">⏱️ Timesheet</h1>
-            <p className="text-slate-400 text-sm">Stundenerfassung → YAML → Invoice</p>
+            <p className="text-slate-400 text-sm">Erfassen → Commit → Invoice 🚀</p>
           </div>
-          <img src="https://gitlab.com/wolfram_laube/blauweiss_llc/freelancer-admin/-/raw/main/modules/invoicing/templates/logo-blauweiss.png" 
-               alt="Blauweiss" className="h-10 hidden md:block" />
+        </div>
+
+        {/* GitLab Token */}
+        <div className="bg-slate-800 rounded-lg p-4 mb-6">
+          <h2 className="text-lg font-semibold text-cyan-400 mb-3">🔐 GitLab Token</h2>
+          <input
+            type="password"
+            className="w-full bg-slate-700 rounded px-3 py-2 text-sm"
+            placeholder="glpat-..."
+            value={token}
+            onChange={(e) => setToken(e.target.value)}
+          />
+          <p className="text-slate-500 text-xs mt-1">PAT mit api scope (wird lokal gespeichert)</p>
         </div>
 
         {/* Customer & Project */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
           <div className="bg-slate-800 rounded-lg p-4">
             <h2 className="text-lg font-semibold text-cyan-400 mb-3">👤 Kunde</h2>
-            <input
-              className="w-full bg-slate-700 rounded px-3 py-2 mb-2 text-sm"
-              placeholder="Firmenname"
-              value={customer.name}
-              onChange={(e) => setCustomer({...customer, name: e.target.value})}
-            />
-            <input
-              className="w-full bg-slate-700 rounded px-3 py-2 mb-2 text-sm"
-              placeholder="Adresse"
-              value={customer.address}
-              onChange={(e) => setCustomer({...customer, address: e.target.value})}
-            />
-            <input
-              className="w-full bg-slate-700 rounded px-3 py-2 mb-2 text-sm"
-              placeholder="PLZ Ort"
-              value={customer.city}
-              onChange={(e) => setCustomer({...customer, city: e.target.value})}
-            />
-            <input
-              className="w-full bg-slate-700 rounded px-3 py-2 mb-2 text-sm"
-              placeholder="Land"
-              value={customer.country}
-              onChange={(e) => setCustomer({...customer, country: e.target.value})}
-            />
-            <input
-              className="w-full bg-slate-700 rounded px-3 py-2 text-sm"
-              placeholder="VAT ID"
-              value={customer.vat_id}
-              onChange={(e) => setCustomer({...customer, vat_id: e.target.value})}
-            />
+            <input className="w-full bg-slate-700 rounded px-3 py-2 mb-2 text-sm" placeholder="Firmenname"
+              value={customer.name} onChange={(e) => setCustomer({...customer, name: e.target.value})} />
+            <input className="w-full bg-slate-700 rounded px-3 py-2 mb-2 text-sm" placeholder="Adresse"
+              value={customer.address} onChange={(e) => setCustomer({...customer, address: e.target.value})} />
+            <input className="w-full bg-slate-700 rounded px-3 py-2 mb-2 text-sm" placeholder="PLZ Ort"
+              value={customer.city} onChange={(e) => setCustomer({...customer, city: e.target.value})} />
+            <input className="w-full bg-slate-700 rounded px-3 py-2 mb-2 text-sm" placeholder="Land"
+              value={customer.country} onChange={(e) => setCustomer({...customer, country: e.target.value})} />
+            <input className="w-full bg-slate-700 rounded px-3 py-2 text-sm" placeholder="VAT ID"
+              value={customer.vat_id} onChange={(e) => setCustomer({...customer, vat_id: e.target.value})} />
           </div>
 
           <div className="bg-slate-800 rounded-lg p-4">
             <h2 className="text-lg font-semibold text-cyan-400 mb-3">📋 Projekt</h2>
-            <input
-              className="w-full bg-slate-700 rounded px-3 py-2 mb-3 text-sm"
-              placeholder="Projekt-Nr."
-              value={projectNr}
-              onChange={(e) => setProjectNr(e.target.value)}
-            />
+            <input className="w-full bg-slate-700 rounded px-3 py-2 mb-3 text-sm" placeholder="Projekt-Nr."
+              value={projectNr} onChange={(e) => setProjectNr(e.target.value)} />
             <div className="flex items-center gap-2">
               <span className="text-slate-400 text-sm">Stundensatz:</span>
-              <input
-                type="number"
-                className="w-24 bg-slate-700 rounded px-3 py-2 text-sm"
-                value={rate}
-                onChange={(e) => setRate(Number(e.target.value))}
-              />
+              <input type="number" className="w-24 bg-slate-700 rounded px-3 py-2 text-sm"
+                value={rate} onChange={(e) => setRate(Number(e.target.value))} />
               <span className="text-slate-400 text-sm">€/h</span>
             </div>
           </div>
@@ -186,48 +280,29 @@ ${entries.map(e => `  - date: ${e.date}
         <div className="bg-slate-800 rounded-lg p-4 mb-6">
           <h2 className="text-lg font-semibold text-cyan-400 mb-3">➕ Neuer Eintrag</h2>
           <div className="flex flex-wrap gap-2 md:gap-3">
-            <input
-              type="date"
-              className="bg-slate-700 rounded px-3 py-2 text-sm"
-              value={newEntry.date}
-              onChange={(e) => setNewEntry({...newEntry, date: e.target.value})}
-            />
+            <input type="date" className="bg-slate-700 rounded px-3 py-2 text-sm"
+              value={newEntry.date} onChange={(e) => setNewEntry({...newEntry, date: e.target.value})} />
             <div className="flex items-center gap-1">
-              <input
-                type="number"
-                step="0.5"
-                min="0"
-                max="24"
-                className="w-16 bg-slate-700 rounded px-2 py-2 text-sm"
-                value={newEntry.hours}
-                onChange={(e) => setNewEntry({...newEntry, hours: Number(e.target.value)})}
-              />
+              <input type="number" step="0.5" min="0" max="24" className="w-16 bg-slate-700 rounded px-2 py-2 text-sm"
+                value={newEntry.hours} onChange={(e) => setNewEntry({...newEntry, hours: Number(e.target.value)})} />
               <span className="text-slate-400 text-sm">h</span>
             </div>
-            <input
-              className="flex-1 min-w-[200px] bg-slate-700 rounded px-3 py-2 text-sm"
-              placeholder="Beschreibung (z.B. Kubernetes Migration)"
-              value={newEntry.description}
+            <input className="flex-1 min-w-[200px] bg-slate-700 rounded px-3 py-2 text-sm"
+              placeholder="Beschreibung" value={newEntry.description}
               onChange={(e) => setNewEntry({...newEntry, description: e.target.value})}
-              onKeyDown={(e) => e.key === 'Enter' && addEntry()}
-            />
-            <button
-              onClick={addEntry}
-              className="bg-cyan-600 hover:bg-cyan-500 px-4 py-2 rounded font-semibold text-sm"
-            >
+              onKeyDown={(e) => e.key === 'Enter' && addEntry()} />
+            <button onClick={addEntry} className="bg-cyan-600 hover:bg-cyan-500 px-4 py-2 rounded font-semibold text-sm">
               + Add
             </button>
           </div>
         </div>
 
-        {/* Entries List */}
+        {/* Entries */}
         <div className="bg-slate-800 rounded-lg p-4 mb-6">
           <div className="flex justify-between items-center mb-3">
             <h2 className="text-lg font-semibold text-cyan-400">📝 Einträge</h2>
             {entries.length > 0 && (
-              <button onClick={clearAll} className="text-red-400 hover:text-red-300 text-sm">
-                🗑️ Clear
-              </button>
+              <button onClick={clearAll} className="text-red-400 hover:text-red-300 text-sm">🗑️</button>
             )}
           </div>
           {entries.length === 0 ? (
@@ -235,17 +310,12 @@ ${entries.map(e => `  - date: ${e.date}
           ) : (
             <div className="space-y-2">
               {entries.map((entry, i) => (
-                <div key={i} className="flex items-center gap-2 md:gap-3 bg-slate-700 rounded px-3 py-2 text-sm">
-                  <span className="text-slate-400 w-24 md:w-28">{entry.date}</span>
+                <div key={i} className="flex items-center gap-2 bg-slate-700 rounded px-3 py-2 text-sm">
+                  <span className="text-slate-400 w-24">{entry.date}</span>
                   <span className="text-cyan-400 w-12 text-right">{entry.hours}h</span>
                   <span className="flex-1 truncate">{entry.description}</span>
-                  <span className="text-green-400 w-20 text-right hidden md:block">€{(entry.hours * rate).toFixed(2)}</span>
-                  <button
-                    onClick={() => removeEntry(i)}
-                    className="text-red-400 hover:text-red-300 px-1"
-                  >
-                    ✕
-                  </button>
+                  <span className="text-green-400 w-20 text-right">€{(entry.hours * rate).toFixed(0)}</span>
+                  <button onClick={() => removeEntry(i)} className="text-red-400 hover:text-red-300">✕</button>
                 </div>
               ))}
             </div>
@@ -253,42 +323,55 @@ ${entries.map(e => `  - date: ${e.date}
           
           {entries.length > 0 && (
             <div className="flex justify-end gap-4 mt-4 pt-4 border-t border-slate-600">
-              <span className="text-slate-400">Gesamt:</span>
               <span className="text-cyan-400 font-bold">{totalHours}h</span>
               <span className="text-green-400 font-bold text-xl">€{totalAmount.toFixed(2)}</span>
             </div>
           )}
         </div>
 
-        {/* Export */}
+        {/* Action Buttons */}
         {entries.length > 0 && (
-          <div className="bg-slate-800 rounded-lg p-4">
-            <h2 className="text-lg font-semibold text-cyan-400 mb-3">📤 Export</h2>
-            <div className="flex flex-wrap gap-3 mb-4">
+          <div className="bg-slate-800 rounded-lg p-4 mb-6">
+            <div className="flex flex-wrap gap-3">
               <button
-                onClick={downloadYAML}
-                className="bg-green-600 hover:bg-green-500 px-5 py-2 rounded font-semibold text-sm"
+                onClick={commitAndGenerate}
+                disabled={status === 'committing' || status === 'pipeline'}
+                className="bg-green-600 hover:bg-green-500 disabled:bg-green-800 disabled:cursor-wait px-6 py-3 rounded font-bold text-lg flex items-center gap-2"
               >
-                ⬇️ YAML Download
+                {status === 'committing' && '⏳ Committing...'}
+                {status === 'pipeline' && '🔄 Pipeline läuft...'}
+                {(status === null || status === 'success' || status === 'error') && '🚀 Invoice generieren'}
               </button>
-              <button
-                onClick={copyYAML}
-                className="bg-slate-600 hover:bg-slate-500 px-5 py-2 rounded font-semibold text-sm"
-              >
-                📋 Kopieren
+              <button onClick={downloadYAML} className="bg-slate-600 hover:bg-slate-500 px-4 py-3 rounded text-sm">
+                ⬇️ YAML
               </button>
             </div>
-            <details className="text-sm">
-              <summary className="cursor-pointer text-slate-400 hover:text-slate-300">YAML Preview</summary>
-              <pre className="bg-slate-900 rounded p-3 text-xs text-slate-300 overflow-x-auto mt-2 max-h-48">
-                {generateYAML()}
-              </pre>
-            </details>
+
+            {errorMsg && (
+              <div className="mt-4 bg-red-900/50 text-red-300 px-4 py-2 rounded">❌ {errorMsg}</div>
+            )}
+
+            {pipelineUrl && (
+              <div className="mt-4 text-sm">
+                🔗 Pipeline: <a href={pipelineUrl} target="_blank" className="text-cyan-400 hover:underline">{pipelineUrl}</a>
+              </div>
+            )}
+
+            {status === 'success' && (
+              <div className="mt-4 bg-green-900/50 text-green-300 px-4 py-3 rounded">
+                ✅ Invoice generiert!
+                {artifactUrl && (
+                  <a href={artifactUrl} className="ml-3 bg-green-600 hover:bg-green-500 px-4 py-1 rounded text-white">
+                    📄 Download PDF
+                  </a>
+                )}
+              </div>
+            )}
           </div>
         )}
 
         <p className="text-center text-slate-600 text-xs mt-6">
-          Blauweiss-EDV LLC | <a href="https://gitlab.com/wolfram_laube/blauweiss_llc/freelancer-admin" className="hover:text-slate-400">GitLab</a>
+          Blauweiss-EDV LLC | Flip-Flop Runner: Mac ↔ GCP
         </p>
       </div>
     </div>
