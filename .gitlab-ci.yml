@@ -273,3 +273,34 @@ k8s:smart-deploy:
           kubectl get svc -n blauweiss
         "
       fi
+
+k8s:fix-ingress:
+  stage: deploy
+  rules:
+    - if: $CI_COMMIT_MESSAGE =~ /\[fix-ingress\]/
+  script:
+    - |
+      export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+      
+      echo "🌐 Installing Ingress-Nginx..."
+      kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.9.4/deploy/static/provider/baremetal/deploy.yaml
+      
+      echo "⏳ Waiting for Ingress Controller..."
+      sleep 30
+      
+      echo "🔧 Patching NodePort to 30080..."
+      kubectl patch svc ingress-nginx-controller -n ingress-nginx --type=json \
+        -p='[{"op": "replace", "path": "/spec/ports/0/nodePort", "value": 30080}]' || true
+      
+      echo ""
+      echo "📋 Ingress-Nginx Status:"
+      kubectl get pods -n ingress-nginx
+      kubectl get svc -n ingress-nginx
+      
+      echo ""
+      echo "📦 Blauweiss Pods:"
+      kubectl get pods -n blauweiss
+      
+      EXTERNAL_IP=$(curl -s ifconfig.me)
+      echo ""
+      echo "✅ Portal: http://$EXTERNAL_IP:30080"
