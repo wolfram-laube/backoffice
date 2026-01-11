@@ -1,19 +1,14 @@
 # ═══════════════════════════════════════════════════════════════════════════════
-#  BLAUWEISS PORTAL - CI/CD PIPELINE
+#  BLAUWEISS PORTAL - CI/CD PIPELINE (Shell Runners)
 # ═══════════════════════════════════════════════════════════════════════════════
 #
-#  Runner-Strategie:
-#  ─────────────────
-#  • Standard Jobs (lint, test, build) → GitLab Shared Runners (free, Docker)
-#  • Deploy Jobs (Cloud Run, K8s)      → Eigene Runner (Mac/GCP, shell)
-#  • K8s Showcase                      → GCP Runner mit k3s
+#  Alle Jobs laufen auf eigenen Shell Runnern (Mac/GCP)
+#  → Unbegrenzte Minuten, keine Kosten
 #
-#  Tags:
-#  ─────
-#  • (none)     → Shared Runner (Docker)
-#  • [deploy]   → Mac oder GCP (shell, für gcloud/kubectl)
-#  • [k8s]      → Nur GCP (hat k3s installiert)
-#  • [mac]      → Nur Mac (wenn spezifisch nötig)
+#  Runner:
+#  ─────────
+#  • mac-shell / mac-group-shell  → wenn Mac online
+#  • gcp-group-shell              → Fallback / K8s
 #
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -23,84 +18,46 @@ stages:
   - build
   - deploy
 
-variables:
-  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
-
 # ═══════════════════════════════════════════════════════════════════════════════
-#  LINTING - Shared Runners (Docker)
+#  LINTING
 # ═══════════════════════════════════════════════════════════════════════════════
 
 lint:flake8:
   stage: lint
-  image: python:3.11-slim
   script:
-    - pip install flake8 -q
+    - pip install flake8 -q --break-system-packages 2>/dev/null || pip install flake8 -q
     - flake8 modules/ --max-line-length=120 --ignore=E501,W503 || true
   allow_failure: true
 
 lint:black:
   stage: lint
-  image: python:3.11-slim
   script:
-    - pip install black -q
+    - pip install black -q --break-system-packages 2>/dev/null || pip install black -q
     - black --check modules/ || true
   allow_failure: true
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  TESTING - Shared Runners (Docker)
+#  TESTING
 # ═══════════════════════════════════════════════════════════════════════════════
 
 test:syntax:
   stage: test
-  image: python:3.11-slim
   script:
-    - find modules -name "*.py" -exec python -m py_compile {} \;
+    - find modules -name "*.py" -exec python3 -m py_compile {} \;
 
 test:imports:
   stage: test
-  image: python:3.11-slim
   script:
-    - pip install pyyaml -q
-    - python -c "from modules.invoicing import InvoiceService" || true
+    - pip install pyyaml -q --break-system-packages 2>/dev/null || pip install pyyaml -q
+    - python3 -c "from modules.invoicing import InvoiceService" || true
+  allow_failure: true
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  BUILD - Shared Runners (Docker)
-# ═══════════════════════════════════════════════════════════════════════════════
-
-build:backend:
-  stage: build
-  image: docker:24
-  services:
-    - docker:24-dind
-  variables:
-    DOCKER_TLS_CERTDIR: "/certs"
-  before_script:
-    - echo "$GCP_SA_KEY" > /tmp/sa-key.json
-    - cat /tmp/sa-key.json | docker login -u _json_key --password-stdin https://gcr.io
-  script:
-    - |
-      if [ -f "backend/Dockerfile" ]; then
-        docker build -t gcr.io/myk8sproject-207017/blauweiss-api:$CI_COMMIT_SHA ./backend
-        docker push gcr.io/myk8sproject-207017/blauweiss-api:$CI_COMMIT_SHA
-        docker tag gcr.io/myk8sproject-207017/blauweiss-api:$CI_COMMIT_SHA gcr.io/myk8sproject-207017/blauweiss-api:latest
-        docker push gcr.io/myk8sproject-207017/blauweiss-api:latest
-        echo "✅ Backend image pushed"
-      else
-        echo "⏭️ No backend/Dockerfile yet"
-      fi
-  rules:
-    - if: $CI_COMMIT_BRANCH == "main"
-      changes:
-        - backend/**/*
-    - if: $CI_COMMIT_MESSAGE =~ /\[build\]/
-
-# ═══════════════════════════════════════════════════════════════════════════════
-#  INVOICE GENERATION - Shell Runner (braucht Typst)
+#  INVOICE GENERATION
 # ═══════════════════════════════════════════════════════════════════════════════
 
 invoice:generate:
   stage: build
-  tags: [deploy]  # Mac oder GCP - beide haben shell
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
       changes:
@@ -111,11 +68,15 @@ invoice:generate:
     - |
       if ! command -v typst &> /dev/null; then
         echo "Installing Typst..."
-        curl -sL -o /tmp/typst.tar.xz https://github.com/typst/typst/releases/download/v0.12.0/typst-x86_64-unknown-linux-musl.tar.xz
-        cd /tmp && tar -xf typst.tar.xz
-        mkdir -p $HOME/bin
-        mv typst-x86_64-unknown-linux-musl/typst $HOME/bin/ 2>/dev/null || mv typst-*/typst $HOME/bin/
-        export PATH="$HOME/bin:$PATH"
+        if [[ "$(uname)" == "Darwin" ]]; then
+          brew install typst 2>/dev/null || echo "Typst might already be installed"
+        else
+          curl -sL -o /tmp/typst.tar.xz https://github.com/typst/typst/releases/download/v0.12.0/typst-x86_64-unknown-linux-musl.tar.xz
+          cd /tmp && tar -xf typst.tar.xz
+          mkdir -p $HOME/bin
+          find /tmp -name "typst" -type f -exec mv {} $HOME/bin/ \;
+          export PATH="$HOME/bin:$PATH"
+        fi
       fi
   script:
     - export PATH="$HOME/bin:$PATH"
@@ -128,84 +89,68 @@ invoice:generate:
   allow_failure: true
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  DEPLOY: CLOUD RUN (Production) - Shell Runner
+#  DEPLOY: CLOUD RUN
 # ═══════════════════════════════════════════════════════════════════════════════
 
 deploy:cloudrun:
   stage: deploy
-  tags: [deploy]  # Mac oder GCP
+  tags: [deploy]
   rules:
+    - if: $CI_COMMIT_MESSAGE =~ /\[deploy\]/
     - if: $CI_COMMIT_BRANCH == "main"
       changes:
         - backend/**/*
-    - if: $CI_COMMIT_MESSAGE =~ /\[deploy\]/
       when: manual
-  before_script:
-    - echo "$GCP_SA_KEY" > /tmp/sa-key.json
-    - gcloud auth activate-service-account --key-file=/tmp/sa-key.json
-    - gcloud config set project myk8sproject-207017
   script:
     - |
-      echo "🚀 Deploying to Cloud Run..."
+      echo "$GCP_SA_KEY" > /tmp/sa-key.json
+      gcloud auth activate-service-account --key-file=/tmp/sa-key.json
+      gcloud config set project myk8sproject-207017
       
-      if gcloud run services describe blauweiss-api --region=europe-west1 &>/dev/null; then
+      if [ -f "backend/Dockerfile" ]; then
+        echo "🚀 Building and deploying to Cloud Run..."
+        gcloud builds submit --tag gcr.io/myk8sproject-207017/blauweiss-api ./backend
         gcloud run deploy blauweiss-api \
-          --image gcr.io/myk8sproject-207017/blauweiss-api:$CI_COMMIT_SHA \
+          --image gcr.io/myk8sproject-207017/blauweiss-api \
           --region europe-west1 \
           --platform managed \
           --allow-unauthenticated
-        
-        URL=$(gcloud run services describe blauweiss-api --region=europe-west1 --format='value(status.url)')
-        echo "✅ Deployed: $URL"
+        echo "✅ Deployed!"
       else
-        echo "⏭️ Cloud Run service not yet created"
-        echo "   Run: gcloud run deploy blauweiss-api --image gcr.io/myk8sproject-207017/blauweiss-api:latest --region europe-west1"
+        echo "⏭️ No backend yet"
       fi
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  DEPLOY: K8s SHOWCASE - GCP Runner mit k3s
+#  DEPLOY: K8s SHOWCASE
 # ═══════════════════════════════════════════════════════════════════════════════
 
 deploy:k8s:
   stage: deploy
-  tags: [k8s]  # Nur GCP Runner (hat k3s)
+  tags: [k8s]
   rules:
+    - if: $CI_COMMIT_MESSAGE =~ /\[k8s-deploy\]/
     - if: $CI_COMMIT_BRANCH == "main"
       changes:
         - infra/k8s/**/*
-        - backend/**/*
-        - portal/**/*
-    - if: $CI_COMMIT_MESSAGE =~ /\[k8s-deploy\]/
+      when: manual
   script:
     - |
       export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
       
-      echo "☸️ Deploying to K8s Showcase..."
-      
-      # Manifests anwenden
       kubectl apply -f infra/k8s/all-in-one.yaml
       
-      # Secret aktualisieren
       kubectl create secret generic gitlab-credentials \
         --namespace=blauweiss \
         --from-literal=GITLAB_TOKEN="$GITLAB_TOKEN" \
         --from-literal=GITLAB_PROJECT_ID="$CI_PROJECT_ID" \
         --dry-run=client -o yaml | kubectl apply -f -
       
-      # Rollout
       kubectl rollout restart deployment -n blauweiss 2>/dev/null || true
       
-      echo ""
-      echo "📦 Pods:"
-      kubectl get pods -n blauweiss
-      
       EXTERNAL_IP=$(curl -s ifconfig.me)
-      echo ""
-      echo "═══════════════════════════════════════"
       echo "✅ K8s Showcase: http://$EXTERNAL_IP:30080"
-      echo "═══════════════════════════════════════"
 
-# K8s Setup - einmalig oder bei Infrastruktur-Änderungen
+# K8s Setup
 k8s:setup:
   stage: deploy
   tags: [k8s]
@@ -215,44 +160,28 @@ k8s:setup:
   script:
     - |
       export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
-      
-      echo "☸️ K8s Setup..."
-      
-      # Ingress-Nginx installieren
       kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.9.4/deploy/static/provider/baremetal/deploy.yaml
-      
       sleep 30
-      
-      # NodePort auf 30080
       kubectl patch svc ingress-nginx-controller -n ingress-nginx --type=json \
         -p='[{"op": "replace", "path": "/spec/ports/0/nodePort", "value": 30080}]' || true
-      
-      # Namespace
       kubectl create namespace blauweiss --dry-run=client -o yaml | kubectl apply -f -
-      
       echo "✅ K8s Setup complete"
-      kubectl get nodes
-      kubectl get pods -n ingress-nginx
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  PAGES - Shared Runner (statisches Frontend)
+#  PAGES
 # ═══════════════════════════════════════════════════════════════════════════════
 
 pages:
   stage: deploy
-  image: node:20-slim
   script:
+    - mkdir -p public
     - |
-      mkdir -p public
-      
-      # Frontend bauen wenn vorhanden
       if [ -d "frontend" ] && [ -f "frontend/package.json" ]; then
         cd frontend
         npm ci
         npm run build
         mv dist/* ../public/
       else
-        # Fallback: statische Files kopieren
         cp portal/frontend/index.html public/index.html 2>/dev/null || echo "<h1>Blauweiss Portal</h1>" > public/index.html
       fi
   artifacts:
