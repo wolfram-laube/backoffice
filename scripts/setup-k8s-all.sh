@@ -163,7 +163,7 @@ echo "    ✅ Secrets erstellt"
 echo ""
 echo "🚀 [6/6] Manifests deployen..."
 
-MANIFEST_BASE="https://gitlab.com/wolfram_laube/blauweiss_llc/freelancer-admin/-/raw/main/infra/k8s"
+MANIFEST_BASE="https://gitlab.com/wolfram_laube/blauweiss_llc/ops/backoffice/-/raw/main/infra/k8s"
 
 for CTX in "$K8S_MAC_CONTEXT" "$K8S_GCP_CONTEXT"; do
     echo "    → $CTX"

@@ -195,7 +195,7 @@ ${entries.map(e => `  - date: ${e.date}
           const invoiceJob = jobs.find(j => j.name.includes('invoice') && j.artifacts_file);
 
           if (invoiceJob) {
-            setArtifactUrl(`https://gitlab.com/wolfram_laube/blauweiss_llc/freelancer-admin/-/jobs/${invoiceJob.id}/artifacts/download`);
+            setArtifactUrl(`https://gitlab.com/wolfram_laube/blauweiss_llc/ops/backoffice/-/jobs/${invoiceJob.id}/artifacts/download`);
           }
           
           setStatus('success');

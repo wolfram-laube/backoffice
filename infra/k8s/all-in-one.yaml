@@ -168,7 +168,7 @@ spec:
                     r = await client.get(f"{GITLAB_API}/projects/{GITLAB_PROJECT_ID}/pipelines/{pid}/jobs", headers={"PRIVATE-TOKEN": GITLAB_TOKEN})
                     for j in r.json():
                         if "invoice" in j.get("name", "") and j.get("artifacts_file"):
-                            return {"download_url": f"https://gitlab.com/wolfram_laube/blauweiss_llc/freelancer-admin/-/jobs/{j['id']}/artifacts/download"}
+                            return {"download_url": f"https://gitlab.com/wolfram_laube/blauweiss_llc/ops/backoffice/-/jobs/{j['id']}/artifacts/download"}
                     return {"download_url": None}
             PYEOF
             cd /app && uvicorn main:app --host 0.0.0.0 --port 8000
@@ -242,7 +242,7 @@ spec:
         command: ["/bin/sh", "-c"]
         args:
           - |
-            curl -s "https://gitlab.com/wolfram_laube/blauweiss_llc/freelancer-admin/-/raw/main/portal/frontend/index.html" > /html/index.html || echo "<h1>Frontend Loading Error</h1>" > /html/index.html
+            curl -s "https://gitlab.com/wolfram_laube/blauweiss_llc/ops/backoffice/-/raw/main/portal/frontend/index.html" > /html/index.html || echo "<h1>Frontend Loading Error</h1>" > /html/index.html
         volumeMounts:
         - name: html
           mountPath: /html

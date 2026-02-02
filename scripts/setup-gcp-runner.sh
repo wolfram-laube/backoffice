@@ -60,7 +60,7 @@ if [ -z "$RUNNER_TOKEN" ]; then
         echo "Usage: $0 <REGISTRATION_TOKEN> [PROJECT_ID]"
         echo ""
         echo "Token holen von:"
-        echo "https://gitlab.com/wolfram_laube/blauweiss_llc/freelancer-admin/-/settings/ci_cd"
+        echo "https://gitlab.com/wolfram_laube/blauweiss_llc/ops/backoffice/-/settings/ci_cd"
         exit 1
     fi
 fi
@@ -134,5 +134,5 @@ echo "  IP:     $EXTERNAL_IP"
 echo "  SSH:    gcloud compute ssh $VM_NAME --zone=$GCP_ZONE"
 echo ""
 echo "  Runner sollte in GitLab sichtbar sein:"
-echo "  https://gitlab.com/wolfram_laube/blauweiss_llc/freelancer-admin/-/settings/ci_cd"
+echo "  https://gitlab.com/wolfram_laube/blauweiss_llc/ops/backoffice/-/settings/ci_cd"
 echo ""

@@ -21,7 +21,7 @@ spec:
         command: ["/bin/sh", "-c"]
         args:
           - |
-            curl -s "https://gitlab.com/wolfram_laube/blauweiss_llc/freelancer-admin/-/raw/main/portal/frontend/index.html" > /html/index.html || echo "<h1>Frontend Loading Error</h1>" > /html/index.html
+            curl -s "https://gitlab.com/wolfram_laube/blauweiss_llc/ops/backoffice/-/raw/main/portal/frontend/index.html" > /html/index.html || echo "<h1>Frontend Loading Error</h1>" > /html/index.html
         volumeMounts:
         - name: html
           mountPath: /html

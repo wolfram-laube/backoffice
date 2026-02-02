@@ -3,7 +3,7 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "freelancer-admin"
+name = "backoffice"
 version = "1.1.0"
 description = "Modulares Admin-Tool für Freelancer: Bewerbungen, Rechnungen, Timesheets"
 readme = "README.md"
@@ -37,7 +37,7 @@ storage = [
 ]
 
 [project.scripts]
-freelancer-admin = "cli:main"
+backoffice = "cli:main"
 
 [tool.setuptools.packages.find]
 include = ["modules*", "common*"]

@@ -12,5 +12,5 @@
 
 ## Regenerating Tokens
 If compromised, regenerate at:
-https://gitlab.com/wolfram_laube/blauweiss_llc/freelancer-admin/-/settings/ci_cd
+https://gitlab.com/wolfram_laube/blauweiss_llc/ops/backoffice/-/settings/ci_cd
 → Runners → Edit → Reset token
