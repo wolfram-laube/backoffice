@@ -1,8 +1,5 @@
-# =============================================================================
 # GCP Nordic Migration Pipeline
-# =============================================================================
 # Migriert clarissa-runner von europe-west1-b nach europe-north1-a
-# =============================================================================
 
 variables:
   OLD_ZONE: "europe-west1-b"
@@ -13,9 +10,6 @@ variables:
   MACHINE_TYPE: "e2-micro"
   DISK_SIZE: "30GB"
 
-# -----------------------------------------------------------------------------
-# Phase 1: Backup & Snapshot
-# -----------------------------------------------------------------------------
 migration:backup:
   stage: .pre
   tags: [gcp-shell]
@@ -24,36 +18,24 @@ migration:backup:
       when: always
     - when: never
   script:
-    - echo "╔══════════════════════════════════════════════════════════════╗"
-    - echo "║  Phase 1 - Backup & Snapshot                                  ║"
-    - echo "╚══════════════════════════════════════════════════════════════╝"
+    - echo "=== Phase 1 - Backup and Snapshot ==="
     - echo "$GCP_SERVICE_ACCOUNT_KEY" | base64 -d > /tmp/gcp-key.json
     - gcloud auth activate-service-account --key-file=/tmp/gcp-key.json
     - gcloud config set project $GCP_PROJECT
-    - echo "📁 Backing up GitLab Runner config..."
+    - echo "Backing up GitLab Runner config..."
     - sudo cat /etc/gitlab-runner/config.toml > runner-config-backup.toml
-    - echo "   ✓ Config saved"
     - export SNAPSHOT_NAME="clarissa-runner-snapshot-$(date +%Y%m%d-%H%M)"
-    - echo "📸 Creating snapshot $SNAPSHOT_NAME..."
-    - gcloud compute disks snapshot $OLD_VM_NAME --zone=$OLD_ZONE --snapshot-names=$SNAPSHOT_NAME --description="Pre-migration snapshot for Nordic migration"
-    - echo "   ✓ Snapshot created"
-    - echo "✅ Verifying snapshot..."
+    - echo "Creating snapshot $SNAPSHOT_NAME..."
+    - gcloud compute disks snapshot $OLD_VM_NAME --zone=$OLD_ZONE --snapshot-names=$SNAPSHOT_NAME --description="Pre-migration snapshot"
     - gcloud compute snapshots describe $SNAPSHOT_NAME --format="table(name,status,diskSizeGb)"
     - echo "SNAPSHOT_NAME=$SNAPSHOT_NAME" > migration.env
-    - echo ""
-    - echo "═══════════════════════════════════════════════════════════════"
-    - echo "✅ Phase 1 complete!"
-    - echo "Next - Run pipeline with MIGRATION_PHASE=create"
-    - echo "═══════════════════════════════════════════════════════════════"
+    - echo "=== Phase 1 complete! Next - MIGRATION_PHASE=create ==="
   artifacts:
     paths:
       - runner-config-backup.toml
       - migration.env
     expire_in: 7 days
 
-# -----------------------------------------------------------------------------
-# Phase 2: Create VM in new region
-# -----------------------------------------------------------------------------
 migration:create:
   stage: .pre
   tags: [gcp-shell]
@@ -62,37 +44,26 @@ migration:create:
       when: always
     - when: never
   script:
-    - echo "╔══════════════════════════════════════════════════════════════╗"
-    - echo "║  Phase 2 - Create VM in europe-north1                        ║"
-    - echo "╚══════════════════════════════════════════════════════════════╝"
+    - echo "=== Phase 2 - Create VM in europe-north1 ==="
     - echo "$GCP_SERVICE_ACCOUNT_KEY" | base64 -d > /tmp/gcp-key.json
     - gcloud auth activate-service-account --key-file=/tmp/gcp-key.json
     - gcloud config set project $GCP_PROJECT
     - export SNAPSHOT_NAME=$(gcloud compute snapshots list --filter="name~clarissa-runner-snapshot" --sort-by=~creationTimestamp --limit=1 --format="value(name)")
-    - echo "📸 Using snapshot - $SNAPSHOT_NAME"
+    - echo "Using snapshot $SNAPSHOT_NAME"
     - export IMAGE_NAME="nordic-runner-image-$(date +%Y%m%d)"
-    - echo "🖼️  Creating image $IMAGE_NAME..."
-    - gcloud compute images create $IMAGE_NAME --source-snapshot=$SNAPSHOT_NAME --description="Image for Nordic runner migration" || echo "Image might already exist"
-    - echo "🖥️  Creating VM $NEW_VM_NAME in $NEW_ZONE..."
-    - gcloud compute instances create $NEW_VM_NAME --zone=$NEW_ZONE --machine-type=$MACHINE_TYPE --image=$IMAGE_NAME --boot-disk-size=$DISK_SIZE --boot-disk-type=pd-standard --tags=gitlab-runner,ssh,http-server,https-server --metadata=enable-oslogin=TRUE --labels=env=production,purpose=gitlab-runner,migrated=true || echo "VM might already exist"
+    - echo "Creating image $IMAGE_NAME..."
+    - gcloud compute images create $IMAGE_NAME --source-snapshot=$SNAPSHOT_NAME --description="Nordic runner image" || echo "Image exists"
+    - echo "Creating VM $NEW_VM_NAME in $NEW_ZONE..."
+    - gcloud compute instances create $NEW_VM_NAME --zone=$NEW_ZONE --machine-type=$MACHINE_TYPE --image=$IMAGE_NAME --boot-disk-size=$DISK_SIZE --boot-disk-type=pd-standard --tags=gitlab-runner,ssh,http-server,https-server --metadata=enable-oslogin=TRUE --labels=env=production,purpose=gitlab-runner || echo "VM exists"
     - sleep 10
     - gcloud compute instances describe $NEW_VM_NAME --zone=$NEW_ZONE --format="table(name,status,networkInterfaces[0].accessConfigs[0].natIP)"
-    - echo ""
-    - echo "═══════════════════════════════════════════════════════════════"
-    - echo "✅ Phase 2 complete! VM created in $NEW_ZONE"
-    - echo ""
-    - echo "🔧 MANUAL STEP - SSH into new VM and register runner:"
-    - echo "   gcloud compute ssh $NEW_VM_NAME --zone=$NEW_ZONE"
-    - echo ""
-    - echo "   sudo gitlab-runner unregister --all-runners"
-    - echo "   sudo gitlab-runner register --url https://gitlab.com --token YOUR_TOKEN --description 'Nordic Shell Runner (europe-north1)' --tag-list 'shell,gcp,gcp-shell,nordic,any-runner' --executor shell"
-    - echo ""
-    - echo "Then run pipeline with MIGRATION_PHASE=switch"
-    - echo "═══════════════════════════════════════════════════════════════"
+    - echo "=== Phase 2 complete! ==="
+    - echo "MANUAL STEP - SSH and register runner:"
+    - echo "  gcloud compute ssh $NEW_VM_NAME --zone=$NEW_ZONE"
+    - echo "  sudo gitlab-runner unregister --all-runners"
+    - echo "  sudo gitlab-runner register --url https://gitlab.com --token TOKEN --description Nordic-Shell-Runner --tag-list shell,gcp,gcp-shell,nordic,any-runner --executor shell"
+    - echo "Then run MIGRATION_PHASE=switch"
 
-# -----------------------------------------------------------------------------
-# Phase 3: Verify new runner works
-# -----------------------------------------------------------------------------
 migration:switch:
   stage: .pre
   tags: [nordic]
@@ -101,26 +72,17 @@ migration:switch:
       when: always
     - when: never
   script:
-    - echo "╔══════════════════════════════════════════════════════════════╗"
-    - echo "║  Phase 3 - Verify new runner                                 ║"
-    - echo "╚══════════════════════════════════════════════════════════════╝"
-    - echo "🎉 This job is running on the NEW runner!"
+    - echo "=== Phase 3 - Verify new runner ==="
+    - echo "Running on NEW runner!"
     - hostname
-    - cat /etc/os-release | head -3
     - gitlab-runner --version
     - echo "$GCP_SERVICE_ACCOUNT_KEY" | base64 -d > /tmp/gcp-key.json
     - gcloud auth activate-service-account --key-file=/tmp/gcp-key.json
-    - echo "📍 VM Location:"
-    - curl -s -H "Metadata-Flavor: Google" http://metadata.google.internal/computeMetadata/v1/instance/zone | cut -d/ -f4
+    - echo "VM Location:"
+    - curl -s -H "Metadata-Flavor:Google" http://metadata.google.internal/computeMetadata/v1/instance/zone
     - echo ""
-    - echo "═══════════════════════════════════════════════════════════════"
-    - echo "✅ Phase 3 complete! New runner is operational!"
-    - echo "After 48h observation - Run MIGRATION_PHASE=cleanup"
-    - echo "═══════════════════════════════════════════════════════════════"
+    - echo "=== Phase 3 complete! After 48h run MIGRATION_PHASE=cleanup ==="
 
-# -----------------------------------------------------------------------------
-# Phase 4: Cleanup old resources
-# -----------------------------------------------------------------------------
 migration:cleanup:
   stage: .pre
   tags: [nordic]
@@ -128,20 +90,14 @@ migration:cleanup:
     - if: $MIGRATION_PHASE == "cleanup"
       when: manual
   script:
-    - echo "╔══════════════════════════════════════════════════════════════╗"
-    - echo "║  Phase 4 - Cleanup old resources                             ║"
-    - echo "╚══════════════════════════════════════════════════════════════╝"
+    - echo "=== Phase 4 - Cleanup old resources ==="
     - echo "$GCP_SERVICE_ACCOUNT_KEY" | base64 -d > /tmp/gcp-key.json
     - gcloud auth activate-service-account --key-file=/tmp/gcp-key.json
     - gcloud config set project $GCP_PROJECT
-    - echo "⏹️  Stopping old VM..."
-    - gcloud compute instances stop $OLD_VM_NAME --zone=$OLD_ZONE || echo "VM might already be stopped"
-    - echo "🗑️  Deleting old VM $OLD_VM_NAME..."
-    - gcloud compute instances delete $OLD_VM_NAME --zone=$OLD_ZONE --quiet || echo "VM might already be deleted"
-    - echo ""
-    - echo "📸 Remaining snapshots (delete manually after 7 days):"
-    - gcloud compute snapshots list --filter="name~clarissa-runner" --format="table(name,creationTimestamp,diskSizeGb)"
-    - echo ""
-    - echo "═══════════════════════════════════════════════════════════════"
-    - echo "✅ Migration complete!"
-    - echo "═══════════════════════════════════════════════════════════════"
+    - echo "Stopping old VM..."
+    - gcloud compute instances stop $OLD_VM_NAME --zone=$OLD_ZONE || echo "Already stopped"
+    - echo "Deleting old VM..."
+    - gcloud compute instances delete $OLD_VM_NAME --zone=$OLD_ZONE --quiet || echo "Already deleted"
+    - echo "Remaining snapshots:"
+    - gcloud compute snapshots list --filter="name~clarissa-runner" --format="table(name,creationTimestamp)"
+    - echo "=== Migration complete! ==="
