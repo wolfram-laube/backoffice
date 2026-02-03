@@ -1,0 +1,150 @@
+# Terraform CI/CD Pipeline
+#
+# Triggers:
+#   - MRs that change infrastructure/** → validate + plan
+#   - Push to main with infrastructure/** changes → plan + apply (manual)
+#
+# Required CI Variables:
+#   - GOOGLE_CREDENTIALS: GCP Service Account JSON key (File type)
+#   - TF_VAR_gcp_project: GCP Project ID
+#   - OPENAI_API_KEY: OpenAI API Key (existing)
+#   - ANTHROPIC_API_KEY: Anthropic API Key (existing, optional)
+
+variables:
+  TF_ROOT: ${CI_PROJECT_DIR}/infrastructure/terraform/environments/gcp
+  TF_STATE_NAME: clarissa-gcp
+  TF_ADDRESS: ${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/${TF_STATE_NAME}
+
+.terraform-base:
+  image:
+    name: hashicorp/terraform:1.7
+    entrypoint: [""]
+  tags:
+    - docker-any
+  before_script:
+    - cd ${TF_ROOT}
+    # Map existing CI variables to Terraform TF_VAR_ format
+    - export TF_VAR_openai_api_key="${OPENAI_API_KEY:-}"
+    - export TF_VAR_anthropic_api_key="${ANTHROPIC_API_KEY:-}"
+    - export TF_VAR_gitlab_deploy_token="${GITLAB_DEPLOY_TOKEN:-}"
+    # Setup GCP credentials
+    - |
+      if [ -n "$GOOGLE_CREDENTIALS" ]; then
+        export GOOGLE_APPLICATION_CREDENTIALS="$GOOGLE_CREDENTIALS"
+      fi
+    # Configure GitLab-managed Terraform state backend
+    - |
+      cat > backend.tf << BACKEND
+      terraform {
+        backend "http" {
+          address        = "${TF_ADDRESS}"
+          lock_address   = "${TF_ADDRESS}/lock"
+          unlock_address = "${TF_ADDRESS}/lock"
+          username       = "gitlab-ci-token"
+          password       = "${CI_JOB_TOKEN}"
+          lock_method    = "POST"
+          unlock_method  = "DELETE"
+          retry_wait_min = 5
+        }
+      }
+      BACKEND
+    - terraform --version
+    - terraform init
+
+# ============================================================
+# Validation Stage - runs on all MRs
+# ============================================================
+
+terraform:fmt:
+  extends: .terraform-base
+  stage: test
+  needs: []
+  script:
+    - terraform fmt -check -recursive -diff
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        - infrastructure/terraform/**/*
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      changes:
+        - infrastructure/terraform/**/*
+  allow_failure: true
+
+terraform:validate:
+  extends: .terraform-base
+  stage: test
+  needs: []
+  script:
+    - terraform validate
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        - infrastructure/terraform/**/*
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      changes:
+        - infrastructure/terraform/**/*
+
+# ============================================================
+# Plan Stage - shows what would change
+# ============================================================
+
+terraform:plan:
+  extends: .terraform-base
+  stage: build
+  needs: []
+  script:
+    - terraform plan -out=plan.tfplan
+    - terraform show -no-color plan.tfplan > plan.txt
+    - echo "=== Terraform Plan Summary ==="
+    - grep -E "^(Plan:|No changes|Error)" plan.txt || head -50 plan.txt
+  artifacts:
+    name: "terraform-plan-${CI_COMMIT_SHORT_SHA}"
+    paths:
+      - ${TF_ROOT}/plan.tfplan
+      - ${TF_ROOT}/plan.txt
+    expire_in: 7 days
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        - infrastructure/terraform/**/*
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      changes:
+        - infrastructure/terraform/**/*
+
+# ============================================================
+# Apply Stage - only on main, manual trigger
+# ============================================================
+
+terraform:apply:
+  extends: .terraform-base
+  stage: deploy
+  needs: []
+  script:
+    # Re-run plan to get tfplan (in case plan artifact expired)
+    - terraform plan -out=plan.tfplan
+    - terraform apply -auto-approve plan.tfplan
+  environment:
+    name: gcp-production
+    url: https://clarissa-api-${TF_VAR_gcp_project}.run.app
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      changes:
+        - infrastructure/terraform/**/*
+      when: manual
+
+# ============================================================
+# Destroy Stage - emergency use only
+# ============================================================
+
+terraform:destroy:
+  extends: .terraform-base
+  stage: deploy
+  needs: []
+  script:
+    - terraform destroy -auto-approve
+  environment:
+    name: gcp-production
+    action: stop
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: manual

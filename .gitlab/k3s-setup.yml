@@ -1,0 +1,165 @@
+# K3s Installation and Management for GCP VM
+#
+# This installs K3s on the GCP VM and configures the GitLab Runner
+
+k3s:install:
+  stage: .pre
+  tags:
+    - gcp-shell
+  rules:
+    - if: $K3S_INSTALL == "true"
+      when: always
+    - when: manual
+      allow_failure: true
+  script:
+    - echo "=== Installing K3s on GCP VM ==="
+    - |
+      if command -v k3s &> /dev/null; then
+        echo "K3s is already installed:"
+        k3s --version
+        echo ""
+        echo "Checking cluster status..."
+        sudo k3s kubectl get nodes || true
+        exit 0
+      fi
+    - |
+      echo "Installing K3s..."
+      curl -sfL https://get.k3s.io | sh -
+    - |
+      echo "Waiting for K3s to be ready..."
+      sleep 10
+    - |
+      echo "Checking K3s status..."
+      sudo systemctl status k3s --no-pager || true
+    - |
+      echo "Checking nodes..."
+      sudo k3s kubectl get nodes
+    - |
+      echo ""
+      echo "=== K3s Installation Complete ==="
+
+k3s:configure-runner:
+  stage: .pre
+  tags:
+    - gcp-shell
+  rules:
+    - if: $K3S_CONFIGURE_RUNNER == "true"
+      when: always
+    - when: manual
+      allow_failure: true
+  script:
+    - echo "=== Configuring GitLab Runner for K3s ==="
+    - |
+      if ! command -v k3s &> /dev/null; then
+        echo "ERROR: K3s is not installed."
+        exit 1
+      fi
+    - |
+      # Create namespace
+      sudo k3s kubectl create namespace gitlab-runner --dry-run=client -o yaml | sudo k3s kubectl apply -f -
+    - |
+      # Setup kubeconfig for gitlab-runner
+      echo "Setting up kubeconfig..."
+      sudo mkdir -p /home/gitlab-runner/.kube
+      sudo k3s kubectl config view --raw | sudo tee /home/gitlab-runner/.kube/config > /dev/null
+      sudo chown -R gitlab-runner:gitlab-runner /home/gitlab-runner/.kube
+      sudo chmod 600 /home/gitlab-runner/.kube/config
+    - |
+      # Add KUBECONFIG to gitlab-runner environment
+      echo "Configuring KUBECONFIG environment..."
+      echo 'export KUBECONFIG=/home/gitlab-runner/.kube/config' | sudo tee /home/gitlab-runner/.bashrc_k8s
+      grep -q 'bashrc_k8s' /home/gitlab-runner/.bashrc || echo 'source ~/.bashrc_k8s' | sudo tee -a /home/gitlab-runner/.bashrc
+    - |
+      # Test with explicit kubeconfig path
+      echo "Testing kubectl access..."
+      sudo -u gitlab-runner kubectl --kubeconfig=/home/gitlab-runner/.kube/config get nodes
+    - |
+      echo ""
+      echo "=== Configuration Complete ==="
+
+k3s:fix-runner-config:
+  stage: .pre
+  tags:
+    - gcp-shell
+  rules:
+    - if: $K3S_FIX_RUNNER == "true"
+      when: always
+    - when: manual
+      allow_failure: true
+  script:
+    - echo "=== Fixing GitLab K8s Runner Config ==="
+    - |
+      # The K8s runner needs the kubeconfig in the runner's config
+      # Check current runner config
+      echo "Current runner config:"
+      sudo cat /etc/gitlab-runner/config.toml | grep -A 30 '\[runners.kubernetes\]' || echo "No K8s runner config found"
+    - |
+      # Export kubeconfig path
+      KUBECONFIG_PATH="/home/gitlab-runner/.kube/config"
+      
+      # Check if kubeconfig exists
+      if [ ! -f "$KUBECONFIG_PATH" ]; then
+        echo "Creating kubeconfig..."
+        sudo mkdir -p /home/gitlab-runner/.kube
+        sudo k3s kubectl config view --raw | sudo tee $KUBECONFIG_PATH > /dev/null
+        sudo chown gitlab-runner:gitlab-runner $KUBECONFIG_PATH
+        sudo chmod 600 $KUBECONFIG_PATH
+      fi
+    - |
+      # Update runner config to use local kubeconfig
+      # The runner should use the kubeconfig file instead of in-cluster config
+      echo "Checking runner can access cluster..."
+      sudo -u gitlab-runner kubectl --kubeconfig=/home/gitlab-runner/.kube/config get nodes
+    - |
+      # Restart runner to pick up changes
+      echo "Restarting gitlab-runner..."
+      sudo gitlab-runner restart || sudo systemctl restart gitlab-runner
+    - |
+      echo ""
+      echo "=== Fix Complete ==="
+      echo "Try running a K8s job now."
+
+k3s:status:
+  stage: .pre
+  tags:
+    - gcp-shell
+  rules:
+    - when: manual
+      allow_failure: true
+  script:
+    - echo "=== K3s Status ==="
+    - |
+      if ! command -v k3s &> /dev/null; then
+        echo "K3s is NOT installed"
+        exit 0
+      fi
+    - k3s --version
+    - echo ""
+    - echo "=== Nodes ==="
+    - sudo k3s kubectl get nodes -o wide
+    - echo ""
+    - echo "=== Pods ==="
+    - sudo k3s kubectl get pods -A
+    - echo ""
+    - echo "=== gitlab-runner kubeconfig ==="
+    - ls -la /home/gitlab-runner/.kube/ 2>/dev/null || echo "No kubeconfig directory"
+    - sudo -u gitlab-runner kubectl --kubeconfig=/home/gitlab-runner/.kube/config get nodes 2>/dev/null || echo "kubectl access failed"
+
+k3s:uninstall:
+  stage: .pre
+  tags:
+    - gcp-shell
+  rules:
+    - if: $K3S_UNINSTALL == "true"
+      when: always
+    - when: manual
+      allow_failure: true
+  script:
+    - echo "=== Uninstalling K3s ==="
+    - |
+      if [ -f /usr/local/bin/k3s-uninstall.sh ]; then
+        sudo /usr/local/bin/k3s-uninstall.sh
+        echo "K3s uninstalled"
+      else
+        echo "K3s uninstall script not found"
+      fi

@@ -1,0 +1,201 @@
+# =============================================================================
+# RUNNER FALLBACK SYSTEM
+# =============================================================================
+# Checks if local runners are available, starts GCP VM as fallback.
+#
+# Usage:
+#   1. Include this file in your CI
+#   2. Jobs that need fallback should use:
+#      needs: [runner-check]
+#      tags: ["${RUNNER_TAG}"]  # Will be "local-shell" or "gcp-shell"
+#
+# Requirements:
+#   - GCP credentials configured
+#   - Local runners tagged with "local-shell"
+#   - GCP runner tagged with "gcp-shell"
+# =============================================================================
+
+variables:
+  # Default: prefer local runners
+  RUNNER_TAG: "gitlab-org-docker"
+  GCP_PROJECT: "blauweiss-llc"
+  GCP_ZONE: "europe-west1-b"
+  GCP_INSTANCE: "gitlab-runner-gcp"
+  # Timeout for GCP VM to become ready (seconds)
+  GCP_STARTUP_TIMEOUT: "120"
+
+# -----------------------------------------------------------------------------
+# RUNNER CHECK: Determine which runner to use
+# -----------------------------------------------------------------------------
+runner-check:
+  stage: .pre
+  image: alpine:latest
+  tags:
+    - gitlab-org-docker  # This job always runs on SaaS runner
+  variables:
+    GIT_STRATEGY: none
+  script:
+    - apk add --no-cache curl jq
+    - |
+      echo "=== Checking Runner Availability ==="
+      
+      # Check local runners via GitLab API
+      LOCAL_RUNNERS=$(curl -s --header "PRIVATE-TOKEN: ${GITLAB_API_TOKEN}" \
+        "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/runners?tag_list=local-shell&status=online" | jq length)
+      
+      echo "Local runners online: ${LOCAL_RUNNERS}"
+      
+      if [ "${LOCAL_RUNNERS}" -gt 0 ]; then
+        echo "✅ Local runner available"
+        echo "RUNNER_TAG=local-shell" >> runner.env
+        echo "RUNNER_SOURCE=local" >> runner.env
+      else
+        echo "⚠️ No local runners available"
+        echo "Checking GCP runner..."
+        
+        GCP_RUNNERS=$(curl -s --header "PRIVATE-TOKEN: ${GITLAB_API_TOKEN}" \
+          "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/runners?tag_list=gcp-shell&status=online" | jq length)
+        
+        if [ "${GCP_RUNNERS}" -gt 0 ]; then
+          echo "✅ GCP runner already online"
+          echo "RUNNER_TAG=gcp-shell" >> runner.env
+          echo "RUNNER_SOURCE=gcp-existing" >> runner.env
+        else
+          echo "🚀 Starting GCP VM..."
+          echo "GCP_START_NEEDED=true" >> runner.env
+          echo "RUNNER_TAG=gcp-shell" >> runner.env
+          echo "RUNNER_SOURCE=gcp-started" >> runner.env
+        fi
+      fi
+      
+      cat runner.env
+  artifacts:
+    reports:
+      dotenv: runner.env
+  rules:
+    - if: $SKIP_RUNNER_CHECK == "true"
+      when: never
+    - when: always
+
+# -----------------------------------------------------------------------------
+# GCP START: Start GCP VM if needed
+# -----------------------------------------------------------------------------
+gcp-start-if-needed:
+  stage: .pre
+  image: google/cloud-sdk:slim
+  tags:
+    - gitlab-org-docker
+  needs:
+    - job: runner-check
+      artifacts: true
+  variables:
+    GIT_STRATEGY: none
+  script:
+    - |
+      if [ "${GCP_START_NEEDED}" != "true" ]; then
+        echo "GCP start not needed (runner source: ${RUNNER_SOURCE})"
+        exit 0
+      fi
+      
+      echo "=== Starting GCP VM ==="
+      
+      # Authenticate
+      echo "${GCP_SERVICE_ACCOUNT_KEY}" | gcloud auth activate-service-account --key-file=-
+      gcloud config set project ${GCP_PROJECT}
+      
+      # Check current status
+      STATUS=$(gcloud compute instances describe ${GCP_INSTANCE} \
+        --zone=${GCP_ZONE} --format='value(status)' 2>/dev/null || echo "NOT_FOUND")
+      
+      echo "Current VM status: ${STATUS}"
+      
+      if [ "${STATUS}" = "RUNNING" ]; then
+        echo "VM already running"
+      elif [ "${STATUS}" = "TERMINATED" ] || [ "${STATUS}" = "STOPPED" ]; then
+        echo "Starting VM..."
+        gcloud compute instances start ${GCP_INSTANCE} --zone=${GCP_ZONE}
+        
+        echo "Waiting for VM to be ready..."
+        sleep 30
+        
+        # Wait for runner to register
+        TIMEOUT=${GCP_STARTUP_TIMEOUT}
+        while [ ${TIMEOUT} -gt 0 ]; do
+          GCP_RUNNERS=$(curl -s --header "PRIVATE-TOKEN: ${GITLAB_API_TOKEN}" \
+            "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/runners?tag_list=gcp-shell&status=online" | jq length)
+          
+          if [ "${GCP_RUNNERS}" -gt 0 ]; then
+            echo "✅ GCP runner is online!"
+            break
+          fi
+          
+          echo "Waiting for runner... (${TIMEOUT}s remaining)"
+          sleep 10
+          TIMEOUT=$((TIMEOUT - 10))
+        done
+        
+        if [ ${TIMEOUT} -le 0 ]; then
+          echo "❌ Timeout waiting for GCP runner"
+          exit 1
+        fi
+      else
+        echo "❌ Unexpected VM status: ${STATUS}"
+        exit 1
+      fi
+  rules:
+    - if: $GCP_START_NEEDED == "true"
+    - when: never
+
+# -----------------------------------------------------------------------------
+# GCP STOP: Optional cleanup job
+# -----------------------------------------------------------------------------
+gcp-stop:
+  stage: .post
+  image: google/cloud-sdk:slim
+  tags:
+    - gitlab-org-docker
+  variables:
+    GIT_STRATEGY: none
+  script:
+    - |
+      if [ "${RUNNER_SOURCE}" != "gcp-started" ]; then
+        echo "GCP was not started by this pipeline, skipping stop"
+        exit 0
+      fi
+      
+      if [ "${GCP_KEEP_RUNNING}" = "true" ]; then
+        echo "GCP_KEEP_RUNNING=true, skipping stop"
+        exit 0
+      fi
+      
+      echo "=== Stopping GCP VM ==="
+      echo "${GCP_SERVICE_ACCOUNT_KEY}" | gcloud auth activate-service-account --key-file=-
+      gcloud config set project ${GCP_PROJECT}
+      gcloud compute instances stop ${GCP_INSTANCE} --zone=${GCP_ZONE}
+      echo "✅ GCP VM stopped"
+  rules:
+    - if: $AUTO_STOP_GCP == "true"
+      when: on_success
+    - when: never
+  allow_failure: true
+
+# -----------------------------------------------------------------------------
+# RUNNER STATUS: Debug job to check all runners
+# -----------------------------------------------------------------------------
+runner-status:
+  stage: .pre
+  image: alpine:latest
+  tags:
+    - gitlab-org-docker
+  variables:
+    GIT_STRATEGY: none
+  script:
+    - apk add --no-cache curl jq
+    - |
+      echo "=== All Project Runners ==="
+      curl -s --header "PRIVATE-TOKEN: ${GITLAB_API_TOKEN}" \
+        "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/runners?per_page=50" | \
+        jq -r '.[] | "\(.online | if . then "🟢" else "🔴" end) \(.description) [\(.tag_list | join(", "))]"'
+  rules:
+    - if: $DEBUG_RUNNERS == "true"
+    - when: never

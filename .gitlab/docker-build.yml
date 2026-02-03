@@ -1,0 +1,60 @@
+# Docker Build & Push Pipeline using Kaniko
+# Builds CLARISSA API image and pushes to GitLab Container Registry
+#
+# Uses Kaniko for rootless builds on custom runners
+#
+# Triggers:
+#   - Push to main branch
+#   - Semantic version tags (v1.0.0, etc.)
+#   - Manual trigger via web
+
+# ============== Build Job ==============
+docker-build:
+  stage: build
+  image:
+    name: gcr.io/kaniko-project/executor:v1.19.2-debug
+    entrypoint: [""]
+  tags:
+    - docker-any
+  needs: []  # Start immediately, no dependencies
+  variables:
+    API_IMAGE: ${CI_REGISTRY_IMAGE}/api
+  script:
+    - echo "Building CLARISSA API image with Kaniko..."
+    - mkdir -p /kaniko/.docker
+    - echo "{\"auths\":{\"${CI_REGISTRY}\":{\"auth\":\"$(printf "%s:%s" "${CI_REGISTRY_USER}" "${CI_REGISTRY_PASSWORD}" | base64 | tr -d '\n')\"}}}" > /kaniko/.docker/config.json
+    - DESTINATIONS="--destination=${API_IMAGE}:${CI_COMMIT_SHORT_SHA}"
+    - if [ "$CI_COMMIT_BRANCH" = "main" ]; then DESTINATIONS="$DESTINATIONS --destination=${API_IMAGE}:latest"; fi
+    - if [ -n "$CI_COMMIT_TAG" ]; then DESTINATIONS="$DESTINATIONS --destination=${API_IMAGE}:${CI_COMMIT_TAG}"; fi
+    - echo "Building with destinations - $DESTINATIONS"
+    - /kaniko/executor --context="${CI_PROJECT_DIR}" --dockerfile="${CI_PROJECT_DIR}/docker/api/Dockerfile" $DESTINATIONS --cache=true --cache-repo=${API_IMAGE}/cache
+    - echo "Docker build complete!"
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: always
+    - if: '$CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/'
+      when: always
+    - if: '$CI_PIPELINE_SOURCE == "web"'
+      when: manual
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: never
+
+# ============== Test Image Job ==============
+docker-test:
+  stage: test
+  image: ${CI_REGISTRY_IMAGE}/api:${CI_COMMIT_SHORT_SHA}
+  tags:
+    - docker-any
+  needs:
+    - docker-build
+  script:
+    - echo "Testing CLARISSA API image..."
+    - python -c "from clarissa.api.main import app; print('Import OK')"
+    - echo "Image test passed!"
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: always
+    - if: '$CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/'
+      when: always
+    - if: '$CI_PIPELINE_SOURCE == "web"'
+      when: manual

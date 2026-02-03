@@ -1,0 +1,82 @@
+# Load Balancing Jobs for GitLab CI/CD
+#
+# Uses generic tags to distribute jobs across available runners.
+# Tag hierarchy:
+#   - any-runner: All 12 runners
+#   - shell-any: All 4 shell runners  
+#   - docker-any: All 4 docker runners
+#   - k8s-any: All 4 k8s runners
+#   - mac-any: All 6 Mac runners
+#   - linux-any: All 3 Linux Yoga runners
+#   - gcp-any: All 3 GCP runners
+#
+# See: ADR-016
+
+# =============================================================================
+# Job Templates
+# =============================================================================
+
+.parallel-shell:
+  tags: [shell-any]
+
+.parallel-docker:
+  tags: [docker-any]
+  image: python:3.11-slim
+
+.parallel-k8s:
+  tags: [k8s-any]
+  image: python:3.11-slim
+
+# =============================================================================
+# Load Balancing Test - 12 parallel jobs
+# =============================================================================
+
+loadbalancing-test:
+  stage: test
+  rules:
+    - if: $LOADBALANCING_TEST == "true"
+  tags: [any-runner]
+  parallel: 12
+  script:
+    - echo "============================================"
+    - echo "Job $CI_NODE_INDEX of $CI_NODE_TOTAL"
+    - echo "Runner - $CI_RUNNER_DESCRIPTION"
+    - hostname
+    - echo "============================================"
+
+# =============================================================================
+# Parallel Fan-Out Tests
+# =============================================================================
+
+parallel-shell-test:
+  stage: test
+  rules:
+    - if: $PARALLEL_SHELL == "true"
+  tags: [shell-any]
+  parallel: 4
+  script:
+    - echo "Shell job $CI_NODE_INDEX on $CI_RUNNER_DESCRIPTION"
+    - python3 --version
+    - uname -a
+
+parallel-docker-test:
+  stage: test
+  rules:
+    - if: $PARALLEL_DOCKER == "true"
+  tags: [docker-any]
+  image: python:3.11-slim
+  parallel: 4
+  script:
+    - echo "Docker job $CI_NODE_INDEX on $CI_RUNNER_DESCRIPTION"
+    - python3 --version
+
+parallel-k8s-test:
+  stage: test
+  rules:
+    - if: $PARALLEL_K8S == "true"
+  tags: [k8s-any]
+  image: python:3.11-slim
+  parallel: 4
+  script:
+    - echo "K8s job $CI_NODE_INDEX on $CI_RUNNER_DESCRIPTION"
+    - python3 --version

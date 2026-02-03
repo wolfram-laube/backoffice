@@ -1,0 +1,25 @@
+# Fix GCP Shell Runner - Simple Docker approach
+
+fix-gcp-shell-simple:
+  stage: test
+  tags:
+    - gcp-docker
+  image: alpine:latest
+  when: manual
+  allow_failure: true
+  script:
+    - echo "=== Simple Fix Attempt ==="
+    - echo "Checking if we have host access..."
+    - ls -la / || true
+    - ls -la /home/ 2>/dev/null || echo "No /home access"
+    - |
+      if [ -d /home/gitlab-runner ]; then
+        echo "Found gitlab-runner home!"
+        echo 'case $- in *i*) ;; *) return;; esac' > /home/gitlab-runner/.bashrc
+        echo "Fixed!"
+        cat /home/gitlab-runner/.bashrc
+      else
+        echo "No direct host access - this is expected in Docker"
+        echo "The runner config needs volumes = [\"/home/gitlab-runner:/home/gitlab-runner:rw\"]"
+        exit 1
+      fi

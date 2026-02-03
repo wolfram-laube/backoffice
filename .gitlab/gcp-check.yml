@@ -1,0 +1,23 @@
+gcp:check-status:
+  stage: .pre
+  tags: [mac-group-shell]
+  script:
+    - |
+      gcloud compute ssh gitlab-runner --zone=europe-west3-a << 'EOF'
+        echo "=== Runner Status ==="
+        sudo gitlab-runner status
+        
+        echo ""
+        echo "=== Runner List ==="
+        sudo gitlab-runner list
+        
+        echo ""
+        echo "=== Config ==="
+        sudo cat /etc/gitlab-runner/config.toml
+        
+        echo ""
+        echo "=== Verify Connection ==="
+        sudo gitlab-runner verify
+      EOF
+  rules:
+    - when: manual

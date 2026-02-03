@@ -1,0 +1,337 @@
+# Runner Benchmark - All 12 Runners
+
+.benchmark_base:
+  stage: test
+  timeout: 10 minutes
+  when: manual
+  allow_failure: true
+  needs: []
+  script:
+    - echo "=== BENCHMARK START ==="
+    - echo "Runner - $CI_RUNNER_DESCRIPTION"
+    - hostname
+    - date
+    - echo "--- CPU Test (primes to 100k) ---"
+    - python3 --version
+    - python3 -c "print(sum(1 for n in range(2,100000) if all(n%i for i in range(2,int(n**0.5)+1))))"
+    - echo "--- Disk Test (50MB) ---"
+    - dd if=/dev/zero of=/tmp/test bs=1M count=50 2>&1 || true
+    - rm -f /tmp/test
+    - echo "=== BENCHMARK END ==="
+
+# Mac #1
+benchmark-mac-group-shell:
+  extends: .benchmark_base
+  tags: [mac-group-shell]
+
+benchmark-mac-docker:
+  extends: .benchmark_base
+  tags: [mac-docker]
+  image: python:3.11-slim
+
+benchmark-mac-k8s:
+  extends: .benchmark_base
+  tags: [mac-k8s]
+  image: python:3.11-slim
+
+# Mac #2
+benchmark-mac2-shell:
+  extends: .benchmark_base
+  tags: [mac2-shell]
+
+benchmark-mac2-docker:
+  extends: .benchmark_base
+  tags: [mac2-docker]
+  image: python:3.11-slim
+
+benchmark-mac2-k8s:
+  extends: .benchmark_base
+  tags: [mac2-k8s]
+  image: python:3.11-slim
+
+# Linux Yoga
+benchmark-linux-shell:
+  extends: .benchmark_base
+  tags: [linux-shell]
+
+benchmark-linux-docker:
+  extends: .benchmark_base
+  tags: [linux-docker]
+  image: python:3.11-slim
+
+benchmark-linux-k8s:
+  extends: .benchmark_base
+  tags: [linux-k8s]
+  image: python:3.11-slim
+
+# GCP VM
+benchmark-gcp-shell:
+  extends: .benchmark_base
+  tags: [gcp-shell]
+
+benchmark-gcp-docker:
+  extends: .benchmark_base
+  tags: [gcp-docker]
+  image: python:3.11-slim
+
+benchmark-gcp-k8s:
+  extends: .benchmark_base
+  tags: [gcp-k8s]
+  image: python:3.11-slim
+
+# Report Generation - collects results and creates charts
+benchmark-report:
+  stage: deploy
+  image: python:3.11-slim
+  tags: [gcp-docker]
+  rules:
+    - if: $BENCHMARK == "true"
+      when: on_success
+    - when: manual
+      allow_failure: true
+  needs:
+    - job: benchmark-mac-group-shell
+      optional: true
+    - job: benchmark-mac-docker
+      optional: true
+    - job: benchmark-mac-k8s
+      optional: true
+    - job: benchmark-mac2-shell
+      optional: true
+    - job: benchmark-mac2-docker
+      optional: true
+    - job: benchmark-mac2-k8s
+      optional: true
+    - job: benchmark-linux-shell
+      optional: true
+    - job: benchmark-linux-docker
+      optional: true
+    - job: benchmark-linux-k8s
+      optional: true
+    - job: benchmark-gcp-shell
+      optional: true
+    - job: benchmark-gcp-docker
+      optional: true
+    - job: benchmark-gcp-k8s
+      optional: true
+  script:
+    - pip install requests matplotlib numpy --quiet
+    - mkdir -p docs/ci/benchmarks
+    - |
+      cat > /tmp/generate_report.py << 'PYEOF'
+      import requests
+      import json
+      import os
+      from datetime import datetime
+      import matplotlib.pyplot as plt
+      import numpy as np
+
+      TOKEN = os.environ.get("CI_JOB_TOKEN") or os.environ.get("GITLAB_TOKEN")
+      PROJECT_ID = os.environ.get("CI_PROJECT_ID", "77260390")
+      PIPELINE_ID = os.environ.get("CI_PIPELINE_ID")
+      API_URL = f"https://gitlab.com/api/v4/projects/{PROJECT_ID}"
+
+      headers = {"PRIVATE-TOKEN": TOKEN} if "glpat" in str(TOKEN) else {"JOB-TOKEN": TOKEN}
+
+      # Get jobs from current pipeline
+      response = requests.get(f"{API_URL}/pipelines/{PIPELINE_ID}/jobs?per_page=100", headers=headers)
+      jobs = response.json()
+
+      # Filter benchmark jobs
+      benchmark_data = {}
+      for job in jobs:
+          name = job.get("name", "")
+          if name.startswith("benchmark-") and "report" not in name:
+              duration = job.get("duration") or 0
+              status = job.get("status")
+              if status == "success" and duration > 0:
+                  # Parse job name: benchmark-{machine}-{executor}
+                  parts = name.replace("benchmark-", "").split("-")
+                  if len(parts) >= 2:
+                      machine = parts[0]
+                      if machine == "mac" and parts[1] == "group":
+                          machine = "Mac #1"
+                          executor = "shell"
+                      elif machine == "mac":
+                          machine = "Mac #1"
+                          executor = parts[1]
+                      elif machine == "mac2":
+                          machine = "Mac #2"
+                          executor = parts[1]
+                      elif machine == "linux":
+                          machine = "Linux Yoga"
+                          executor = parts[1]
+                      elif machine == "gcp":
+                          machine = "GCP VM"
+                          executor = parts[1]
+                      else:
+                          machine = parts[0]
+                          executor = parts[1] if len(parts) > 1 else "unknown"
+                      
+                      if machine not in benchmark_data:
+                          benchmark_data[machine] = {}
+                      benchmark_data[machine][executor] = duration
+
+      print(f"Collected data from {len(benchmark_data)} machines")
+      for m, execs in benchmark_data.items():
+          print(f"  {m}: {execs}")
+
+      if not benchmark_data:
+          print("No benchmark data found!")
+          exit(1)
+
+      # Define consistent order
+      machines = ["Mac #1", "Mac #2", "Linux Yoga", "GCP VM"]
+      executors = ["shell", "docker", "k8s"]
+      colors = {"shell": "#4CAF50", "docker": "#2196F3", "k8s": "#9C27B0"}
+
+      # Chart 1: By Machine
+      fig, ax = plt.subplots(figsize=(12, 6))
+      x = np.arange(len(machines))
+      width = 0.25
+      
+      for i, executor in enumerate(executors):
+          values = [benchmark_data.get(m, {}).get(executor, 0) for m in machines]
+          bars = ax.bar(x + i*width, values, width, label=executor.capitalize(), color=colors[executor])
+          for bar, val in zip(bars, values):
+              if val > 0:
+                  ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.5, 
+                          f'{val:.1f}s', ha='center', va='bottom', fontsize=9)
+
+      ax.set_ylabel('Duration (seconds)')
+      ax.set_title('GitLab Runner Benchmark - By Machine and Executor')
+      ax.set_xticks(x + width)
+      ax.set_xticklabels(machines)
+      ax.legend()
+      ax.grid(axis='y', alpha=0.3)
+      plt.tight_layout()
+      plt.savefig('docs/ci/benchmarks/benchmark_by_machine.png', dpi=150)
+      print("Saved: benchmark_by_machine.png")
+
+      # Chart 2: By Executor
+      fig, ax = plt.subplots(figsize=(12, 6))
+      x = np.arange(len(executors))
+      width = 0.2
+      machine_colors = {"Mac #1": "#FF6B6B", "Mac #2": "#4ECDC4", "Linux Yoga": "#45B7D1", "GCP VM": "#96CEB4"}
+
+      for i, machine in enumerate(machines):
+          values = [benchmark_data.get(machine, {}).get(e, 0) for e in executors]
+          bars = ax.bar(x + i*width, values, width, label=machine, color=machine_colors[machine])
+          for bar, val in zip(bars, values):
+              if val > 0:
+                  ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.5,
+                          f'{val:.1f}s', ha='center', va='bottom', fontsize=8)
+
+      ax.set_ylabel('Duration (seconds)')
+      ax.set_title('GitLab Runner Benchmark - By Executor Type')
+      ax.set_xticks(x + width * 1.5)
+      ax.set_xticklabels([e.capitalize() for e in executors])
+      ax.legend()
+      ax.grid(axis='y', alpha=0.3)
+      plt.tight_layout()
+      plt.savefig('docs/ci/benchmarks/benchmark_by_executor.png', dpi=150)
+      print("Saved: benchmark_by_executor.png")
+
+      # Chart 3: Detailed (horizontal bar)
+      fig, ax = plt.subplots(figsize=(10, 8))
+      all_jobs = []
+      all_durations = []
+      all_colors = []
+      
+      for machine in machines:
+          for executor in executors:
+              duration = benchmark_data.get(machine, {}).get(executor, 0)
+              if duration > 0:
+                  all_jobs.append(f"{machine} - {executor}")
+                  all_durations.append(duration)
+                  all_colors.append(colors[executor])
+
+      y_pos = np.arange(len(all_jobs))
+      bars = ax.barh(y_pos, all_durations, color=all_colors)
+      ax.set_yticks(y_pos)
+      ax.set_yticklabels(all_jobs)
+      ax.set_xlabel('Duration (seconds)')
+      ax.set_title('GitLab Runner Benchmark - All 12 Runners')
+      
+      for bar, duration in zip(bars, all_durations):
+          ax.text(bar.get_width() + 0.5, bar.get_y() + bar.get_height()/2,
+                  f'{duration:.1f}s', va='center', fontsize=9)
+
+      ax.grid(axis='x', alpha=0.3)
+      plt.tight_layout()
+      plt.savefig('docs/ci/benchmarks/benchmark_detailed.png', dpi=150)
+      print("Saved: benchmark_detailed.png")
+
+      # Chart 4: Heatmap
+      fig, ax = plt.subplots(figsize=(8, 6))
+      data_matrix = np.zeros((len(machines), len(executors)))
+      
+      for i, machine in enumerate(machines):
+          for j, executor in enumerate(executors):
+              data_matrix[i, j] = benchmark_data.get(machine, {}).get(executor, 0)
+
+      im = ax.imshow(data_matrix, cmap='RdYlGn_r', aspect='auto')
+      ax.set_xticks(np.arange(len(executors)))
+      ax.set_yticks(np.arange(len(machines)))
+      ax.set_xticklabels([e.capitalize() for e in executors])
+      ax.set_yticklabels(machines)
+
+      for i in range(len(machines)):
+          for j in range(len(executors)):
+              val = data_matrix[i, j]
+              if val > 0:
+                  text_color = 'white' if val > 20 else 'black'
+                  ax.text(j, i, f'{val:.1f}s', ha='center', va='center', color=text_color, fontsize=10)
+
+      ax.set_title('GitLab Runner Benchmark - Heatmap (seconds)')
+      plt.colorbar(im, label='Duration (s)')
+      plt.tight_layout()
+      plt.savefig('docs/ci/benchmarks/benchmark_heatmap.png', dpi=150)
+      print("Saved: benchmark_heatmap.png")
+
+      # Save JSON data
+      report_data = {
+          "pipeline_id": PIPELINE_ID,
+          "timestamp": datetime.now().isoformat(),
+          "results": benchmark_data
+      }
+      with open('docs/ci/benchmarks/benchmark_data.json', 'w') as f:
+          json.dump(report_data, f, indent=2)
+      print("Saved: benchmark_data.json")
+
+      # Generate markdown report
+      md_content = f"""# GitLab Runner Benchmark Report
+
+      **Pipeline:** {PIPELINE_ID}
+      **Date:** {datetime.now().strftime('%Y-%m-%d %H:%M')}
+
+      ## Results
+
+      | Machine | Shell | Docker | K8s |
+      |---------|-------|--------|-----|
+      """
+      for machine in machines:
+          shell = benchmark_data.get(machine, {}).get('shell', '-')
+          docker = benchmark_data.get(machine, {}).get('docker', '-')
+          k8s = benchmark_data.get(machine, {}).get('k8s', '-')
+          shell_str = f"{shell:.1f}s" if isinstance(shell, (int, float)) else shell
+          docker_str = f"{docker:.1f}s" if isinstance(docker, (int, float)) else docker
+          k8s_str = f"{k8s:.1f}s" if isinstance(k8s, (int, float)) else k8s
+          md_content += f"| {machine} | {shell_str} | {docker_str} | {k8s_str} |\n"
+
+      md_content = "\n".join(line.strip() for line in md_content.split("\n"))
+      
+      with open('docs/ci/benchmarks/BENCHMARK_REPORT.md', 'w') as f:
+          f.write(md_content)
+      print("Saved: BENCHMARK_REPORT.md")
+
+      print("\n=== Report generation complete ===")
+      PYEOF
+    - python3 /tmp/generate_report.py
+    - ls -la docs/ci/benchmarks/
+  artifacts:
+    paths:
+      - docs/ci/benchmarks/*.png
+      - docs/ci/benchmarks/*.json
+      - docs/ci/benchmarks/*.md
+    expire_in: 1 week

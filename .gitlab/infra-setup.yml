@@ -1,0 +1,129 @@
+# Infrastructure Diagnostics and Fixes
+
+variables:
+  MAC2_HOST: "wolfram_e_laube@Wolframs-MacBook-Pro-2.local"
+  LINUX_HOST: "wolfram_e_laube@heimdall.local"
+
+.infra_base:
+  stage: deploy
+  tags: [mac-group-shell]
+  rules:
+    - when: manual
+      allow_failure: true
+  before_script:
+    - chmod 600 "$INFRA_SSH_KEY"
+
+# ============ Diagnostics ============
+
+diagnose-mac2:
+  extends: .infra_base
+  script:
+    - echo "🔍 Mac #2 Diagnose..."
+    - echo "=== System Info ==="
+    - ssh -i "$INFRA_SSH_KEY" -o StrictHostKeyChecking=no $MAC2_HOST "uname -a && sw_vers"
+    - echo "=== Docker Status ==="
+    - ssh -i "$INFRA_SSH_KEY" -o StrictHostKeyChecking=no $MAC2_HOST "which docker && docker --version && docker ps" || echo "Docker nicht verfügbar"
+    - echo "=== Docker Desktop Running? ==="
+    - ssh -i "$INFRA_SSH_KEY" -o StrictHostKeyChecking=no $MAC2_HOST "pgrep -l Docker" || echo "Docker Desktop nicht gestartet"
+    - echo "=== Kubernetes Status ==="
+    - ssh -i "$INFRA_SSH_KEY" -o StrictHostKeyChecking=no $MAC2_HOST "which kubectl && kubectl cluster-info" || echo "K8s nicht verfügbar"
+    - echo "=== GitLab Runner Config ==="
+    - ssh -i "$INFRA_SSH_KEY" -o StrictHostKeyChecking=no $MAC2_HOST "cat ~/.gitlab-runner/config.toml"
+
+diagnose-linux:
+  extends: .infra_base
+  script:
+    - echo "🔍 Linux Yoga Diagnose..."
+    - echo "=== System Info ==="
+    - ssh -i "$INFRA_SSH_KEY" -o StrictHostKeyChecking=no $LINUX_HOST "uname -a && lsb_release -a"
+    - echo "=== Docker Status ==="
+    - ssh -i "$INFRA_SSH_KEY" -o StrictHostKeyChecking=no $LINUX_HOST "which docker && docker --version && sudo docker ps" || echo "Docker nicht verfügbar"
+    - echo "=== Kubernetes Status ==="
+    - ssh -i "$INFRA_SSH_KEY" -o StrictHostKeyChecking=no $LINUX_HOST "which kubectl && kubectl cluster-info" || echo "K8s nicht verfügbar"
+    - echo "=== GitLab Runner Config ==="
+    - ssh -i "$INFRA_SSH_KEY" -o StrictHostKeyChecking=no $LINUX_HOST "sudo cat /etc/gitlab-runner/config.toml"
+
+# ============ Fixes ============
+
+fix-mac2-docker:
+  extends: .infra_base
+  script:
+    - echo "🔧 Fixing Docker on Mac #2..."
+    - echo "=== Starting Docker Desktop ==="
+    - ssh -i "$INFRA_SSH_KEY" -o StrictHostKeyChecking=no $MAC2_HOST "open -a Docker" || echo "Docker Desktop nicht installiert"
+    - echo "=== Waiting 30s for Docker to start ==="
+    - sleep 30
+    - echo "=== Verify Docker ==="
+    - ssh -i "$INFRA_SSH_KEY" -o StrictHostKeyChecking=no $MAC2_HOST "docker ps"
+
+fix-linux-docker:
+  extends: .infra_base
+  script:
+    - echo "🔧 Installing Docker on Linux Yoga..."
+    - ssh -i "$INFRA_SSH_KEY" -o StrictHostKeyChecking=no $LINUX_HOST "which docker || (curl -fsSL https://get.docker.com | sudo sh && sudo usermod -aG docker wolfram_e_laube)"
+    - ssh -i "$INFRA_SSH_KEY" -o StrictHostKeyChecking=no $LINUX_HOST "sudo systemctl enable docker && sudo systemctl start docker"
+    - ssh -i "$INFRA_SSH_KEY" -o StrictHostKeyChecking=no $LINUX_HOST "sudo docker ps"
+
+install-k3s-linux:
+  extends: .infra_base
+  script:
+    - echo "🔧 Installing K3s on Linux Yoga..."
+    - ssh -i "$INFRA_SSH_KEY" -o StrictHostKeyChecking=no $LINUX_HOST "which kubectl || curl -sfL https://get.k3s.io | sh -"
+    - ssh -i "$INFRA_SSH_KEY" -o StrictHostKeyChecking=no $LINUX_HOST "sudo kubectl get nodes"
+    - echo "=== Configuring GitLab Runner for K3s ==="
+    - ssh -i "$INFRA_SSH_KEY" -o StrictHostKeyChecking=no $LINUX_HOST "sudo mkdir -p /etc/gitlab-runner && sudo cp /etc/rancher/k3s/k3s.yaml /etc/gitlab-runner/k3s-config && sudo chmod 644 /etc/gitlab-runner/k3s-config"
+
+# ============ Setup Jobs ============
+
+setup-mac2-runners:
+  extends: .infra_base
+  script:
+    - echo "🍎 Installing GitLab Runner on Mac #2..."
+    - ssh -i "$INFRA_SSH_KEY" -o StrictHostKeyChecking=no $MAC2_HOST "which gitlab-runner || brew install gitlab-runner"
+    - echo "=== Registering Shell Runner ==="
+    - ssh -i "$INFRA_SSH_KEY" -o StrictHostKeyChecking=no $MAC2_HOST "gitlab-runner register --non-interactive --url https://gitlab.com --token glrt-8nuANkXjeD8mFyf5yJgAPW86MQpwOjE5enloeQp0OjMKdTpzeGN4Fw.01.1i0m0vg2o --executor shell --description 'Mac2 Shell Runner'" || true
+    - ssh -i "$INFRA_SSH_KEY" -o StrictHostKeyChecking=no $MAC2_HOST "gitlab-runner list"
+
+setup-linux-runners:
+  extends: .infra_base
+  script:
+    - echo "🐧 Installing GitLab Runner on Linux Yoga..."
+    - ssh -i "$INFRA_SSH_KEY" -o StrictHostKeyChecking=no $LINUX_HOST "which gitlab-runner || (curl -L https://packages.gitlab.com/install/repositories/runner/gitlab-runner/script.deb.sh | sudo bash && sudo apt install gitlab-runner -y)"
+    - ssh -i "$INFRA_SSH_KEY" -o StrictHostKeyChecking=no $LINUX_HOST "sudo gitlab-runner register --non-interactive --url https://gitlab.com --token glrt-3krYSQx5i1YSWpSK0k3RzW86MQpwOjE5enloeQp0OjMKdTpzeGN4Fw.01.1i1rwkzs5 --executor shell --description 'Linux Yoga Shell Runner'" || true
+    - ssh -i "$INFRA_SSH_KEY" -o StrictHostKeyChecking=no $LINUX_HOST "sudo gitlab-runner list"
+
+start-mac2-runner:
+  extends: .infra_base
+  script:
+    - ssh -i "$INFRA_SSH_KEY" -o StrictHostKeyChecking=no $MAC2_HOST "nohup gitlab-runner run > /tmp/gitlab-runner.log 2>&1 &"
+    - sleep 3
+    - ssh -i "$INFRA_SSH_KEY" -o StrictHostKeyChecking=no $MAC2_HOST "ps aux | grep gitlab-runner | grep -v grep"
+
+start-linux-runner:
+  extends: .infra_base
+  script:
+    - ssh -i "$INFRA_SSH_KEY" -o StrictHostKeyChecking=no $LINUX_HOST "sudo gitlab-runner restart"
+    - ssh -i "$INFRA_SSH_KEY" -o StrictHostKeyChecking=no $LINUX_HOST "sudo gitlab-runner status"
+
+check-mac2-status:
+  extends: .infra_base
+  script:
+    - ssh -i "$INFRA_SSH_KEY" -o StrictHostKeyChecking=no $MAC2_HOST "gitlab-runner list && ps aux | grep gitlab-runner"
+
+check-linux-status:
+  extends: .infra_base
+  script:
+    - ssh -i "$INFRA_SSH_KEY" -o StrictHostKeyChecking=no $LINUX_HOST "sudo gitlab-runner list && sudo gitlab-runner status"
+
+
+install-docker-mac2:
+  stage: deploy
+  tags: [mac-group-shell]
+  rules:
+    - when: manual
+  before_script:
+    - chmod 600 "$INFRA_SSH_KEY"
+  script:
+    - echo "🍺 Installing Docker Desktop on Mac #2..."
+    - ssh -i "$INFRA_SSH_KEY" -o StrictHostKeyChecking=no wolfram_e_laube@Wolframs-MacBook-Pro-2.local "brew install --cask docker"
+    - echo "✅ Docker Desktop installed! Bitte manuell starten für Lizenz-Akzeptanz."

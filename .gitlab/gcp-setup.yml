@@ -1,0 +1,33 @@
+gcp:fix-shell-runner:
+  stage: .pre
+  tags: [mac-group-shell]
+  script:
+    - echo "Fixing GCP Shell Runner..."
+    - gcloud compute ssh gitlab-runner --zone=europe-west3-a --command "sudo mkdir -p /builds /cache && sudo chmod 777 /builds /cache && sudo gitlab-runner status"
+  rules:
+    - when: manual
+
+gcp:install-docker-runner:
+  stage: .pre
+  tags: [mac-group-shell]
+  variables:
+    DOCKER_TOKEN: "glrt-yfBtSybQYTTVnQJ1SaKalG86MQpwOjE5enloeQp0OjMKdTpzeGN4Fw.01.1i12dh2vl"
+  script:
+    - echo "Adding Docker Runner to GCP VM..."
+    - |
+      gcloud compute ssh gitlab-runner@gitlab-runner --zone=europe-west3-a --command "
+        echo '=== Adding Docker Runner ===';
+        sudo gitlab-runner register --non-interactive \
+          --url https://gitlab.com \
+          --token ${DOCKER_TOKEN} \
+          --executor docker \
+          --docker-image python:3.11-slim \
+          --description 'GCP Docker Runner' || echo 'Runner may already exist';
+        echo '=== Current runners ===';
+        sudo gitlab-runner list;
+        echo '=== Restarting ===';
+        sudo systemctl restart gitlab-runner;
+        sudo gitlab-runner verify
+      "
+  rules:
+    - when: manual
