@@ -39,6 +39,8 @@ workflow:
       when: always
     - if: '$CI_PIPELINE_SOURCE == "trigger"'
       when: always
+    - if: '$CI_PIPELINE_SOURCE == "api"'
+      when: always
     - when: never
 
 # -----------------------------------------------------------------------------
