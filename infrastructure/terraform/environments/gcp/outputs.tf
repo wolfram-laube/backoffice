@@ -2,14 +2,14 @@
 # Outputs
 # ══════════════════════════════════════════════════════════════
 
-output "project_id" {
+output "gcp_project" {
   description = "GCP Project ID"
-  value       = data.google_project.current.project_id
+  value       = var.gcp_project
 }
 
-output "project_number" {
-  description = "GCP Project Number"
-  value       = data.google_project.current.number
+output "gcp_region" {
+  description = "GCP Region"
+  value       = var.gcp_region
 }
 
 # TODO: Add outputs for resources when created:
