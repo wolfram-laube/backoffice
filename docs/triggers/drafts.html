@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📧 Gmail Drafts</title>
+    <style>
+        :root {
+            --bg: #0f0f1a;
+            --surface: #1a1a2e;
+            --text: #e4e4f0;
+            --subtext: #9090a8;
+            --accent: #0984e3;
+            --green: #00cec9;
+            --orange: #fdcb6e;
+        }
+        * { box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            max-width: 700px;
+            margin: 40px auto;
+            padding: 20px;
+        }
+        h1 { color: var(--accent); margin-bottom: 8px; }
+        .subtitle { color: var(--subtext); margin-bottom: 30px; }
+        .card {
+            background: var(--surface);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            color: var(--subtext);
+            margin-bottom: 6px;
+            font-size: 0.9rem;
+        }
+        input, select, textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #333;
+            border-radius: 8px;
+            background: var(--bg);
+            color: var(--text);
+            font-size: 1rem;
+            margin-bottom: 16px;
+        }
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+        .row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+        button {
+            padding: 14px 28px;
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-primary {
+            background: var(--accent);
+            color: white;
+        }
+        .btn-primary:hover { background: #0773c7; }
+        .btn-secondary {
+            background: #333;
+            color: var(--text);
+        }
+        .btn-group {
+            display: flex;
+            gap: 12px;
+            margin-top: 20px;
+        }
+        #output {
+            background: #111;
+            border-radius: 8px;
+            padding: 16px;
+            font-family: monospace;
+            font-size: 0.9rem;
+            white-space: pre-wrap;
+            display: none;
+        }
+        #output.visible { display: block; }
+        .help {
+            font-size: 0.85rem;
+            color: var(--subtext);
+            margin-top: -12px;
+            margin-bottom: 16px;
+        }
+        a { color: var(--accent); }
+        .back { margin-bottom: 20px; display: inline-block; }
+        .warning {
+            background: rgba(253, 203, 110, 0.1);
+            border-left: 3px solid var(--orange);
+            padding: 12px 16px;
+            border-radius: 0 8px 8px 0;
+            margin-bottom: 16px;
+        }
+    </style>
+</head>
+<body>
+    <a href="../portal.html" class="back">← Zurück zum Portal</a>
+    
+    <h1>📧 Gmail Drafts Generator</h1>
+    <p class="subtitle">Erstellt Bewerbungs-Drafts aus CRM Issues</p>
+    
+    <div class="card">
+        <h3>⚙️ Konfiguration</h3>
+        
+        <label for="source">Quelle</label>
+        <select id="source">
+            <option value="hot-leads" selected>🔥 Hot Leads (Label: hot-lead)</option>
+            <option value="new">📥 Neue Issues (Label: neu)</option>
+            <option value="high-match">🎯 High Match (80%+)</option>
+            <option value="all-open">📋 Alle offenen Issues</option>
+        </select>
+        <p class="help">Wähle welche CRM Issues verarbeitet werden</p>
+        
+        <div class="row">
+            <div>
+                <label for="template">Template</label>
+                <select id="template">
+                    <option value="standard" selected>Standard Bewerbung</option>
+                    <option value="follow-up">Follow-Up</option>
+                    <option value="short">Kurzversion</option>
+                </select>
+            </div>
+            <div>
+                <label for="max_drafts">Max. Drafts</label>
+                <input type="number" id="max_drafts" value="10" min="1" max="50">
+            </div>
+        </div>
+        
+        <div class="warning">
+            ⚠️ Drafts werden in Gmail erstellt, NICHT automatisch gesendet. Du musst sie manuell prüfen und absenden.
+        </div>
+        
+        <label for="update_crm">CRM Status aktualisieren</label>
+        <select id="update_crm">
+            <option value="true" selected>Ja — Issue auf "Beworben" setzen</option>
+            <option value="false">Nein — Status beibehalten</option>
+        </select>
+        
+        <div class="btn-group">
+            <button class="btn-primary" onclick="runDrafts()">▶️ Drafts erstellen</button>
+            <button class="btn-secondary" onclick="openGmail()">📬 Gmail öffnen</button>
+        </div>
+    </div>
+    
+    <div id="output"></div>
+    
+    <div class="card">
+        <h3>📊 Status</h3>
+        <ul>
+            <li><a href="https://mail.google.com/mail/u/0/#drafts" target="_blank">📝 Gmail Drafts</a></li>
+            <li><a href="https://gitlab.com/wolfram_laube/blauweiss_llc/ops/crm/-/issues?label_name[]=beworben" target="_blank">✉️ Beworben (CRM)</a></li>
+            <li><a href="https://gitlab.com/wolfram_laube/blauweiss_llc/projects/clarissa/-/pipelines" target="_blank">🔧 Pipeline Logs</a></li>
+        </ul>
+    </div>
+    
+    <script>
+        const GITLAB_PROJECT = '77260390';
+        const TRIGGER_TOKEN = 'glptt-4o6c4b5d8e9f0a1b2c3d4e5f6a7b8c9d'; // Replace
+        
+        function getConfig() {
+            return {
+                DRAFT_SOURCE: document.getElementById('source').value,
+                DRAFT_TEMPLATE: document.getElementById('template').value,
+                MAX_DRAFTS: document.getElementById('max_drafts').value,
+                UPDATE_CRM: document.getElementById('update_crm').value,
+            };
+        }
+        
+        function triggerPipeline(vars) {
+            const output = document.getElementById('output');
+            output.classList.add('visible');
+            output.textContent = '⏳ Gmail Drafts werden erstellt...\n';
+            
+            const formData = new FormData();
+            formData.append('token', TRIGGER_TOKEN);
+            formData.append('ref', 'main');
+            formData.append('variables[GMAIL_DRAFTS]', 'true');
+            
+            for (const [key, value] of Object.entries(vars)) {
+                formData.append(`variables[${key}]`, value);
+            }
+            
+            fetch(`https://gitlab.com/api/v4/projects/${GITLAB_PROJECT}/trigger/pipeline`, {
+                method: 'POST',
+                body: formData
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.id) {
+                    output.textContent += `\n✅ Pipeline #${data.id} gestartet!\n`;
+                    output.textContent += `\n🔗 ${data.web_url}\n`;
+                    output.innerHTML += `\n<a href="${data.web_url}" target="_blank" style="color: var(--green);">→ Pipeline öffnen</a>`;
+                    output.innerHTML += `\n\n<a href="https://mail.google.com/mail/u/0/#drafts" target="_blank" style="color: var(--accent);">📬 Gmail Drafts prüfen</a>`;
+                } else {
+                    output.textContent += `\n❌ Fehler: ${JSON.stringify(data, null, 2)}`;
+                }
+            })
+            .catch(err => {
+                output.textContent += `\n❌ Network Error: ${err.message}\n`;
+                output.textContent += '\n💡 Alternative: Manuell über GitLab UI triggern';
+            });
+        }
+        
+        function runDrafts() {
+            triggerPipeline(getConfig());
+        }
+        
+        function openGmail() {
+            window.open('https://mail.google.com/mail/u/0/#drafts', '_blank');
+        }
+    </script>
+</body>
+</html>

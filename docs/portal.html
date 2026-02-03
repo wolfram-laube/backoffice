@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎯 Blauweiss Operations Portal</title>
+    <style>
+        :root {
+            --bg: #0f0f1a;
+            --surface: #1a1a2e;
+            --surface2: #252542;
+            --text: #e4e4f0;
+            --subtext: #9090a8;
+            --accent: #6c5ce7;
+            --green: #00cec9;
+            --yellow: #fdcb6e;
+            --red: #ff7675;
+            --blue: #74b9ff;
+            --purple: #a29bfe;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container { max-width: 1400px; margin: 0 auto; }
+        
+        header {
+            text-align: center;
+            padding: 30px 0;
+            border-bottom: 1px solid var(--surface2);
+            margin-bottom: 30px;
+        }
+        header h1 {
+            font-size: 2.5rem;
+            background: linear-gradient(135deg, var(--accent), var(--purple));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        header .subtitle { color: var(--subtext); margin-top: 8px; }
+        
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .card {
+            background: var(--surface);
+            border-radius: 16px;
+            padding: 24px;
+            border: 1px solid var(--surface2);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 40px rgba(108, 92, 231, 0.15);
+        }
+        .card h2 {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 1.3rem;
+            margin-bottom: 16px;
+        }
+        .card h2 .icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.4rem;
+        }
+        .card p { color: var(--subtext); margin-bottom: 16px; line-height: 1.5; }
+        
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 20px;
+            border-radius: 10px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.2s;
+            border: none;
+            cursor: pointer;
+            font-size: 0.95rem;
+        }
+        .btn-primary {
+            background: var(--accent);
+            color: white;
+        }
+        .btn-primary:hover { background: #5b4cdb; }
+        .btn-secondary {
+            background: var(--surface2);
+            color: var(--text);
+        }
+        .btn-secondary:hover { background: #303050; }
+        .btn-success { background: var(--green); color: var(--bg); }
+        .btn-warning { background: var(--yellow); color: var(--bg); }
+        .btn-danger { background: var(--red); color: white; }
+        
+        .btn-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        
+        .status {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+        .status-ok { background: rgba(0, 206, 201, 0.15); color: var(--green); }
+        .status-warn { background: rgba(253, 203, 110, 0.15); color: var(--yellow); }
+        .status-err { background: rgba(255, 118, 117, 0.15); color: var(--red); }
+        .status::before {
+            content: '';
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: currentColor;
+        }
+        
+        .quick-links {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            padding: 20px;
+            background: var(--surface);
+            border-radius: 12px;
+            margin-bottom: 30px;
+        }
+        .quick-links a {
+            color: var(--blue);
+            text-decoration: none;
+            padding: 8px 16px;
+            background: var(--surface2);
+            border-radius: 8px;
+            font-size: 0.9rem;
+        }
+        .quick-links a:hover { background: var(--accent); color: white; }
+        
+        .section-title {
+            font-size: 1.1rem;
+            color: var(--subtext);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin: 30px 0 20px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--surface2);
+        }
+        
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .stat {
+            background: var(--surface);
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--accent);
+        }
+        .stat-label {
+            color: var(--subtext);
+            font-size: 0.85rem;
+            margin-top: 4px;
+        }
+        
+        #output {
+            background: var(--surface);
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 20px;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 0.9rem;
+            max-height: 300px;
+            overflow-y: auto;
+            display: none;
+        }
+        #output.visible { display: block; }
+        
+        footer {
+            text-align: center;
+            padding: 30px;
+            color: var(--subtext);
+            font-size: 0.85rem;
+        }
+        footer a { color: var(--blue); }
+        
+        @media (max-width: 768px) {
+            .grid { grid-template-columns: 1fr; }
+            header h1 { font-size: 1.8rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎯 Blauweiss Operations Portal</h1>
+            <p class="subtitle">Zentrale Steuerung für Bewerbungen, CRM, Billing & Infrastruktur</p>
+        </header>
+        
+        <div class="quick-links">
+            <a href="https://gitlab.com/wolfram_laube/blauweiss_llc/ops/crm/-/boards/10081703" target="_blank">📋 CRM Board</a>
+            <a href="https://gitlab.com/wolfram_laube/blauweiss_llc/ops/crm/-/issues?label_name[]=hot-lead" target="_blank">🔥 Hot Leads</a>
+            <a href="https://gitlab.com/wolfram_laube/blauweiss_llc/projects/clarissa/-/pipelines" target="_blank">🔄 Pipelines</a>
+            <a href="https://gitlab.com/wolfram_laube/blauweiss_llc/projects/clarissa/-/pipeline_schedules" target="_blank">📅 Schedules</a>
+            <a href="https://github.com/wolfram-laube/clarissa" target="_blank">🐙 GitHub Mirror</a>
+            <a href="ops/crm/" target="_blank">📖 CRM Docs</a>
+        </div>
+        
+        <div class="stats-row" id="stats">
+            <div class="stat">
+                <div class="stat-value" id="stat-issues">—</div>
+                <div class="stat-label">CRM Issues</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value" id="stat-hotleads">—</div>
+                <div class="stat-label">Hot Leads</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value" id="stat-pipeline">—</div>
+                <div class="stat-label">Aktive Pipeline</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value" id="stat-conversion">—</div>
+                <div class="stat-label">Conversion</div>
+            </div>
+        </div>
+        
+        <div class="section-title">📊 Bewerbungs-Management</div>
+        <div class="grid">
+            <div class="card">
+                <h2><span class="icon" style="background: linear-gradient(135deg, #6c5ce7, #a29bfe);">🔍</span> Applications Crawler</h2>
+                <p>Crawlt freelancermap.de nach neuen Projekten. Keywords: DevOps, Python, AI, Kubernetes.</p>
+                <div class="btn-group">
+                    <button class="btn btn-primary" onclick="triggerPipeline('APPLICATIONS_CRAWL')">▶️ Crawl starten</button>
+                    <a href="triggers/applications-crawl.html" class="btn btn-secondary">⚙️ Konfigurieren</a>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h2><span class="icon" style="background: linear-gradient(135deg, #00cec9, #81ecec);">🎯</span> Applications Matcher</h2>
+                <p>Matched gecrawlte Projekte gegen Profile (Wolfram, Ian, Michael, Team).</p>
+                <div class="btn-group">
+                    <button class="btn btn-primary" onclick="triggerPipeline('APPLICATIONS_MATCH')">▶️ Match starten</button>
+                    <a href="triggers/applications-match.html" class="btn btn-secondary">⚙️ Konfigurieren</a>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h2><span class="icon" style="background: linear-gradient(135deg, #fdcb6e, #ffeaa7);">✉️</span> Gmail Drafter</h2>
+                <p>Erstellt Gmail-Entwürfe für Top-Matches mit personalisierten Anschreiben.</p>
+                <div class="btn-group">
+                    <button class="btn btn-primary" onclick="triggerPipeline('APPLICATIONS_DRAFTS')">▶️ Drafts erstellen</button>
+                    <a href="triggers/applications-drafts.html" class="btn btn-secondary">⚙️ Konfigurieren</a>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h2><span class="icon" style="background: linear-gradient(135deg, #ff7675, #fab1a0);">🚀</span> Full Pipeline</h2>
+                <p>Komplette Pipeline: Crawl → Match → QA → Drafts. Täglich Mo-Fr 08:00.</p>
+                <div class="btn-group">
+                    <button class="btn btn-success" onclick="triggerPipeline('APPLICATIONS_PIPELINE')">▶️ Volle Pipeline</button>
+                    <button class="btn btn-secondary" onclick="triggerPipeline('APPLICATIONS_DRY_RUN')">🔍 Dry Run</button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="section-title">📋 CRM & Qualitätssicherung</div>
+        <div class="grid">
+            <div class="card">
+                <h2><span class="icon" style="background: linear-gradient(135deg, #74b9ff, #0984e3);">📊</span> CRM Board</h2>
+                <p>Kanban-Board mit 185 Issues. 8 Status-Spalten von Neu bis Zusage.</p>
+                <div class="btn-group">
+                    <a href="https://gitlab.com/wolfram_laube/blauweiss_llc/ops/crm/-/boards/10081703" class="btn btn-primary" target="_blank">📋 Board öffnen</a>
+                    <a href="https://gitlab.com/wolfram_laube/blauweiss_llc/ops/crm/-/issues/new" class="btn btn-secondary" target="_blank">➕ Neues Issue</a>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h2><span class="icon" style="background: linear-gradient(135deg, #a29bfe, #6c5ce7);">🔍</span> CRM Integrity Check</h2>
+                <p>Prüft Label-Konsistenz, Ghost-Detection, Funnel-Health. Weekly Mo 07:00.</p>
+                <div class="btn-group">
+                    <button class="btn btn-primary" onclick="triggerPipeline('CRM_QA')">▶️ Check starten</button>
+                    <a href="triggers/crm-integrity.html" class="btn btn-secondary">📊 Letzter Report</a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="section-title">💰 Billing & Zeiterfassung</div>
+        <div class="grid">
+            <div class="card">
+                <h2><span class="icon" style="background: linear-gradient(135deg, #00b894, #55efc4);">📝</span> Timesheet Generator</h2>
+                <p>Generiert Timesheets aus Kalender-Events. Monatlich am 1. um 06:00.</p>
+                <div class="btn-group">
+                    <a href="billing-trigger.html" class="btn btn-primary">▶️ Billing Trigger</a>
+                    <a href="https://drive.google.com/drive/folders/1-blauweiss-billing" class="btn btn-secondary" target="_blank">📁 Google Drive</a>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h2><span class="icon" style="background: linear-gradient(135deg, #e17055, #fab1a0);">🧾</span> Rechnungserstellung</h2>
+                <p>PDF-Rechnungen aus Timesheets generieren und per E-Mail versenden.</p>
+                <div class="btn-group">
+                    <button class="btn btn-primary" onclick="triggerPipeline('BILLING_INVOICE')">▶️ Rechnung erstellen</button>
+                    <a href="triggers/billing.html" class="btn btn-secondary">⚙️ Konfigurieren</a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="section-title">🖥️ Entwicklungsumgebungen</div>
+        <div class="grid">
+            <div class="card">
+                <h2><span class="icon" style="background: linear-gradient(135deg, #636e72, #b2bec3);">🐧</span> Linux Runner (Yoga)</h2>
+                <p>Docker + Shell Runner auf Linux Yoga. Primary CI/CD Runner.</p>
+                <div class="btn-group">
+                    <button class="btn btn-success" onclick="triggerPipeline('START_LINUX')">▶️ Start</button>
+                    <button class="btn btn-danger" onclick="triggerPipeline('STOP_LINUX')">⏹️ Stop</button>
+                    <button class="btn btn-secondary" onclick="triggerPipeline('CHECK_LINUX')">📊 Status</button>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h2><span class="icon" style="background: linear-gradient(135deg, #dfe6e9, #b2bec3);">🍎</span> Mac Runner (Mac2)</h2>
+                <p>Docker + Shell Runner auf Mac Mini M2. Fallback Runner.</p>
+                <div class="btn-group">
+                    <button class="btn btn-success" onclick="triggerPipeline('START_MAC2')">▶️ Start</button>
+                    <button class="btn btn-danger" onclick="triggerPipeline('STOP_MAC2')">⏹️ Stop</button>
+                    <button class="btn btn-secondary" onclick="triggerPipeline('CHECK_MAC2')">📊 Status</button>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h2><span class="icon" style="background: linear-gradient(135deg, #4285f4, #34a853);">☁️</span> GCP VM</h2>
+                <p>Google Cloud VM für Benchmarks und Heavy Workloads.</p>
+                <div class="btn-group">
+                    <button class="btn btn-success" onclick="triggerPipeline('GCP_VM_START')">▶️ Start</button>
+                    <button class="btn btn-danger" onclick="triggerPipeline('GCP_VM_STOP')">⏹️ Stop</button>
+                    <button class="btn btn-secondary" onclick="triggerPipeline('GCP_VM_STATUS')">📊 Status</button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="section-title">📚 Dokumentation & Hilfe</div>
+        <div class="grid">
+            <div class="card">
+                <h2><span class="icon" style="background: linear-gradient(135deg, #fd79a8, #e84393);">📖</span> Bedienungsanleitung</h2>
+                <p>Schritt-für-Schritt Anleitung für alle Portal-Funktionen.</p>
+                <div class="btn-group">
+                    <a href="ops/quickstart.html" class="btn btn-primary">📖 Quick Start</a>
+                    <a href="ops/" class="btn btn-secondary">📚 Alle Docs</a>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h2><span class="icon" style="background: linear-gradient(135deg, #00cec9, #81ecec);">🔗</span> API & Integration</h2>
+                <p>GitLab API, Pipeline Triggers, Webhooks.</p>
+                <div class="btn-group">
+                    <a href="ops/api-reference.html" class="btn btn-primary">📖 API Docs</a>
+                    <a href="https://gitlab.com/wolfram_laube/blauweiss_llc/projects/clarissa/-/settings/ci_cd" class="btn btn-secondary" target="_blank">⚙️ CI/CD Settings</a>
+                </div>
+            </div>
+        </div>
+        
+        <div id="output"></div>
+        
+        <footer>
+            <p>Blauweiss EDV e.U. Operations Portal v1.0</p>
+            <p>
+                <a href="https://gitlab.com/wolfram_laube/blauweiss_llc" target="_blank">GitLab</a> · 
+                <a href="https://github.com/wolfram-laube/clarissa" target="_blank">GitHub</a> · 
+                <a href="ops/crm.html">CRM Docs</a>
+            </p>
+        </footer>
+    </div>
+    
+    <script>
+        // Configuration
+        const GITLAB_PROJECT = '77260390';
+        const TRIGGER_TOKEN = 'glptt-4o6c4b5d8e9f0a1b2c3d4e5f6a7b8c9d';  // Replace with actual
+        const TRIGGER_URL = `https://gitlab.com/api/v4/projects/${GITLAB_PROJECT}/trigger/pipeline`;
+        
+        // Pipeline variable mappings
+        const PIPELINE_VARS = {
+            'APPLICATIONS_CRAWL': { 'APPLICATIONS_CRAWL': 'true' },
+            'APPLICATIONS_MATCH': { 'APPLICATIONS_MATCH': 'true' },
+            'APPLICATIONS_DRAFTS': { 'APPLICATIONS_DRAFTS': 'true' },
+            'APPLICATIONS_PIPELINE': { 'APPLICATIONS_PIPELINE': 'true' },
+            'APPLICATIONS_DRY_RUN': { 'APPLICATIONS_DRY_RUN': 'true' },
+            'CRM_QA': { 'CRM_QA': 'true' },
+            'BILLING_INVOICE': { 'BILLING_PIPELINE': 'true' },
+            'START_LINUX': { 'START_LINUX_RUNNER': 'true' },
+            'STOP_LINUX': { 'STOP_LINUX_RUNNER': 'true' },
+            'CHECK_LINUX': { 'CHECK_LINUX_STATUS': 'true' },
+            'START_MAC2': { 'START_MAC2_RUNNER': 'true' },
+            'STOP_MAC2': { 'STOP_MAC2_RUNNER': 'true' },
+            'CHECK_MAC2': { 'CHECK_MAC2_STATUS': 'true' },
+            'GCP_VM_START': { 'GCP_VM_START': 'true' },
+            'GCP_VM_STOP': { 'GCP_VM_STOP': 'true' },
+            'GCP_VM_STATUS': { 'GCP_VM_STATUS': 'true' },
+        };
+        
+        function triggerPipeline(action) {
+            const output = document.getElementById('output');
+            output.classList.add('visible');
+            output.innerHTML = `<p style="color: var(--yellow);">⏳ Triggering ${action}...</p>`;
+            
+            const vars = PIPELINE_VARS[action] || {};
+            const formData = new FormData();
+            formData.append('token', TRIGGER_TOKEN);
+            formData.append('ref', 'main');
+            
+            for (const [key, value] of Object.entries(vars)) {
+                formData.append(`variables[${key}]`, value);
+            }
+            
+            fetch(TRIGGER_URL, { method: 'POST', body: formData })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.id) {
+                        output.innerHTML = `
+                            <p style="color: var(--green);">✅ Pipeline #${data.id} gestartet!</p>
+                            <p><a href="${data.web_url}" target="_blank" style="color: var(--blue);">→ Pipeline öffnen</a></p>
+                        `;
+                    } else {
+                        output.innerHTML = `<p style="color: var(--red);">❌ Error: ${JSON.stringify(data)}</p>`;
+                    }
+                })
+                .catch(err => {
+                    output.innerHTML = `<p style="color: var(--red);">❌ Network Error: ${err.message}</p>
+                        <p style="color: var(--subtext);">Tipp: Manuell triggern via GitLab UI oder CLI</p>`;
+                });
+        }
+        
+        // Load stats (would need CORS proxy or GitLab token for real data)
+        function loadStats() {
+            // Placeholder - in production, fetch from GitLab API or a serverless function
+            document.getElementById('stat-issues').textContent = '185';
+            document.getElementById('stat-hotleads').textContent = '16';
+            document.getElementById('stat-pipeline').textContent = '156';
+            document.getElementById('stat-conversion').textContent = '0.5%';
+        }
+        
+        loadStats();
+    </script>
+</body>
+</html>

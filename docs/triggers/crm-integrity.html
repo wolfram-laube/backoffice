@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>✅ CRM Integrity Check</title>
+    <style>
+        :root {
+            --bg: #0f0f1a;
+            --surface: #1a1a2e;
+            --text: #e4e4f0;
+            --subtext: #9090a8;
+            --accent: #00b894;
+            --green: #00cec9;
+            --orange: #fdcb6e;
+        }
+        * { box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            max-width: 700px;
+            margin: 40px auto;
+            padding: 20px;
+        }
+        h1 { color: var(--accent); margin-bottom: 8px; }
+        .subtitle { color: var(--subtext); margin-bottom: 30px; }
+        .card {
+            background: var(--surface);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            color: var(--subtext);
+            margin-bottom: 6px;
+            font-size: 0.9rem;
+        }
+        select {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #333;
+            border-radius: 8px;
+            background: var(--bg);
+            color: var(--text);
+            font-size: 1rem;
+            margin-bottom: 16px;
+        }
+        select:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+        button {
+            padding: 14px 28px;
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-primary {
+            background: var(--accent);
+            color: white;
+        }
+        .btn-primary:hover { background: #00a187; }
+        .btn-secondary {
+            background: #333;
+            color: var(--text);
+        }
+        .btn-group {
+            display: flex;
+            gap: 12px;
+            margin-top: 20px;
+        }
+        #output {
+            background: #111;
+            border-radius: 8px;
+            padding: 16px;
+            font-family: monospace;
+            font-size: 0.9rem;
+            white-space: pre-wrap;
+            display: none;
+        }
+        #output.visible { display: block; }
+        .help {
+            font-size: 0.85rem;
+            color: var(--subtext);
+            margin-top: -12px;
+            margin-bottom: 16px;
+        }
+        a { color: var(--accent); }
+        .back { margin-bottom: 20px; display: inline-block; }
+        .checks {
+            display: grid;
+            gap: 8px;
+            margin: 16px 0;
+        }
+        .check-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 12px;
+            background: var(--bg);
+            border-radius: 8px;
+            font-size: 0.9rem;
+        }
+        .check-icon { font-size: 1.1rem; }
+    </style>
+</head>
+<body>
+    <a href="../portal.html" class="back">← Zurück zum Portal</a>
+    
+    <h1>✅ CRM Integrity Check</h1>
+    <p class="subtitle">Validiert CRM Issues auf Konsistenz und Datenqualität</p>
+    
+    <div class="card">
+        <h3>🔍 Was wird geprüft?</h3>
+        <div class="checks">
+            <div class="check-item"><span class="check-icon">📋</span> Status-Labels (genau 1 pro Issue)</div>
+            <div class="check-item"><span class="check-icon">💰</span> Rate-Labels bei fortgeschrittenen Deals</div>
+            <div class="check-item"><span class="check-icon">👻</span> Ghost Issues ohne Labels</div>
+            <div class="check-item"><span class="check-icon">📊</span> Funnel-Analyse (Conversion Rates)</div>
+            <div class="check-item"><span class="check-icon">🔥</span> Hot-Lead Tracking</div>
+            <div class="check-item"><span class="check-icon">🔄</span> Duplikat-Erkennung</div>
+        </div>
+    </div>
+    
+    <div class="card">
+        <h3>⚙️ Konfiguration</h3>
+        
+        <label for="check_mode">Check Modus</label>
+        <select id="check_mode">
+            <option value="full" selected>Vollständig — Alle 13 Checks</option>
+            <option value="quick">Schnell — Nur kritische Checks</option>
+        </select>
+        <p class="help">Vollständig dauert ~30 Sekunden</p>
+        
+        <label for="fix_mode">Auto-Fix</label>
+        <select id="fix_mode">
+            <option value="false" selected>Aus — Nur Report</option>
+            <option value="true">An — Kleinere Issues automatisch fixen</option>
+        </select>
+        <p class="help">Auto-Fix behebt z.B. fehlende Labels</p>
+        
+        <div class="btn-group">
+            <button class="btn-primary" onclick="runCheck()">▶️ Check starten</button>
+            <button class="btn-secondary" onclick="openLastRun()">📊 Letztes Ergebnis</button>
+        </div>
+    </div>
+    
+    <div id="output"></div>
+    
+    <div class="card">
+        <h3>📅 Schedule</h3>
+        <p>Automatisch jeden <strong>Montag 07:00</strong> (Vienna)</p>
+        <p><a href="https://gitlab.com/wolfram_laube/blauweiss_llc/projects/clarissa/-/pipeline_schedules/4125129" target="_blank">→ Schedule #4125129 verwalten</a></p>
+    </div>
+    
+    <script>
+        const GITLAB_PROJECT = '77260390';
+        const TRIGGER_TOKEN = 'glptt-4o6c4b5d8e9f0a1b2c3d4e5f6a7b8c9d'; // Replace with real token
+        
+        function triggerPipeline(vars) {
+            const output = document.getElementById('output');
+            output.classList.add('visible');
+            output.textContent = '⏳ CRM Integrity Check wird gestartet...\n';
+            
+            const formData = new FormData();
+            formData.append('token', TRIGGER_TOKEN);
+            formData.append('ref', 'main');
+            formData.append('variables[CRM_INTEGRITY_CHECK]', 'true');
+            
+            for (const [key, value] of Object.entries(vars)) {
+                formData.append(`variables[${key}]`, value);
+            }
+            
+            fetch(`https://gitlab.com/api/v4/projects/${GITLAB_PROJECT}/trigger/pipeline`, {
+                method: 'POST',
+                body: formData
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.id) {
+                    output.textContent += `\n✅ Pipeline #${data.id} gestartet!\n`;
+                    output.textContent += `\n🔗 ${data.web_url}\n`;
+                    output.innerHTML += `\n<a href="${data.web_url}" target="_blank" style="color: var(--green);">→ Pipeline öffnen</a>`;
+                } else {
+                    output.textContent += `\n❌ Fehler: ${JSON.stringify(data, null, 2)}`;
+                }
+            })
+            .catch(err => {
+                output.textContent += `\n❌ Network Error: ${err.message}\n`;
+                output.textContent += '\n💡 Alternative: Manuell über GitLab UI triggern';
+            });
+        }
+        
+        function runCheck() {
+            triggerPipeline({
+                CHECK_MODE: document.getElementById('check_mode').value,
+                AUTO_FIX: document.getElementById('fix_mode').value
+            });
+        }
+        
+        function openLastRun() {
+            window.open('https://gitlab.com/wolfram_laube/blauweiss_llc/projects/clarissa/-/pipelines?page=1&scope=all&source=schedule', '_blank');
+        }
+    </script>
+</body>
+</html>

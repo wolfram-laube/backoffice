@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎯 Profile Matching</title>
+    <style>
+        :root {
+            --bg: #0f0f1a;
+            --surface: #1a1a2e;
+            --text: #e4e4f0;
+            --subtext: #9090a8;
+            --accent: #e17055;
+            --green: #00cec9;
+        }
+        * { box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            max-width: 700px;
+            margin: 40px auto;
+            padding: 20px;
+        }
+        h1 { color: var(--accent); margin-bottom: 8px; }
+        .subtitle { color: var(--subtext); margin-bottom: 30px; }
+        .card {
+            background: var(--surface);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            color: var(--subtext);
+            margin-bottom: 6px;
+            font-size: 0.9rem;
+        }
+        input, select, textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #333;
+            border-radius: 8px;
+            background: var(--bg);
+            color: var(--text);
+            font-size: 1rem;
+            margin-bottom: 16px;
+        }
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+        .row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+        button {
+            padding: 14px 28px;
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-primary {
+            background: var(--accent);
+            color: white;
+        }
+        .btn-primary:hover { background: #d35d4a; }
+        .btn-secondary {
+            background: #333;
+            color: var(--text);
+        }
+        .btn-group {
+            display: flex;
+            gap: 12px;
+            margin-top: 20px;
+        }
+        #output {
+            background: #111;
+            border-radius: 8px;
+            padding: 16px;
+            font-family: monospace;
+            font-size: 0.9rem;
+            white-space: pre-wrap;
+            display: none;
+        }
+        #output.visible { display: block; }
+        .help {
+            font-size: 0.85rem;
+            color: var(--subtext);
+            margin-top: -12px;
+            margin-bottom: 16px;
+        }
+        a { color: var(--accent); }
+        .back { margin-bottom: 20px; display: inline-block; }
+    </style>
+</head>
+<body>
+    <a href="../portal.html" class="back">← Zurück zum Portal</a>
+    
+    <h1>🎯 Profile Matching</h1>
+    <p class="subtitle">Bewertet Projekt-Anforderungen gegen dein Profil</p>
+    
+    <div class="card">
+        <h3>⚙️ Matching Konfiguration</h3>
+        
+        <label for="source">Datenquelle</label>
+        <select id="source">
+            <option value="crm" selected>CRM Issues (GitLab)</option>
+            <option value="csv">CSV Import (letzte Datei)</option>
+            <option value="crawl">Frisch gecrawlte Projekte</option>
+        </select>
+        <p class="help">CRM Issues haben bereits Basis-Daten</p>
+        
+        <div class="row">
+            <div>
+                <label for="min_match">Minimum Match %</label>
+                <input type="number" id="min_match" value="60" min="0" max="100">
+            </div>
+            <div>
+                <label for="max_results">Max. Ergebnisse</label>
+                <input type="number" id="max_results" value="20" min="5" max="100">
+            </div>
+        </div>
+        
+        <label for="profile">Profil-Fokus</label>
+        <select id="profile">
+            <option value="full" selected>Vollständiges Profil</option>
+            <option value="devops">DevOps/Cloud Fokus</option>
+            <option value="ai">AI/ML Fokus</option>
+            <option value="architect">Architekt Fokus</option>
+        </select>
+        
+        <label for="update_crm">CRM Labels aktualisieren</label>
+        <select id="update_crm">
+            <option value="true" selected>Ja — Match-% als Label setzen</option>
+            <option value="false">Nein — Nur Report</option>
+        </select>
+        
+        <div class="btn-group">
+            <button class="btn-primary" onclick="runMatch()">▶️ Matching starten</button>
+            <button class="btn-secondary" onclick="showPreview()">👁️ Preview</button>
+        </div>
+    </div>
+    
+    <div id="output"></div>
+    
+    <div class="card">
+        <h3>📊 Ergebnisse</h3>
+        <ul>
+            <li><a href="https://gitlab.com/wolfram_laube/blauweiss_llc/ops/crm/-/issues?label_name[]=match-90%2B" target="_blank">🔥 90%+ Matches</a></li>
+            <li><a href="https://gitlab.com/wolfram_laube/blauweiss_llc/ops/crm/-/issues?label_name[]=match-80%2B" target="_blank">⭐ 80%+ Matches</a></li>
+            <li><a href="https://gitlab.com/wolfram_laube/blauweiss_llc/ops/crm/-/issues?label_name[]=match-70%2B" target="_blank">✓ 70%+ Matches</a></li>
+        </ul>
+    </div>
+    
+    <script>
+        const GITLAB_PROJECT = '77260390';
+        const TRIGGER_TOKEN = 'glptt-4o6c4b5d8e9f0a1b2c3d4e5f6a7b8c9d'; // Replace
+        
+        function getConfig() {
+            return {
+                MATCH_SOURCE: document.getElementById('source').value,
+                MIN_MATCH: document.getElementById('min_match').value,
+                MAX_RESULTS: document.getElementById('max_results').value,
+                PROFILE_FOCUS: document.getElementById('profile').value,
+                UPDATE_CRM: document.getElementById('update_crm').value,
+            };
+        }
+        
+        function triggerPipeline(vars) {
+            const output = document.getElementById('output');
+            output.classList.add('visible');
+            output.textContent = '⏳ Profile Matching wird gestartet...\n';
+            
+            const formData = new FormData();
+            formData.append('token', TRIGGER_TOKEN);
+            formData.append('ref', 'main');
+            formData.append('variables[PROFILE_MATCH]', 'true');
+            
+            for (const [key, value] of Object.entries(vars)) {
+                formData.append(`variables[${key}]`, value);
+            }
+            
+            fetch(`https://gitlab.com/api/v4/projects/${GITLAB_PROJECT}/trigger/pipeline`, {
+                method: 'POST',
+                body: formData
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.id) {
+                    output.textContent += `\n✅ Pipeline #${data.id} gestartet!\n`;
+                    output.textContent += `\n🔗 ${data.web_url}\n`;
+                    output.innerHTML += `\n<a href="${data.web_url}" target="_blank" style="color: var(--green);">→ Pipeline öffnen</a>`;
+                } else {
+                    output.textContent += `\n❌ Fehler: ${JSON.stringify(data, null, 2)}`;
+                }
+            })
+            .catch(err => {
+                output.textContent += `\n❌ Network Error: ${err.message}\n`;
+                output.textContent += '\n💡 Alternative: Manuell über GitLab UI triggern';
+            });
+        }
+        
+        function runMatch() {
+            triggerPipeline(getConfig());
+        }
+        
+        function showPreview() {
+            const config = getConfig();
+            const output = document.getElementById('output');
+            output.classList.add('visible');
+            output.textContent = `👁️ PREVIEW - Konfiguration:\n\n`;
+            output.textContent += JSON.stringify(config, null, 2);
+            output.textContent += '\n\n💡 Klicke "Matching starten" um auszuführen.';
+        }
+    </script>
+</body>
+</html>

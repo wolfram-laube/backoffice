@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔍 Applications Crawler</title>
+    <style>
+        :root {
+            --bg: #0f0f1a;
+            --surface: #1a1a2e;
+            --text: #e4e4f0;
+            --subtext: #9090a8;
+            --accent: #6c5ce7;
+            --green: #00cec9;
+        }
+        * { box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            max-width: 700px;
+            margin: 40px auto;
+            padding: 20px;
+        }
+        h1 { color: var(--accent); margin-bottom: 8px; }
+        .subtitle { color: var(--subtext); margin-bottom: 30px; }
+        .card {
+            background: var(--surface);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            color: var(--subtext);
+            margin-bottom: 6px;
+            font-size: 0.9rem;
+        }
+        input, select, textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #333;
+            border-radius: 8px;
+            background: var(--bg);
+            color: var(--text);
+            font-size: 1rem;
+            margin-bottom: 16px;
+        }
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+        .row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+        button {
+            padding: 14px 28px;
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-primary {
+            background: var(--accent);
+            color: white;
+        }
+        .btn-primary:hover { background: #5b4cdb; }
+        .btn-secondary {
+            background: #333;
+            color: var(--text);
+        }
+        .btn-group {
+            display: flex;
+            gap: 12px;
+            margin-top: 20px;
+        }
+        #output {
+            background: #111;
+            border-radius: 8px;
+            padding: 16px;
+            font-family: monospace;
+            font-size: 0.9rem;
+            white-space: pre-wrap;
+            display: none;
+        }
+        #output.visible { display: block; }
+        .help {
+            font-size: 0.85rem;
+            color: var(--subtext);
+            margin-top: -12px;
+            margin-bottom: 16px;
+        }
+        a { color: var(--accent); }
+        .back { margin-bottom: 20px; display: inline-block; }
+    </style>
+</head>
+<body>
+    <a href="../portal.html" class="back">← Zurück zum Portal</a>
+    
+    <h1>🔍 Applications Crawler</h1>
+    <p class="subtitle">Crawlt freelancermap.de nach neuen Projekten</p>
+    
+    <div class="card">
+        <h3>Konfiguration</h3>
+        
+        <label for="keywords">Suchbegriffe (komma-separiert)</label>
+        <textarea id="keywords" rows="3">DevOps Kubernetes,Python Cloud,AI ML LLM,Java Spring Architekt,MLOps Platform</textarea>
+        <p class="help">Jeder Begriff wird als separate Suche ausgeführt</p>
+        
+        <div class="row">
+            <div>
+                <label for="min_remote">Minimum Remote %</label>
+                <input type="number" id="min_remote" value="50" min="0" max="100">
+            </div>
+            <div>
+                <label for="max_pages">Seiten pro Keyword</label>
+                <input type="number" id="max_pages" value="3" min="1" max="10">
+            </div>
+        </div>
+        
+        <label for="fetch_details">Details laden</label>
+        <select id="fetch_details">
+            <option value="true" selected>Ja — Projekt-Beschreibungen abrufen</option>
+            <option value="false">Nein — Nur Titel und Metadaten</option>
+        </select>
+        <p class="help">"Ja" ist genauer, dauert aber länger</p>
+        
+        <div class="btn-group">
+            <button class="btn-primary" onclick="runCrawl()">▶️ Crawl starten</button>
+            <button class="btn-secondary" onclick="runDryRun()">🔍 Dry Run (Test)</button>
+        </div>
+    </div>
+    
+    <div id="output"></div>
+    
+    <div class="card">
+        <h3>📊 Letzte Ergebnisse</h3>
+        <p>Nach dem Crawl findest du die Ergebnisse hier:</p>
+        <ul>
+            <li><a href="https://gitlab.com/wolfram_laube/blauweiss_llc/projects/clarissa/-/pipelines" target="_blank">Pipeline-Logs</a></li>
+            <li>Artifacts: <code>output/projects.json</code></li>
+        </ul>
+    </div>
+    
+    <script>
+        const GITLAB_PROJECT = '77260390';
+        const TRIGGER_TOKEN = 'glptt-4o6c4b5d8e9f0a1b2c3d4e5f6a7b8c9d'; // Replace
+        
+        function getConfig() {
+            return {
+                KEYWORDS: document.getElementById('keywords').value,
+                MIN_REMOTE: document.getElementById('min_remote').value,
+                MAX_PAGES: document.getElementById('max_pages').value,
+                FETCH_DETAILS: document.getElementById('fetch_details').value,
+            };
+        }
+        
+        function triggerPipeline(vars) {
+            const output = document.getElementById('output');
+            output.classList.add('visible');
+            output.textContent = '⏳ Pipeline wird gestartet...\n';
+            
+            const formData = new FormData();
+            formData.append('token', TRIGGER_TOKEN);
+            formData.append('ref', 'main');
+            formData.append('variables[APPLICATIONS_CRAWL]', 'true');
+            
+            for (const [key, value] of Object.entries(vars)) {
+                formData.append(`variables[${key}]`, value);
+            }
+            
+            fetch(`https://gitlab.com/api/v4/projects/${GITLAB_PROJECT}/trigger/pipeline`, {
+                method: 'POST',
+                body: formData
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.id) {
+                    output.textContent += `\n✅ Pipeline #${data.id} gestartet!\n`;
+                    output.textContent += `\n🔗 ${data.web_url}\n`;
+                    output.innerHTML += `\n<a href="${data.web_url}" target="_blank" style="color: var(--green);">→ Pipeline öffnen</a>`;
+                } else {
+                    output.textContent += `\n❌ Fehler: ${JSON.stringify(data, null, 2)}`;
+                }
+            })
+            .catch(err => {
+                output.textContent += `\n❌ Network Error: ${err.message}\n`;
+                output.textContent += '\n💡 Alternative: Manuell über GitLab UI triggern';
+            });
+        }
+        
+        function runCrawl() {
+            triggerPipeline(getConfig());
+        }
+        
+        function runDryRun() {
+            const config = getConfig();
+            const output = document.getElementById('output');
+            output.classList.add('visible');
+            output.textContent = `🔍 DRY RUN - Konfiguration:\n\n`;
+            output.textContent += JSON.stringify(config, null, 2);
+            output.textContent += '\n\n💡 Klicke "Crawl starten" um auszuführen.';
+        }
+    </script>
+</body>
+</html>

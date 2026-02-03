@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CLARISSA Billing Trigger</title>
+    <style>
+        :root {
+            --bg: #1e1e2e;
+            --surface: #313244;
+            --text: #cdd6f4;
+            --subtext: #a6adc8;
+            --purple: #cba6f7;
+            --green: #a6e3a1;
+            --red: #f38ba8;
+            --yellow: #f9e2af;
+            --blue: #89b4fa;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            max-width: 600px;
+            margin: 40px auto;
+            padding: 20px;
+        }
+        h1 { color: var(--purple); margin-bottom: 10px; }
+        .subtitle { color: var(--subtext); margin-bottom: 30px; }
+        .card {
+            background: var(--surface);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .card h3 { margin-top: 0; color: var(--blue); }
+        button {
+            background: var(--purple);
+            color: var(--bg);
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 10px;
+            font-weight: 600;
+        }
+        button:hover { opacity: 0.9; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .status {
+            margin-top: 15px;
+            padding: 12px;
+            border-radius: 8px;
+            display: none;
+        }
+        .status.success { background: rgba(166, 227, 161, 0.2); color: var(--green); display: block; }
+        .status.error { background: rgba(243, 139, 168, 0.2); color: var(--red); display: block; }
+        .status.loading { background: rgba(249, 226, 175, 0.2); color: var(--yellow); display: block; }
+        a { color: var(--blue); }
+        .info { font-size: 14px; color: var(--subtext); margin-top: 10px; }
+        code { background: var(--bg); padding: 2px 6px; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <h1>🧾 Billing Trigger</h1>
+    <p class="subtitle">Trigger billing pipeline from GitLab Pages</p>
+
+    <div class="card">
+        <h3>📄 Generate & Upload Invoice</h3>
+        <p>Starts a pipeline that:</p>
+        <ol>
+            <li>Compiles <code>*.typ</code> → PDF</li>
+            <li>Uploads to Google Drive</li>
+            <li>Creates Gmail draft</li>
+        </ol>
+        <button id="triggerBtn" onclick="triggerPipeline()">
+            🚀 Trigger Billing Pipeline
+        </button>
+        <div id="status" class="status"></div>
+        <p class="info">
+            Uses Pipeline Trigger Token (limited permissions)
+        </p>
+    </div>
+
+    <div class="card">
+        <h3>ℹ️ How it works</h3>
+        <p>This page triggers a new pipeline with <code>FORCE_BILLING=true</code>.</p>
+        <p>The CI config detects this variable and runs all billing jobs regardless of file changes.</p>
+        <p><a href="https://gitlab.com/wolfram_laube/blauweiss_llc/clarissa/-/pipelines" target="_blank">
+            View Pipelines →
+        </a></p>
+    </div>
+
+    <script>
+        const PROJECT_ID = '77260390';
+        const TRIGGER_TOKEN = 'glptt-4oo419PQs1AxzGJoNnx1';
+        const REF = 'main';
+
+        async function triggerPipeline() {
+            const btn = document.getElementById('triggerBtn');
+            const status = document.getElementById('status');
+            
+            btn.disabled = true;
+            btn.textContent = '⏳ Triggering...';
+            status.className = 'status loading';
+            status.textContent = 'Starting pipeline...';
+
+            try {
+                const formData = new FormData();
+                formData.append('token', TRIGGER_TOKEN);
+                formData.append('ref', REF);
+                formData.append('variables[FORCE_BILLING]', 'true');
+
+                const response = await fetch(
+                    `https://gitlab.com/api/v4/projects/${PROJECT_ID}/trigger/pipeline`,
+                    { method: 'POST', body: formData }
+                );
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    status.className = 'status success';
+                    status.innerHTML = `✅ Pipeline #${data.id} started!<br>
+                        <a href="${data.web_url}" target="_blank">View Pipeline →</a>`;
+                } else {
+                    throw new Error(data.message || 'Unknown error');
+                }
+            } catch (err) {
+                status.className = 'status error';
+                status.textContent = `❌ Error: ${err.message}`;
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '🚀 Trigger Billing Pipeline';
+            }
+        }
+    </script>
+</body>
+</html>

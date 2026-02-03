@@ -1,0 +1,65 @@
+site_name: Blauweiss Operations
+site_url: https://wolfram_laube.gitlab.io/blauweiss_llc/ops/backoffice/
+repo_url: https://gitlab.com/wolfram_laube/blauweiss_llc/ops/backoffice
+repo_name: GitLab
+
+docs_dir: docs
+site_dir: public
+
+theme:
+  name: material
+  palette:
+    scheme: slate
+    primary: blue
+    accent: orange
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - toc.integrate
+    - search.suggest
+    - search.highlight
+
+plugins:
+  - search:
+      lang:
+        - en
+        - de
+
+markdown_extensions:
+  - attr_list
+  - md_in_html
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - tables
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - "🎛️ Portal Dashboard": portal.html
+  - "🎯 Operations":
+    - "🚀 Quick Start": ops/quickstart.md
+    - "📊 CRM": ops/crm.md
+    - "🚀 Applications Pipeline": ops/applications-pipeline.md
+    - "🔗 API Reference": ops/api-reference.md
+  - "⚡ Triggers":
+    - "📝 Applications Crawl": triggers/applications-crawl.html
+    - "✉️ Drafts": triggers/drafts.html
+    - "🔍 Match": triggers/match.html
+    - "🔧 CRM Integrity": triggers/crm-integrity.html
+    - "💰 Billing": billing-trigger.html
+  - "📚 Handover":
+    - "CI Refactoring (03.02.2026)": handover/HANDOVER_CI_REFACTOR_03_02_2026.md
+    - "Portal Launch (02.02.2026)": handover/HANDOVER_PORTAL_02_02_2026.md
+    - "Billing System": handover/BILLING_SYSTEM.md
