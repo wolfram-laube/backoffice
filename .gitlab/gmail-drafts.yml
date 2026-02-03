@@ -155,3 +155,26 @@ gmail:benchmark-report:
   script:
     - pip3 install requests openai anthropic --quiet --break-system-packages || pip3 install requests openai anthropic --quiet --user || true
     - python3 scripts/ci/send_benchmark_email.py
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  CRM SYNC (after direct draft creation)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+gmail:crm-sync:
+  stage: deploy
+  image: python:3.11-slim
+  tags:
+    - gitlab-org-docker
+  needs:
+    - job: gmail:create-drafts
+      optional: true
+  rules:
+    - if: $DRAFTS_JSON_B64 && $CRM_SYNC != "false"
+      when: on_success
+    - when: never
+  variables:
+    CRM_PROJECT_ID: "78171527"
+    GITLAB_TOKEN: $GITLAB_API_TOKEN
+  script:
+    - pip3 install requests --quiet --break-system-packages || true
+    - python3 scripts/ci/crm_update_on_draft.py
