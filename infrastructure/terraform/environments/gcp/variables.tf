@@ -5,12 +5,13 @@
 variable "gcp_project" {
   description = "GCP Project ID"
   type        = string
+  default     = "blauweiss-llc" # Default for CI validation
 }
 
 variable "gcp_region" {
   description = "GCP Region"
   type        = string
-  default     = "europe-north1"  # Stockholm - cheapest EU region
+  default     = "europe-north1" # Stockholm - cheapest EU region
 }
 
 variable "gcp_zone" {
