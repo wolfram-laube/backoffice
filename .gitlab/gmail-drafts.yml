@@ -17,7 +17,7 @@
 gmail:create-drafts:
   stage: .pre
   tags:
-    - mac-group-shell
+    - gitlab-org-docker
   rules:
     - if: $DRAFTS_JSON_B64
       when: always
@@ -139,7 +139,7 @@ gmail:create-drafts:
 gmail:benchmark-report:
   stage: deploy
   tags:
-    - mac-group-shell
+    - gitlab-org-docker
   needs:
     - job: benchmark-report
       artifacts: true
