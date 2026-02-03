@@ -1,10 +1,10 @@
 # GCP Nordic Migration Pipeline (Shared Runners)
 
 variables:
-  OLD_ZONE: "europe-west1-b"
-  NEW_ZONE: "europe-north1-a"
-  OLD_VM_NAME: "clarissa-runner"
-  NEW_VM_NAME: "nordic-runner"
+  OLD_ZONE: "europe-north2-a"
+  NEW_ZONE: "TBD_TARGET_ZONE"
+  OLD_VM_NAME: "gitlab-runner-nordic"
+  NEW_VM_NAME: "TBD_TARGET_NAME"
   GCP_PROJECT: "myk8sproject-207017"
   MACHINE_TYPE: "e2-micro"
   DISK_SIZE: "30GB"
