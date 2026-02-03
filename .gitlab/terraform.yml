@@ -20,7 +20,7 @@ variables:
     name: hashicorp/terraform:1.7
     entrypoint: [""]
   tags:
-    - docker-any
+    - gitlab-org-docker
   before_script:
     - cd ${TF_ROOT}
     # Map existing CI variables to Terraform TF_VAR_ format
