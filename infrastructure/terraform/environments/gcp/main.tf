@@ -2,10 +2,10 @@
 # Terraform Configuration - GCP Infrastructure
 # ══════════════════════════════════════════════════════════════
 #
-# This is a minimal skeleton for CI validation.
-# TODO: Add actual GCP resources (Cloud Run, Storage, etc.)
+# Minimal skeleton for CI validation (terraform validate/fmt)
+# Full plan/apply requires GCP credentials with proper scopes
 #
-# Required CI Variables:
+# Required CI Variables for plan/apply:
 #   - GOOGLE_CREDENTIALS: GCP Service Account JSON key
 #   - TF_VAR_gcp_project: GCP Project ID
 
@@ -25,14 +25,6 @@ terraform {
 provider "google" {
   project = var.gcp_project
   region  = var.gcp_region
-}
-
-# ══════════════════════════════════════════════════════════════
-# Data Sources
-# ══════════════════════════════════════════════════════════════
-
-data "google_project" "current" {
-  project_id = var.gcp_project
 }
 
 # ══════════════════════════════════════════════════════════════
