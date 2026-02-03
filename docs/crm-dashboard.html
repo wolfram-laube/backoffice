@@ -4,6 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>📊 CRM Dashboard - Blauweiss Operations</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#6c5ce7">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <style>
         :root {
             --bg: #0f0f1a;
@@ -356,6 +360,7 @@
         <header>
             <h1>📊 CRM Dashboard</h1>
             <a href="portal.html" class="back-link">← Zurück zum Portal</a>
+            <button id="installBtn" onclick="installPWA()">📱 App installieren</button>
         </header>
         
         <!-- Token Section (shown if no token) -->
@@ -727,5 +732,29 @@
             return div.innerHTML;
         }
     </script>
+<script>
+    // PWA Service Worker
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("sw.js").then(r => console.log("SW registered")).catch(e => console.log("SW failed:", e));
+    }
+    
+    // Install prompt
+    let deferredPrompt;
+    window.addEventListener("beforeinstallprompt", e => {
+      e.preventDefault();
+      deferredPrompt = e;
+      document.getElementById("installBtn").style.display = "block";
+    });
+    
+    function installPWA() {
+      if (deferredPrompt) {
+        deferredPrompt.prompt();
+        deferredPrompt.userChoice.then(r => {
+          deferredPrompt = null;
+          document.getElementById("installBtn").style.display = "none";
+        });
+      }
+    }
+  </script>
 </body>
 </html>

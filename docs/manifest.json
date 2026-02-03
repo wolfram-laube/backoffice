@@ -1,0 +1,20 @@
+{
+  "name": "Blauweiss CRM Dashboard",
+  "short_name": "CRM",
+  "description": "Freelance Application Tracking & Analytics",
+  "start_url": "/ops/backoffice/crm-dashboard.html",
+  "display": "standalone",
+  "background_color": "#0f0f1a",
+  "theme_color": "#6c5ce7",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["business", "productivity"],
+  "lang": "de"
+}
