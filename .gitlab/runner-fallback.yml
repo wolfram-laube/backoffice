@@ -19,8 +19,8 @@ variables:
   
   # GCP VM Configuration
   GCP_PROJECT: "myk8sproject-207017"
-  GCP_ZONE: "europe-west3-a"
-  GCP_INSTANCE: "gitlab-runner"
+  GCP_ZONE: "europe-west1-b"
+  GCP_INSTANCE: "clarissa-runner"
   GCP_STARTUP_TIMEOUT: "180"
   
   # Default runner (used if no check runs)
