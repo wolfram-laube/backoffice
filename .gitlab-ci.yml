@@ -1,191 +1,88 @@
-# ═══════════════════════════════════════════════════════════════════════════════
-#  BLAUWEISS PORTAL - CI/CD PIPELINE (Shell Runners)
-# ═══════════════════════════════════════════════════════════════════════════════
+# =============================================================================
+# BLAUWEISS BACKOFFICE - CI/CD Orchestrator
+# =============================================================================
+# Central orchestrator for Operations CI/CD pipelines.
+# Research projects (CLARISSA, etc.) live in their own repos.
 #
-#  Alle Jobs laufen auf eigenen Shell Runnern (Mac/GCP)
-#  → Unbegrenzte Minuten, keine Kosten
-#
-#  Runner:
-#  ─────────
-#  • mac-shell / mac-group-shell  → wenn Mac online
-#  • gcp-group-shell              → Fallback / K8s
-#
-# ═══════════════════════════════════════════════════════════════════════════════
+# Architecture:
+#   - Business operations (Billing, Applications)
+#   - Platform services (Pages, CI Automation)
+# =============================================================================
 
+# -----------------------------------------------------------------------------
+# INCLUDES: Domain-specific CI configurations
+# -----------------------------------------------------------------------------
+include:
+  # === BUSINESS OPERATIONS ===
+  - local: '.gitlab/billing.yml'            # Invoicing, Timesheets, Email
+  - local: '.gitlab/applications.yml'       # Job Applications Pipeline
+
+  # === PLATFORM SERVICES ===
+  - local: '.gitlab/pages.yml'              # MkDocs Portal
+  - local: '.gitlab/ci-automation.yml'      # CRM Bots
+
+# -----------------------------------------------------------------------------
+# WORKFLOW: Pipeline trigger rules
+# -----------------------------------------------------------------------------
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: always
+    - if: '$CI_COMMIT_BRANCH == "main" && $CI_PIPELINE_SOURCE == "push"'
+      when: always
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+      when: always
+    - if: '$CI_PIPELINE_SOURCE == "web"'
+      when: always
+    - if: '$CI_PIPELINE_SOURCE == "trigger"'
+      when: always
+    - when: never
+
+# -----------------------------------------------------------------------------
+# DEFAULT: Shared configuration
+# -----------------------------------------------------------------------------
+default:
+  image: python:3.11-slim
+  tags:
+    - gitlab-org-docker
+
+# -----------------------------------------------------------------------------
+# STAGES
+# -----------------------------------------------------------------------------
 stages:
-  - lint
-  - test
+  - validate
   - build
+  - test
   - deploy
+  - notify
+  - cleanup
 
-# ═══════════════════════════════════════════════════════════════════════════════
-#  LINTING
-# ═══════════════════════════════════════════════════════════════════════════════
+# -----------------------------------------------------------------------------
+# VARIABLES
+# -----------------------------------------------------------------------------
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  PYTHONPATH: "$CI_PROJECT_DIR"
+  # Project IDs
+  CRM_PROJECT_ID: "78171527"
+  BACKOFFICE_PROJECT_ID: "77555895"
+  BLAUWEISS_GROUP_ID: "120698013"
 
-lint:flake8:
-  stage: lint
-  script:
-    - pip install flake8 -q --break-system-packages 2>/dev/null || pip install flake8 -q
-    - flake8 modules/ --max-line-length=120 --ignore=E501,W503 || true
-  allow_failure: true
+# -----------------------------------------------------------------------------
+# CACHE
+# -----------------------------------------------------------------------------
+cache:
+  key: "${CI_JOB_NAME}"
+  paths:
+    - .cache/pip
+    - venv/
 
-lint:black:
-  stage: lint
-  script:
-    - pip install black -q --break-system-packages 2>/dev/null || pip install black -q
-    - black --check modules/ || true
-  allow_failure: true
-
-# ═══════════════════════════════════════════════════════════════════════════════
-#  TESTING
-# ═══════════════════════════════════════════════════════════════════════════════
-
-test:syntax:
-  stage: test
-  script:
-    - find modules -name "*.py" -exec python3 -m py_compile {} \;
-
-test:imports:
-  stage: test
-  script:
-    - pip install pyyaml -q --break-system-packages 2>/dev/null || pip install pyyaml -q
-    - python3 -c "from modules.invoicing import InvoiceService" || true
-  allow_failure: true
-
-# ═══════════════════════════════════════════════════════════════════════════════
-#  INVOICE GENERATION
-# ═══════════════════════════════════════════════════════════════════════════════
-
-invoice:generate:
-  stage: build
-  rules:
-    - if: $CI_COMMIT_BRANCH == "main"
-      changes:
-        - timesheets/**/*.yaml
-        - timesheets/**/*.yml
+# -----------------------------------------------------------------------------
+# TEMPLATES
+# -----------------------------------------------------------------------------
+.python-setup:
   before_script:
-    - pip install pyyaml --break-system-packages -q 2>/dev/null || pip install pyyaml -q
-    - |
-      if ! command -v typst &> /dev/null; then
-        echo "Installing Typst..."
-        if [[ "$(uname)" == "Darwin" ]]; then
-          brew install typst 2>/dev/null || echo "Typst might already be installed"
-        else
-          curl -sL -o /tmp/typst.tar.xz https://github.com/typst/typst/releases/download/v0.12.0/typst-x86_64-unknown-linux-musl.tar.xz
-          cd /tmp && tar -xf typst.tar.xz
-          mkdir -p $HOME/bin
-          find /tmp -name "typst" -type f -exec mv {} $HOME/bin/ \;
-          export PATH="$HOME/bin:$PATH"
-        fi
-      fi
-  script:
-    - export PATH="$HOME/bin:$PATH"
-    - mkdir -p invoices
-    - python3 scripts/generate-invoices.py || echo "Invoice generation skipped"
-  artifacts:
-    paths:
-      - invoices/*.pdf
-    expire_in: 90 days
-  allow_failure: true
-
-# ═══════════════════════════════════════════════════════════════════════════════
-#  DEPLOY: CLOUD RUN
-# ═══════════════════════════════════════════════════════════════════════════════
-
-deploy:cloudrun:
-  stage: deploy
-  tags: [deploy]
-  rules:
-    - if: $CI_COMMIT_MESSAGE =~ /\[deploy\]/
-    - if: $CI_COMMIT_BRANCH == "main"
-      changes:
-        - backend/**/*
-      when: manual
-  script:
-    - |
-      echo "$GCP_SA_KEY" > /tmp/sa-key.json
-      gcloud auth activate-service-account --key-file=/tmp/sa-key.json
-      gcloud config set project myk8sproject-207017
-      
-      if [ -f "backend/Dockerfile" ]; then
-        echo "🚀 Building and deploying to Cloud Run..."
-        gcloud builds submit --tag gcr.io/myk8sproject-207017/blauweiss-api ./backend
-        gcloud run deploy blauweiss-api \
-          --image gcr.io/myk8sproject-207017/blauweiss-api \
-          --region europe-west1 \
-          --platform managed \
-          --allow-unauthenticated
-        echo "✅ Deployed!"
-      else
-        echo "⏭️ No backend yet"
-      fi
-
-# ═══════════════════════════════════════════════════════════════════════════════
-#  DEPLOY: K8s SHOWCASE
-# ═══════════════════════════════════════════════════════════════════════════════
-
-deploy:k8s:
-  stage: deploy
-  tags: [k8s]
-  rules:
-    - if: $CI_COMMIT_MESSAGE =~ /\[k8s-deploy\]/
-    - if: $CI_COMMIT_BRANCH == "main"
-      changes:
-        - infra/k8s/**/*
-      when: manual
-  script:
-    - |
-      export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
-      
-      kubectl apply -f infra/k8s/all-in-one.yaml
-      
-      kubectl create secret generic gitlab-credentials \
-        --namespace=blauweiss \
-        --from-literal=GITLAB_TOKEN="$GITLAB_TOKEN" \
-        --from-literal=GITLAB_PROJECT_ID="$CI_PROJECT_ID" \
-        --dry-run=client -o yaml | kubectl apply -f -
-      
-      kubectl rollout restart deployment -n blauweiss 2>/dev/null || true
-      
-      EXTERNAL_IP=$(curl -s ifconfig.me)
-      echo "✅ K8s Showcase: http://$EXTERNAL_IP:30080"
-
-# K8s Setup
-k8s:setup:
-  stage: deploy
-  tags: [k8s]
-  rules:
-    - if: $CI_COMMIT_MESSAGE =~ /\[k8s-setup\]/
-    - when: manual
-  script:
-    - |
-      export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
-      kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.9.4/deploy/static/provider/baremetal/deploy.yaml
-      sleep 30
-      kubectl patch svc ingress-nginx-controller -n ingress-nginx --type=json \
-        -p='[{"op": "replace", "path": "/spec/ports/0/nodePort", "value": 30080}]' || true
-      kubectl create namespace blauweiss --dry-run=client -o yaml | kubectl apply -f -
-      echo "✅ K8s Setup complete"
-
-# ═══════════════════════════════════════════════════════════════════════════════
-#  PAGES
-# ═══════════════════════════════════════════════════════════════════════════════
-
-pages:
-  stage: deploy
-  script:
-    - mkdir -p public
-    - |
-      if [ -d "frontend" ] && [ -f "frontend/package.json" ]; then
-        cd frontend
-        npm ci
-        npm run build
-        mv dist/* ../public/
-      else
-        cp portal/frontend/index.html public/index.html 2>/dev/null || echo "<h1>Blauweiss Portal</h1>" > public/index.html
-      fi
-  artifacts:
-    paths:
-      - public
-  only:
-    - main
+    - python -m venv venv
+    - source venv/bin/activate
+    - pip install --upgrade pip
+    - pip install -r requirements.txt 2>/dev/null || true

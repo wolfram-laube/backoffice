@@ -1,0 +1,295 @@
+# =============================================================================
+# CI AUTOMATION: Issue Bots, MR Reports, Flaky Test Tracking
+# =============================================================================
+# Automated CI/CD quality management
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# CLASSIFY STAGE: Analyze Test Results
+# -----------------------------------------------------------------------------
+ci_classify:
+  stage: classify
+  image: python:3.11
+  tags:
+    - docker-any
+  variables:
+    PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  cache:
+    key: pip-cache
+    paths:
+      - .cache/pip
+  needs:
+    - job: tests
+      artifacts: true
+      optional: true
+    - job: tests_rerun
+      artifacts: true
+      optional: true
+  script:
+    - python scripts/ci_classify.py
+  artifacts:
+    reports:
+      dotenv: ci_classify.env
+    paths:
+      - ci_classify.env
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == "main" && $CI_PIPELINE_SOURCE == "push"'
+    - when: never
+
+# -----------------------------------------------------------------------------
+# AUTOMATION STAGE: Reports and Issue Management
+# -----------------------------------------------------------------------------
+mr_report:
+  stage: automation
+  image: python:3.11
+  tags:
+    - docker-any
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: on_success
+    - when: never
+  needs:
+    - job: snapshot_tests
+      artifacts: true
+      optional: true
+    - job: contract_tests
+      artifacts: true
+      optional: true
+    - job: governance_impact
+      artifacts: true
+      optional: true
+    - job: architecture_graphs
+      artifacts: true
+      optional: true
+    - job: integration_tests_opm
+      artifacts: true
+      optional: true
+  script:
+    - mkdir -p reports
+    - python scripts/generate_mr_report.py
+    - python scripts/render_report_html.py || true
+  artifacts:
+    when: always
+    paths:
+      - reports/mr_report.md
+      - reports/mr_report.html
+
+ci_flaky_ledger:
+  stage: automation
+  image: python:3.11
+  tags:
+    - docker-any
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: always
+    - when: never
+  needs:
+    - job: ci_classify
+      artifacts: true
+      optional: true
+  script:
+    - python scripts/gitlab_flaky_ledger_bot.py
+
+ci_issue_on_failure:
+  stage: automation
+  image: python:3.11
+  tags:
+    - docker-any
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: always
+    - when: never
+  needs:
+    - job: ci_classify
+      artifacts: true
+      optional: true
+  script:
+    - python scripts/gitlab_issue_bot.py
+
+ci_issue_on_recovery:
+  stage: automation
+  image: python:3.11
+  tags:
+    - docker-any
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: always
+    - when: never
+  needs:
+    - job: ci_classify
+      artifacts: true
+      optional: true
+  script:
+    - python scripts/gitlab_recovery_bot.py
+
+mr_comment_on_failure:
+  stage: automation
+  image: python:3.11
+  tags:
+    - docker-any
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: on_success
+    - when: never
+  needs:
+    - job: ci_classify
+      artifacts: true
+      optional: true
+  script:
+    - python scripts/gitlab_mr_bot.py
+
+# -----------------------------------------------------------------------------
+# DEPLOY STAGE: Google Drive Sync
+# -----------------------------------------------------------------------------
+sync_infrastructure:
+  stage: deploy
+  image: python:3.11-slim
+  tags:
+    - docker-any
+  rules:
+    - changes:
+        - docs/infrastructure.md
+      when: always
+    - when: never
+  before_script:
+    - pip install google-auth google-api-python-client --quiet
+    - echo "${GOOGLE_SERVICE_ACCOUNT_KEY}" > /tmp/service_account.json
+  script:
+    - |
+      python3 << 'PYTHON'
+      from google.oauth2 import service_account
+      from googleapiclient.discovery import build
+      from googleapiclient.http import MediaFileUpload
+      
+      SCOPES = ['https://www.googleapis.com/auth/drive.file']
+      FOLDER_ID = '1qh0skTeyRNs4g9KwAhpd3J8Yj_XENIFs'
+      
+      creds = service_account.Credentials.from_service_account_file(
+          '/tmp/service_account.json', scopes=SCOPES)
+      service = build('drive', 'v3', credentials=creds)
+      
+      results = service.files().list(
+          q=f"name='infrastructure.md' and '{FOLDER_ID}' in parents and trashed=false",
+          fields="files(id)"
+      ).execute()
+      files = results.get('files', [])
+      
+      media = MediaFileUpload('docs/infrastructure.md', mimetype='text/markdown')
+      
+      if files:
+          service.files().update(fileId=files[0]['id'], media_body=media).execute()
+          print("✅ Updated infrastructure.md in Google Drive")
+      else:
+          service.files().create(
+              body={'name': 'infrastructure.md', 'parents': [FOLDER_ID]},
+              media_body=media
+          ).execute()
+          print("✅ Created infrastructure.md in Google Drive")
+      PYTHON
+
+# -----------------------------------------------------------------------------
+# PRE STAGE: Google Drive Utilities
+# -----------------------------------------------------------------------------
+gdrive-list:
+  stage: .pre
+  tags: [gcp-docker]
+  when: manual
+  allow_failure: true
+  image: python:3.11-slim
+  script:
+    - pip install google-auth google-api-python-client -q
+    - |
+      python3 << 'PYEOF'
+      import json, os
+      from google.oauth2 import service_account
+      from googleapiclient.discovery import build
+      
+      sa_key_path = os.environ.get("GOOGLE_SERVICE_ACCOUNT_KEY", "")
+      folder_id = os.environ.get("GOOGLE_DRIVE_FOLDER_ID", "1qh0skTeyRNs4g9KwAhpd3J8Yj_XENIFs")
+      
+      print(f"SA Key path: {sa_key_path}")
+      print(f"Folder ID: {folder_id}")
+      
+      with open(sa_key_path, 'r') as f:
+          sa_key = json.load(f)
+      
+      print(f"Loaded SA: {sa_key.get('client_email')}")
+      
+      credentials = service_account.Credentials.from_service_account_info(
+          sa_key, scopes=["https://www.googleapis.com/auth/drive.readonly"]
+      )
+      service = build("drive", "v3", credentials=credentials)
+      
+      results = service.files().list(
+          q=f"'{folder_id}' in parents and trashed=false",
+          fields="files(id, name, mimeType, modifiedTime, size)",
+          pageSize=100
+      ).execute()
+      
+      files = results.get("files", [])
+      print("Found " + str(len(files)) + " files in Google Drive:")
+      print("-" * 60)
+      for f in files:
+          size = f.get("size", "-")
+          mod = f.get("modifiedTime", "-")[:10]
+          print("  " + f["name"].ljust(45) + " " + mod)
+      
+      with open("gdrive_files.json", "w") as out:
+          json.dump(files, out, indent=2)
+      PYEOF
+  artifacts:
+    paths:
+      - gdrive_files.json
+    expire_in: 1 day
+
+deploy-gdrive-proxy:
+  stage: deploy
+  tags:
+    - gcp-shell
+  needs: []
+  rules:
+    - if: $DEPLOY_GDRIVE_PROXY == "true"
+      when: always
+  script:
+    - echo "🚀 Deploying Google Drive Proxy to GCP VM..."
+    - echo "🔧 Fixing package issues..."
+    - sudo dpkg --configure -a || true
+    - sudo apt --fix-broken install -y || true
+    - sudo apt-get update
+    - sudo apt-get install -y python3-pip python3-venv || echo "Dependencies already satisfied"
+    - sudo mkdir -p /opt/gdrive-proxy /etc/gdrive-proxy
+    - |
+      sudo tee /opt/gdrive-proxy/requirements.txt << 'REQEOF'
+      flask
+      google-api-python-client
+      google-auth
+      REQEOF
+    - sudo python3 -m venv /opt/gdrive-proxy/venv
+    - sudo /opt/gdrive-proxy/venv/bin/pip install -r /opt/gdrive-proxy/requirements.txt
+    - cat scripts/gdrive_proxy.py | sudo tee /opt/gdrive-proxy/gdrive_proxy.py
+    - sudo chmod +x /opt/gdrive-proxy/gdrive_proxy.py
+    - echo "$GOOGLE_SERVICE_ACCOUNT_KEY" | sudo tee /etc/gdrive-proxy/sa-key.json > /dev/null
+    - sudo chmod 600 /etc/gdrive-proxy/sa-key.json
+    - |
+      sudo tee /etc/systemd/system/gdrive-proxy.service << 'SVCEOF'
+      [Unit]
+      Description=Google Drive API Proxy
+      After=network.target
+      
+      [Service]
+      Type=simple
+      Environment=GOOGLE_APPLICATION_CREDENTIALS=/etc/gdrive-proxy/sa-key.json
+      ExecStart=/opt/gdrive-proxy/venv/bin/python /opt/gdrive-proxy/gdrive_proxy.py
+      Restart=always
+      RestartSec=5
+      
+      [Install]
+      WantedBy=multi-user.target
+      SVCEOF
+    - sudo systemctl daemon-reload
+    - sudo systemctl enable gdrive-proxy
+    - sudo systemctl restart gdrive-proxy
+    - sleep 3
+    - curl -s http://localhost:8080/health || true
+    - echo "✅ GDrive Proxy deployed! Access at http://35.198.98.28:8080"

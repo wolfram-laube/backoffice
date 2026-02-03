@@ -1,0 +1,174 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+#  APPLICATIONS PIPELINE - Automated Job Hunting
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+#  Täglich um 08:00 Uhr:
+#  1. Crawlt freelancermap.de nach neuen Projekten
+#  2. Matcht gegen Profile (Wolfram, Ian, Michael, Teams)
+#  3. QA: Validiert Outputs + CRM-Duplikatcheck
+#  4. Erstellt Gmail-Drafts mit Attachments
+#
+#  Setup:
+#  ──────
+#  1. Schedule in GitLab: CI/CD → Schedules → "0 8 * * 1-5"
+#  2. Variable: GMAIL_REFRESH_TOKEN (masked)
+#
+#  Runners:
+#  ────────
+#  Primary:  docker-any (python:3.11-slim) — immer verfügbar
+#  Fallback: mac-group-shell — wenn Mac online
+#
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Shared config for all application jobs
+.applications-base:
+  image: python:3.11-slim
+  tags:
+    - docker-any
+  before_script:
+    - pip install requests beautifulsoup4 lxml --quiet
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  STAGE 1: CRAWL
+# ═══════════════════════════════════════════════════════════════════════════════
+
+applications:crawl:
+  extends: .applications-base
+  stage: .pre
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $APPLICATIONS_PIPELINE == "true"
+    - if: $APPLICATIONS_CRAWL == "true"
+    - when: manual
+      allow_failure: true
+  variables:
+    KEYWORDS: "DevOps Kubernetes,Python Cloud,AI ML LLM,Java Spring Architekt,MLOps Platform"
+    MIN_REMOTE: "50"
+    MAX_PAGES: "3"
+  script:
+    - python3 scripts/ci/applications_crawl.py
+  artifacts:
+    paths:
+      - output/projects.json
+    expire_in: 7 days
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  STAGE 2: MATCH
+# ═══════════════════════════════════════════════════════════════════════════════
+
+applications:match:
+  extends: .applications-base
+  stage: build
+  needs:
+    - job: applications:crawl
+      artifacts: true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $APPLICATIONS_PIPELINE == "true"
+    - if: $APPLICATIONS_MATCH == "true"
+    - when: manual
+      allow_failure: true
+  variables:
+    MIN_SCORE: "50"
+    MAX_RESULTS: "20"
+  script:
+    - python3 scripts/ci/applications_match.py
+  artifacts:
+    paths:
+      - output/matches.json
+    expire_in: 7 days
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  STAGE 3: QA VALIDATION
+# ═══════════════════════════════════════════════════════════════════════════════
+
+applications:qa:
+  extends: .applications-base
+  stage: test
+  needs:
+    - job: applications:crawl
+      artifacts: true
+    - job: applications:match
+      artifacts: true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $APPLICATIONS_PIPELINE == "true"
+    - if: $APPLICATIONS_QA == "true"
+    - if: $APPLICATIONS_CRAWL == "true"
+    - if: $APPLICATIONS_MATCH == "true"
+    - when: manual
+      allow_failure: true
+  variables:
+    CRM_PROJECT_ID: "78171527"
+  script:
+    - python3 scripts/ci/applications_qa.py --crm-dedup
+  artifacts:
+    paths:
+      - output/qa_report.json
+    expire_in: 7 days
+    reports:
+      junit: output/qa_report.json
+  allow_failure:
+    exit_codes:
+      - 2  # Warnings don't block, only failures (exit 1)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  STAGE 4: CREATE GMAIL DRAFTS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+applications:drafts:
+  extends: .applications-base
+  stage: deploy
+  needs:
+    - job: applications:match
+      artifacts: true
+    - job: applications:qa
+      artifacts: true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $APPLICATIONS_PIPELINE == "true"
+    - if: $APPLICATIONS_DRAFTS == "true"
+    - when: manual
+      allow_failure: true
+  variables:
+    MAX_DRAFTS: "5"
+  script:
+    - python3 scripts/ci/applications_drafts.py
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  CRM INTEGRITY CHECK (standalone, weekly schedule)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+crm:integrity-check:
+  extends: .applications-base
+  stage: test
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $CRM_INTEGRITY_CHECK == "true"
+    - if: $CRM_QA == "true"
+    - when: manual
+      allow_failure: true
+  variables:
+    CRM_PROJECT_ID: "78171527"
+    GROUP_ID: "120698013"
+  script:
+    - python3 scripts/ci/crm_integrity_check.py
+  artifacts:
+    paths:
+      - output/crm_qa_report.json
+    expire_in: 30 days
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  MANUAL: DRY RUN
+# ═══════════════════════════════════════════════════════════════════════════════
+
+applications:dry-run:
+  extends: .applications-base
+  stage: .pre
+  rules:
+    - when: manual
+  script:
+    - echo "🔍 DRY RUN - Testing pipeline..."
+    - echo "1. Would crawl - DevOps, Python, AI, Java"
+    - echo "2. Would match against - Wolfram, Ian, Michael, Teams"
+    - echo "3. Would QA-validate outputs + CRM dedup"
+    - echo "4. Would create Gmail drafts"
+    - echo ""
+    - echo "To run for real:"
+    - echo "  → Set APPLICATIONS_PIPELINE=true in schedule"
+    - echo "  → Or trigger individual jobs manually"
