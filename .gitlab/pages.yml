@@ -14,19 +14,20 @@ mkdocs_nav_check:
     - gitlab-org-docker
   script:
     - pip install pyyaml
-    - python -c "
-import yaml
-with open('mkdocs.yml') as f:
-    config = yaml.safe_load(f)
-nav = config.get('nav', [])
-print(f'✅ Navigation has {len(nav)} sections')
-for section in nav:
-    if isinstance(section, dict):
-        for k, v in section.items():
-            print(f'   - {k}')
-    else:
-        print(f'   - {section}')
-"
+    - |
+      python -c "
+      import yaml
+      with open('mkdocs.yml') as f:
+          config = yaml.safe_load(f)
+      nav = config.get('nav', [])
+      print(f'OK: Navigation has {len(nav)} sections')
+      for section in nav:
+          if isinstance(section, dict):
+              for k, v in section.items():
+                  print(f'   - {k}')
+          else:
+              print(f'   - {section}')
+      "
   rules:
     - changes:
         - mkdocs.yml
@@ -48,21 +49,10 @@ pages:
     - pip install --upgrade pip
     - pip install mkdocs mkdocs-material mkdocs-jupyter pymdown-extensions
   script:
-    - echo "🚀 Building Operations Portal..."
+    - echo "Building Operations Portal..."
     - mkdocs build --strict
-    - echo "✅ Portal built successfully"
-    
-    # Create redirects for old URLs
-    - |
-      cat > public/_redirects << 'EOF'
-      /portal.html /portal.html 200
-      /ops/* /ops/:splat 200
-      /triggers/* /triggers/:splat 200
-      EOF
-    
-    # Health check file
+    - echo "Portal built successfully"
     - echo "OK - $(date -u +%Y-%m-%dT%H:%M:%SZ)" > public/health.txt
-    
   artifacts:
     paths:
       - public
@@ -85,7 +75,7 @@ rebuild_docs:
   script:
     - pip install mkdocs mkdocs-material mkdocs-jupyter pymdown-extensions
     - mkdocs build --strict
-    - echo "✅ Docs rebuilt"
+    - echo "Docs rebuilt"
   artifacts:
     paths:
       - public
@@ -100,7 +90,7 @@ rebuild_docs:
 # -----------------------------------------------------------------------------
 # PREVIEW: MR preview deployment
 # -----------------------------------------------------------------------------
-docs:preview:
+docs_preview:
   stage: deploy
   image: python:3.11-slim
   tags:
@@ -108,7 +98,7 @@ docs:preview:
   script:
     - pip install mkdocs mkdocs-material mkdocs-jupyter pymdown-extensions
     - mkdocs build
-    - echo "Preview built for MR !${CI_MERGE_REQUEST_IID}"
+    - echo "Preview built for MR"
   artifacts:
     paths:
       - public
