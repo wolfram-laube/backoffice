@@ -1,4 +1,4 @@
-# GCP Nordic Migration Pipeline (Docker-based)
+# GCP Nordic Migration Pipeline (Shared Runners)
 
 variables:
   OLD_ZONE: "europe-west1-b"
@@ -12,7 +12,6 @@ variables:
 migration:backup:
   stage: .pre
   image: google/cloud-sdk:alpine
-  tags: [gcp-docker]
   rules:
     - if: $MIGRATION_PHASE == "backup"
       when: always
@@ -37,7 +36,6 @@ migration:backup:
 migration:create:
   stage: .pre
   image: google/cloud-sdk:alpine
-  tags: [gcp-docker]
   rules:
     - if: $MIGRATION_PHASE == "create"
       when: always
@@ -62,7 +60,6 @@ migration:create:
 migration:switch:
   stage: .pre
   image: google/cloud-sdk:alpine
-  tags: [gcp-docker]
   rules:
     - if: $MIGRATION_PHASE == "switch"
       when: always
@@ -78,7 +75,6 @@ migration:switch:
 migration:cleanup:
   stage: .pre
   image: google/cloud-sdk:alpine
-  tags: [gcp-docker]
   rules:
     - if: $MIGRATION_PHASE == "cleanup"
       when: manual
