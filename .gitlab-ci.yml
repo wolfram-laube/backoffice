@@ -20,6 +20,9 @@ include:
   # === PLATFORM SERVICES ===
   - local: '.gitlab/pages.yml'              # MkDocs Portal
   - local: '.gitlab/ci-automation.yml'      # CRM Bots
+  # === INTEGRATIONS ===
+  - local: '.gitlab/gmail-drafts.yml'
+  - local: '.gitlab/gdrive-upload.yml'
 
 # -----------------------------------------------------------------------------
 # WORKFLOW: Pipeline trigger rules
