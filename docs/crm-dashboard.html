@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📊 CRM Dashboard - Blauweiss Operations</title>
+    <style>
+        :root {
+            --bg: #0f0f1a;
+            --surface: #1a1a2e;
+            --surface2: #252542;
+            --text: #e4e4f0;
+            --subtext: #9090a8;
+            --accent: #6c5ce7;
+            --green: #00cec9;
+            --yellow: #fdcb6e;
+            --red: #ff7675;
+            --blue: #74b9ff;
+            --purple: #a29bfe;
+            --orange: #e17055;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container { max-width: 1600px; margin: 0 auto; }
+        
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 0;
+            border-bottom: 1px solid var(--surface2);
+            margin-bottom: 24px;
+        }
+        header h1 {
+            font-size: 1.8rem;
+            background: linear-gradient(135deg, var(--accent), var(--purple));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .back-link {
+            color: var(--subtext);
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .back-link:hover { color: var(--text); }
+        
+        /* KPI Cards */
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        .kpi-card {
+            background: var(--surface);
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            border: 1px solid var(--surface2);
+        }
+        .kpi-card .value {
+            font-size: 2.2rem;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+        .kpi-card .label {
+            color: var(--subtext);
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .kpi-card.green .value { color: var(--green); }
+        .kpi-card.yellow .value { color: var(--yellow); }
+        .kpi-card.red .value { color: var(--red); }
+        .kpi-card.blue .value { color: var(--blue); }
+        .kpi-card.purple .value { color: var(--purple); }
+        
+        /* Filters */
+        .filters {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-bottom: 24px;
+            padding: 16px;
+            background: var(--surface);
+            border-radius: 12px;
+        }
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .filter-group label {
+            font-size: 0.75rem;
+            color: var(--subtext);
+            text-transform: uppercase;
+        }
+        .filter-group select, .filter-group input {
+            padding: 8px 12px;
+            border-radius: 8px;
+            border: 1px solid var(--surface2);
+            background: var(--bg);
+            color: var(--text);
+            font-size: 0.9rem;
+            min-width: 150px;
+        }
+        .filter-group select:focus, .filter-group input:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+        
+        /* Main Layout */
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            gap: 24px;
+        }
+        @media (max-width: 1200px) {
+            .main-grid { grid-template-columns: 1fr; }
+        }
+        
+        /* Issues Table */
+        .issues-section {
+            background: var(--surface);
+            border-radius: 16px;
+            overflow: hidden;
+        }
+        .issues-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--surface2);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .issues-header h2 { font-size: 1.1rem; }
+        .issues-count {
+            background: var(--accent);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+        .issues-list {
+            max-height: 600px;
+            overflow-y: auto;
+        }
+        .issue-row {
+            display: grid;
+            grid-template-columns: 50px 1fr auto;
+            gap: 12px;
+            padding: 14px 20px;
+            border-bottom: 1px solid var(--surface2);
+            align-items: center;
+            transition: background 0.15s;
+            cursor: pointer;
+        }
+        .issue-row:hover { background: var(--surface2); }
+        .issue-row:last-child { border-bottom: none; }
+        .issue-id {
+            color: var(--subtext);
+            font-family: monospace;
+            font-size: 0.85rem;
+        }
+        .issue-title {
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .issue-labels {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+        .label-tag {
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .label-tag.status { background: var(--accent); color: white; }
+        .label-tag.rate { background: var(--green); color: #000; }
+        .label-tag.hot { background: var(--red); color: white; }
+        
+        /* Sidebar - Funnel */
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .funnel-card {
+            background: var(--surface);
+            border-radius: 16px;
+            padding: 20px;
+        }
+        .funnel-card h3 {
+            font-size: 1rem;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .funnel-stage {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 0;
+            border-bottom: 1px solid var(--surface2);
+        }
+        .funnel-stage:last-child { border-bottom: none; }
+        .funnel-bar {
+            flex: 1;
+            height: 24px;
+            background: var(--surface2);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .funnel-fill {
+            height: 100%;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            padding-left: 8px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: white;
+            min-width: 30px;
+        }
+        .funnel-label {
+            width: 100px;
+            font-size: 0.85rem;
+            color: var(--subtext);
+        }
+        .funnel-count {
+            width: 40px;
+            text-align: right;
+            font-weight: 600;
+        }
+        
+        /* Hot Leads */
+        .hot-leads-card {
+            background: var(--surface);
+            border-radius: 16px;
+            padding: 20px;
+        }
+        .hot-leads-card h3 {
+            font-size: 1rem;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .hot-lead-item {
+            padding: 12px;
+            background: var(--surface2);
+            border-radius: 8px;
+            margin-bottom: 10px;
+            border-left: 3px solid var(--red);
+        }
+        .hot-lead-item:last-child { margin-bottom: 0; }
+        .hot-lead-title {
+            font-weight: 600;
+            font-size: 0.9rem;
+            margin-bottom: 4px;
+        }
+        .hot-lead-meta {
+            font-size: 0.8rem;
+            color: var(--subtext);
+        }
+        
+        /* Loading */
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: var(--subtext);
+        }
+        .loading::after {
+            content: '';
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--surface2);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-left: 10px;
+            vertical-align: middle;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        
+        /* Error */
+        .error-box {
+            background: rgba(255, 118, 117, 0.1);
+            border: 1px solid var(--red);
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 20px;
+        }
+        .error-box h4 { color: var(--red); margin-bottom: 8px; }
+        .error-box code {
+            display: block;
+            padding: 12px;
+            background: var(--bg);
+            border-radius: 4px;
+            font-size: 0.85rem;
+            margin-top: 8px;
+            overflow-x: auto;
+        }
+        
+        /* Token Input */
+        .token-section {
+            background: var(--surface);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 24px;
+        }
+        .token-section h3 { margin-bottom: 12px; }
+        .token-input-group {
+            display: flex;
+            gap: 12px;
+        }
+        .token-input-group input {
+            flex: 1;
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid var(--surface2);
+            background: var(--bg);
+            color: var(--text);
+            font-family: monospace;
+        }
+        .token-input-group button {
+            padding: 12px 24px;
+            border-radius: 8px;
+            border: none;
+            background: var(--accent);
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .token-input-group button:hover { background: #5b4cdb; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📊 CRM Dashboard</h1>
+            <a href="portal.html" class="back-link">← Zurück zum Portal</a>
+        </header>
+        
+        <!-- Token Section (shown if no token) -->
+        <div id="token-section" class="token-section" style="display: none;">
+            <h3>🔑 GitLab API Token benötigt</h3>
+            <p style="color: var(--subtext); margin-bottom: 12px;">
+                Für Live-Daten bitte einen Personal Access Token mit <code>read_api</code> Scope eingeben.
+            </p>
+            <div class="token-input-group">
+                <input type="password" id="token-input" placeholder="glpat-xxxxx">
+                <button onclick="saveToken()">Verbinden</button>
+            </div>
+        </div>
+        
+        <!-- KPIs -->
+        <div class="kpi-grid" id="kpi-grid">
+            <div class="kpi-card blue">
+                <div class="value" id="kpi-total">-</div>
+                <div class="label">Gesamt</div>
+            </div>
+            <div class="kpi-card purple">
+                <div class="value" id="kpi-active">-</div>
+                <div class="label">Aktiv</div>
+            </div>
+            <div class="kpi-card green">
+                <div class="value" id="kpi-interviews">-</div>
+                <div class="label">Interviews</div>
+            </div>
+            <div class="kpi-card yellow">
+                <div class="value" id="kpi-pending">-</div>
+                <div class="label">Beim Kunden</div>
+            </div>
+            <div class="kpi-card red">
+                <div class="value" id="kpi-hot">-</div>
+                <div class="label">🔥 Hot Leads</div>
+            </div>
+            <div class="kpi-card">
+                <div class="value" id="kpi-rate">-</div>
+                <div class="label">Ø Rate</div>
+            </div>
+        </div>
+        
+        <!-- Filters -->
+        <div class="filters">
+            <div class="filter-group">
+                <label>Status</label>
+                <select id="filter-status" onchange="applyFilters()">
+                    <option value="">Alle</option>
+                    <option value="status::neu">Neu</option>
+                    <option value="status::versendet">Versendet</option>
+                    <option value="status::beim-kunden">Beim Kunden</option>
+                    <option value="status::interview">Interview</option>
+                    <option value="status::verhandlung">Verhandlung</option>
+                    <option value="status::zusage">Zusage</option>
+                    <option value="status::absage">Absage</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label>Rate</label>
+                <select id="filter-rate" onchange="applyFilters()">
+                    <option value="">Alle</option>
+                    <option value="rate::85-95">85-95 €</option>
+                    <option value="rate::95-105">95-105 €</option>
+                    <option value="rate::105+">105+ €</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label>Suche</label>
+                <input type="text" id="filter-search" placeholder="Titel, Agentur..." oninput="applyFilters()">
+            </div>
+            <div class="filter-group">
+                <label>Hot Leads</label>
+                <select id="filter-hot" onchange="applyFilters()">
+                    <option value="">Alle</option>
+                    <option value="hot-lead">Nur Hot Leads 🔥</option>
+                </select>
+            </div>
+        </div>
+        
+        <!-- Main Content -->
+        <div class="main-grid">
+            <!-- Issues List -->
+            <div class="issues-section">
+                <div class="issues-header">
+                    <h2>Bewerbungen</h2>
+                    <span class="issues-count" id="issues-count">0</span>
+                </div>
+                <div class="issues-list" id="issues-list">
+                    <div class="loading">Lade Daten...</div>
+                </div>
+            </div>
+            
+            <!-- Sidebar -->
+            <div class="sidebar">
+                <!-- Funnel -->
+                <div class="funnel-card">
+                    <h3>📈 Pipeline Funnel</h3>
+                    <div id="funnel-stages">
+                        <div class="loading">Lade...</div>
+                    </div>
+                </div>
+                
+                <!-- Hot Leads -->
+                <div class="hot-leads-card">
+                    <h3>🔥 Hot Leads</h3>
+                    <div id="hot-leads-list">
+                        <div class="loading">Lade...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Config
+        const CRM_PROJECT_ID = '78171527';
+        const GITLAB_API = 'https://gitlab.com/api/v4';
+        
+        // State
+        let allIssues = [];
+        let filteredIssues = [];
+        let token = localStorage.getItem('gitlab_token') || '';
+        
+        // Status colors
+        const STATUS_COLORS = {
+            'status::neu': '#a29bfe',
+            'status::versendet': '#74b9ff',
+            'status::beim-kunden': '#fdcb6e',
+            'status::interview': '#00cec9',
+            'status::verhandlung': '#e17055',
+            'status::zusage': '#00b894',
+            'status::absage': '#636e72',
+            'status::ghost': '#2d3436'
+        };
+        
+        // Init
+        document.addEventListener('DOMContentLoaded', () => {
+            if (!token) {
+                document.getElementById('token-section').style.display = 'block';
+            } else {
+                loadData();
+            }
+        });
+        
+        function saveToken() {
+            token = document.getElementById('token-input').value.trim();
+            if (token) {
+                localStorage.setItem('gitlab_token', token);
+                document.getElementById('token-section').style.display = 'none';
+                loadData();
+            }
+        }
+        
+        async function loadData() {
+            try {
+                // Fetch all issues (paginated)
+                let page = 1;
+                allIssues = [];
+                while (true) {
+                    const response = await fetch(
+                        `${GITLAB_API}/projects/${CRM_PROJECT_ID}/issues?state=all&per_page=100&page=${page}`,
+                        { headers: { 'PRIVATE-TOKEN': token } }
+                    );
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+                    }
+                    
+                    const issues = await response.json();
+                    if (issues.length === 0) break;
+                    
+                    allIssues = allIssues.concat(issues);
+                    page++;
+                    
+                    if (page > 10) break; // Safety limit
+                }
+                
+                // Filter out epics and infrastructure issues
+                allIssues = allIssues.filter(i => {
+                    const labels = i.labels.map(l => l.name || l);
+                    return !labels.includes('epic') && !labels.includes('infrastructure');
+                });
+                
+                filteredIssues = [...allIssues];
+                
+                updateKPIs();
+                updateFunnel();
+                updateHotLeads();
+                renderIssues();
+                
+            } catch (error) {
+                console.error('Load error:', error);
+                document.getElementById('issues-list').innerHTML = `
+                    <div class="error-box">
+                        <h4>Fehler beim Laden</h4>
+                        <p>${error.message}</p>
+                        <code>${error.stack || ''}</code>
+                    </div>
+                `;
+            }
+        }
+        
+        function updateKPIs() {
+            const total = allIssues.length;
+            const active = allIssues.filter(i => i.state === 'opened').length;
+            const hot = allIssues.filter(i => hasLabel(i, 'hot-lead')).length;
+            const interviews = allIssues.filter(i => hasLabel(i, 'status::interview')).length;
+            const pending = allIssues.filter(i => hasLabel(i, 'status::beim-kunden')).length;
+            
+            // Calculate average rate
+            let rateSum = 0, rateCount = 0;
+            allIssues.forEach(i => {
+                if (hasLabel(i, 'rate::105+')) { rateSum += 105; rateCount++; }
+                else if (hasLabel(i, 'rate::95-105')) { rateSum += 100; rateCount++; }
+                else if (hasLabel(i, 'rate::85-95')) { rateSum += 90; rateCount++; }
+            });
+            const avgRate = rateCount > 0 ? Math.round(rateSum / rateCount) : '-';
+            
+            document.getElementById('kpi-total').textContent = total;
+            document.getElementById('kpi-active').textContent = active;
+            document.getElementById('kpi-interviews').textContent = interviews;
+            document.getElementById('kpi-pending').textContent = pending;
+            document.getElementById('kpi-hot').textContent = hot;
+            document.getElementById('kpi-rate').textContent = avgRate !== '-' ? `${avgRate}€` : '-';
+        }
+        
+        function updateFunnel() {
+            const stages = [
+                { label: 'Neu', status: 'status::neu', color: '#a29bfe' },
+                { label: 'Versendet', status: 'status::versendet', color: '#74b9ff' },
+                { label: 'Beim Kunden', status: 'status::beim-kunden', color: '#fdcb6e' },
+                { label: 'Interview', status: 'status::interview', color: '#00cec9' },
+                { label: 'Verhandlung', status: 'status::verhandlung', color: '#e17055' },
+                { label: 'Zusage', status: 'status::zusage', color: '#00b894' }
+            ];
+            
+            const counts = stages.map(s => ({
+                ...s,
+                count: allIssues.filter(i => hasLabel(i, s.status)).length
+            }));
+            
+            const maxCount = Math.max(...counts.map(c => c.count), 1);
+            
+            const html = counts.map(s => `
+                <div class="funnel-stage">
+                    <span class="funnel-label">${s.label}</span>
+                    <div class="funnel-bar">
+                        <div class="funnel-fill" style="width: ${(s.count / maxCount * 100)}%; background: ${s.color};">
+                            ${s.count > 0 ? s.count : ''}
+                        </div>
+                    </div>
+                    <span class="funnel-count">${s.count}</span>
+                </div>
+            `).join('');
+            
+            document.getElementById('funnel-stages').innerHTML = html;
+        }
+        
+        function updateHotLeads() {
+            const hotLeads = allIssues
+                .filter(i => hasLabel(i, 'hot-lead') && i.state === 'opened')
+                .slice(0, 5);
+            
+            if (hotLeads.length === 0) {
+                document.getElementById('hot-leads-list').innerHTML = 
+                    '<p style="color: var(--subtext);">Keine Hot Leads</p>';
+                return;
+            }
+            
+            const html = hotLeads.map(i => {
+                const status = getStatus(i);
+                return `
+                    <div class="hot-lead-item" onclick="window.open('${i.web_url}', '_blank')">
+                        <div class="hot-lead-title">${escapeHtml(i.title.substring(0, 50))}${i.title.length > 50 ? '...' : ''}</div>
+                        <div class="hot-lead-meta">#${i.iid} • ${status}</div>
+                    </div>
+                `;
+            }).join('');
+            
+            document.getElementById('hot-leads-list').innerHTML = html;
+        }
+        
+        function renderIssues() {
+            document.getElementById('issues-count').textContent = filteredIssues.length;
+            
+            if (filteredIssues.length === 0) {
+                document.getElementById('issues-list').innerHTML = 
+                    '<div style="padding: 40px; text-align: center; color: var(--subtext);">Keine Ergebnisse</div>';
+                return;
+            }
+            
+            const html = filteredIssues.slice(0, 100).map(i => {
+                const status = getStatus(i);
+                const statusColor = STATUS_COLORS[getStatusLabel(i)] || '#6c5ce7';
+                const isHot = hasLabel(i, 'hot-lead');
+                const rate = getRate(i);
+                
+                return `
+                    <div class="issue-row" onclick="window.open('${i.web_url}', '_blank')">
+                        <span class="issue-id">#${i.iid}</span>
+                        <span class="issue-title">${escapeHtml(i.title)}</span>
+                        <div class="issue-labels">
+                            <span class="label-tag status" style="background: ${statusColor}">${status}</span>
+                            ${rate ? `<span class="label-tag rate">${rate}</span>` : ''}
+                            ${isHot ? '<span class="label-tag hot">🔥 HOT</span>' : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            document.getElementById('issues-list').innerHTML = html;
+        }
+        
+        function applyFilters() {
+            const statusFilter = document.getElementById('filter-status').value;
+            const rateFilter = document.getElementById('filter-rate').value;
+            const searchFilter = document.getElementById('filter-search').value.toLowerCase();
+            const hotFilter = document.getElementById('filter-hot').value;
+            
+            filteredIssues = allIssues.filter(i => {
+                if (statusFilter && !hasLabel(i, statusFilter)) return false;
+                if (rateFilter && !hasLabel(i, rateFilter)) return false;
+                if (hotFilter && !hasLabel(i, hotFilter)) return false;
+                if (searchFilter && !i.title.toLowerCase().includes(searchFilter)) return false;
+                return true;
+            });
+            
+            renderIssues();
+        }
+        
+        // Helpers
+        function hasLabel(issue, label) {
+            return issue.labels.some(l => (l.name || l) === label);
+        }
+        
+        function getStatusLabel(issue) {
+            const statusLabels = ['status::neu', 'status::versendet', 'status::beim-kunden', 
+                                  'status::interview', 'status::verhandlung', 'status::zusage', 
+                                  'status::absage', 'status::ghost'];
+            return issue.labels.find(l => statusLabels.includes(l.name || l))?.name || 
+                   issue.labels.find(l => statusLabels.includes(l)) || '';
+        }
+        
+        function getStatus(issue) {
+            const label = getStatusLabel(issue);
+            const map = {
+                'status::neu': 'Neu',
+                'status::versendet': 'Versendet',
+                'status::beim-kunden': 'Beim Kunden',
+                'status::interview': 'Interview',
+                'status::verhandlung': 'Verhandlung',
+                'status::zusage': 'Zusage',
+                'status::absage': 'Absage',
+                'status::ghost': 'Ghost'
+            };
+            return map[label] || 'Unbekannt';
+        }
+        
+        function getRate(issue) {
+            if (hasLabel(issue, 'rate::105+')) return '105+€';
+            if (hasLabel(issue, 'rate::95-105')) return '95-105€';
+            if (hasLabel(issue, 'rate::85-95')) return '85-95€';
+            return null;
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>
