@@ -126,7 +126,7 @@ cbea88ae  refactor(ci): extract domain-specific CI into separate files
 ## Continuation Prompt für nächste Session
 
 ```
-Lies das Handover-Dokument unter docs/handover/HANDOVER_CI_REFACTOR_03_02_2026.md im CLARISSA Repo (Project ID 77260390).
+Lies das Handover-Dokument unter docs/handover/HANDOVER_CI_REFACTOR_03_02_2026.md im backoffice Repo (Project ID 77555895).
 
 Kontext: Gestern haben wir das CI von einem 1490-Zeilen-Monolith auf eine modulare Multi-Projekt-Architektur refactored. Branding ist gefixt, Schedules aktiv, Portal läuft.
 
