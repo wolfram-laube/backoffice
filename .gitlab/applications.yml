@@ -153,6 +153,36 @@ crm:integrity-check:
       - output/crm_qa_report.json
     expire_in: 30 days
 
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  STAGE 5: CRM SYNC (after drafts)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+applications:crm-sync:
+  extends: .applications-base
+  stage: deploy
+  needs:
+    - job: applications:drafts
+      artifacts: true
+      optional: true
+    - job: applications:match
+      artifacts: true
+      optional: true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $APPLICATIONS_PIPELINE == "true"
+    - if: $APPLICATIONS_CRM_SYNC == "true"
+    - when: manual
+      allow_failure: true
+  variables:
+    CRM_PROJECT_ID: "78171527"
+    GITLAB_TOKEN: $GITLAB_API_TOKEN
+  script:
+    - python3 scripts/ci/crm_update_on_draft.py
+  artifacts:
+    paths:
+      - output/crm_update_results.json
+    expire_in: 7 days
+
 # ═══════════════════════════════════════════════════════════════════════════════
 #  MANUAL: DRY RUN
 # ═══════════════════════════════════════════════════════════════════════════════
