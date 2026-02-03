@@ -9,6 +9,7 @@
 # -----------------------------------------------------------------------------
 ci_classify:
   stage: classify
+  allow_failure: true
   image: python:3.11
   tags:
     - docker-any
@@ -77,6 +78,7 @@ mr_report:
 
 ci_flaky_ledger:
   stage: automation
+  allow_failure: true
   image: python:3.11
   tags:
     - docker-any
@@ -93,6 +95,7 @@ ci_flaky_ledger:
 
 ci_issue_on_failure:
   stage: automation
+  allow_failure: true
   image: python:3.11
   tags:
     - docker-any
@@ -109,6 +112,7 @@ ci_issue_on_failure:
 
 ci_issue_on_recovery:
   stage: automation
+  allow_failure: true
   image: python:3.11
   tags:
     - docker-any
