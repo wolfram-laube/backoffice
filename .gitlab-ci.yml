@@ -37,6 +37,9 @@ include:
   - local: '.gitlab/fix-shell-runner.yml'    # Runner fixes
   - local: '.gitlab/parallel-jobs.yml'       # Parallelization
 
+  # === QUALITY ASSURANCE ===
+  - local: '.gitlab/roundtrip-test.yml'      # Workflow integration test
+
 # -----------------------------------------------------------------------------
 # WORKFLOW: Pipeline trigger rules
 # -----------------------------------------------------------------------------
