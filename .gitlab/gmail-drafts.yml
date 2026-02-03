@@ -1,7 +1,18 @@
-# Gmail Draft Creation Pipeline
+# Gmail Draft Creation Pipeline (with Attachments)
 #
 # Usage: Set DRAFTS_JSON_B64 variable (base64 encoded JSON array of drafts)
-# Example: [{"to":"email@example.com","subject":"Subject","body":"Body"}]
+#
+# Format:
+# [
+#   {
+#     "to": "email@example.com",
+#     "subject": "Subject",
+#     "body": "Body text",
+#     "attachments": ["attachments/Profil_Laube_w_Summary_DE.pdf"]  # optional
+#   }
+# ]
+#
+# Attachments are paths relative to the repository root.
 
 gmail:create-drafts:
   stage: .pre
@@ -16,7 +27,11 @@ gmail:create-drafts:
     - pip3 install requests --quiet --break-system-packages || pip3 install requests --quiet --user || true
     - |
       python3 << 'EOFPY'
-      import os, json, base64, requests, sys
+      import os, json, base64, requests, sys, mimetypes
+      from email.mime.multipart import MIMEMultipart
+      from email.mime.text import MIMEText
+      from email.mime.base import MIMEBase
+      from email import encoders
 
       CLIENT_ID = os.environ["GMAIL_CLIENT_ID"]
       CLIENT_SECRET = os.environ["GMAIL_CLIENT_SECRET"]
@@ -35,6 +50,7 @@ gmail:create-drafts:
           print(f"Decode error: {e}")
           sys.exit(1)
 
+      # Get access token
       response = requests.post(
           "https://oauth2.googleapis.com/token",
           data={"client_id": CLIENT_ID, "client_secret": CLIENT_SECRET,
@@ -46,15 +62,62 @@ gmail:create-drafts:
       access_token = response.json()["access_token"]
       print("Got access token")
 
+      def create_email_with_attachments(to_addr, subject, body, attachments=None):
+          """Create MIME email with optional attachments."""
+          if not attachments:
+              # Simple plain text email
+              raw = f"To: {to_addr}\r\nSubject: {subject}\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n{body}"
+              return base64.urlsafe_b64encode(raw.encode("utf-8")).decode("utf-8")
+          
+          # Multipart email with attachments
+          msg = MIMEMultipart()
+          msg["To"] = to_addr
+          msg["Subject"] = subject
+          
+          # Add body
+          msg.attach(MIMEText(body, "plain", "utf-8"))
+          
+          # Add attachments
+          for filepath in attachments:
+              if not os.path.exists(filepath):
+                  print(f"  Warning: Attachment not found: {filepath}")
+                  continue
+              
+              filename = os.path.basename(filepath)
+              mime_type, _ = mimetypes.guess_type(filepath)
+              if mime_type is None:
+                  mime_type = "application/octet-stream"
+              
+              main_type, sub_type = mime_type.split("/", 1)
+              
+              with open(filepath, "rb") as f:
+                  attachment = MIMEBase(main_type, sub_type)
+                  attachment.set_payload(f.read())
+              
+              encoders.encode_base64(attachment)
+              attachment.add_header("Content-Disposition", "attachment", filename=filename)
+              msg.attach(attachment)
+              print(f"  Attached: {filename} ({mime_type})")
+          
+          return base64.urlsafe_b64encode(msg.as_bytes()).decode("utf-8")
+
       success = 0
       for i, draft in enumerate(drafts):
           to_addr = draft.get("to", "")
           subject = draft.get("subject", "No Subject")
           body = draft.get("body", "")
-
-          raw_email = f"To: {to_addr}\r\nSubject: {subject}\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n{body}"
-          raw_b64 = base64.urlsafe_b64encode(raw_email.encode("utf-8")).decode("utf-8")
-
+          attachments = draft.get("attachments", [])
+          
+          print(f"\nDraft {i+1}: {subject[:50]}...")
+          if attachments:
+              print(f"  Attachments: {len(attachments)}")
+          
+          try:
+              raw_b64 = create_email_with_attachments(to_addr, subject, body, attachments)
+          except Exception as e:
+              print(f"  Error creating email: {e}")
+              continue
+          
           resp = requests.post(
               "https://gmail.googleapis.com/gmail/v1/users/me/drafts",
               headers={"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"},
@@ -62,11 +125,15 @@ gmail:create-drafts:
           )
           if resp.status_code in (200, 201):
               success += 1
-              print(f"Draft {i+1}: {subject[:50]}...")
+              draft_id = resp.json().get("id", "unknown")
+              print(f"  Created draft ID: {draft_id}")
           else:
-              print(f"Draft {i+1} failed: {resp.text}")
+              print(f"  Failed: {resp.text}")
 
+      print(f"\n{'='*50}")
       print(f"Created {success}/{len(drafts)} drafts")
+      if success < len(drafts):
+          sys.exit(1)
       EOFPY
 
 gmail:benchmark-report:
@@ -83,9 +150,7 @@ gmail:benchmark-report:
     - when: manual
       allow_failure: true
   variables:
-    # LLM_PROVIDER: "openai" or "anthropic" (default: openai)
     LLM_PROVIDER: "openai"
-    # EMAIL_LANGUAGE: "de", "en", "es", "fr" (default: de)
     EMAIL_LANGUAGE: "de"
   script:
     - pip3 install requests openai anthropic --quiet --break-system-packages || pip3 install requests openai anthropic --quiet --user || true
