@@ -183,6 +183,51 @@ applications:crm-sync:
       - output/crm_update_results.json
     expire_in: 7 days
 
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  CRM REPORTING (Phase 5)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+crm:report-weekly:
+  extends: .applications-base
+  stage: deploy
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $CRM_REPORT_WEEKLY == "true"
+    - if: $CRM_REPORT == "weekly"
+    - when: manual
+      allow_failure: true
+  variables:
+    CRM_PROJECT_ID: "78171527"
+    GITLAB_TOKEN: $GITLAB_API_TOKEN
+    REPORT_TYPE: "weekly"
+  script:
+    - python3 scripts/ci/crm_reporting.py
+  artifacts:
+    paths:
+      - output/crm_report_weekly.md
+      - output/crm_report_weekly.json
+    expire_in: 90 days
+
+crm:report-monthly:
+  extends: .applications-base
+  stage: deploy
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $CRM_REPORT_MONTHLY == "true"
+    - if: $CRM_REPORT == "monthly"
+    - when: manual
+      allow_failure: true
+  variables:
+    CRM_PROJECT_ID: "78171527"
+    GITLAB_TOKEN: $GITLAB_API_TOKEN
+    REPORT_TYPE: "monthly"
+  script:
+    - python3 scripts/ci/crm_reporting.py
+  artifacts:
+    paths:
+      - output/crm_report_monthly.md
+      - output/crm_report_monthly.json
+    expire_in: 365 days
+
 # ═══════════════════════════════════════════════════════════════════════════════
 #  MANUAL: DRY RUN
 # ═══════════════════════════════════════════════════════════════════════════════
