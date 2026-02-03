@@ -87,3 +87,21 @@ migration:cleanup:
     - gcloud compute instances delete $OLD_VM_NAME --zone=$OLD_ZONE --quiet || echo "Already deleted"
     - gcloud compute snapshots list --filter="name~clarissa-runner" --format="table(name,creationTimestamp)"
     - echo "=== Migration complete! ==="
+debug:list-vms:
+  stage: .pre
+  image: google/cloud-sdk:alpine
+  rules:
+    - if: $DEBUG_GCP == "true"
+      when: always
+    - when: never
+  script:
+    - echo "=== GCP Authentication ==="
+    - echo "$GCP_SERVICE_ACCOUNT_KEY" | base64 -d > /tmp/gcp-key.json
+    - gcloud auth activate-service-account --key-file=/tmp/gcp-key.json
+    - gcloud config set project myk8sproject-207017
+    - echo ""
+    - echo "=== ALL VMs ==="
+    - gcloud compute instances list --format="table(name,zone,status,networkInterfaces[0].accessConfigs[0].natIP)"
+    - echo ""
+    - echo "=== ALL Disks ==="
+    - gcloud compute disks list --format="table(name,zone,sizeGb,status)"
