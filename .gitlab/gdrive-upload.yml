@@ -1,0 +1,97 @@
+# Google Drive Pipeline - Uploads, Sync, and Management
+#
+# Service Account: claude-assistant@myk8sproject-207017.iam.gserviceaccount.com
+
+.gdrive_base:
+  image: python:3.11-slim
+  tags:
+    - gcp-docker
+  before_script:
+    - pip install google-auth google-api-python-client --quiet
+
+# =============================================================================
+# MANAGEMENT JOBS
+# =============================================================================
+
+# Reorganize folder structure per ADR-017 (ONE-TIME)
+gdrive:reorganize:
+  extends: .gdrive_base
+  stage: .pre
+  rules:
+    - when: manual
+      allow_failure: true
+  script:
+    - python3 scripts/gdrive_reorganize.py
+  artifacts:
+    paths:
+      - gdrive_folder_ids.json
+    expire_in: 1 week
+
+# List folder contents (debugging)
+gdrive:list:
+  extends: .gdrive_base
+  stage: .pre
+  rules:
+    - when: manual
+      allow_failure: true
+  script:
+    - python3 scripts/gdrive_list_deep.py
+  artifacts:
+    paths:
+      - gdrive_listing.json
+    expire_in: 1 day
+
+# =============================================================================
+# SYNC JOBS (automated)
+# =============================================================================
+
+# Sync credentials to GDrive/CLARISSA/config
+gdrive:sync-credentials:
+  extends: .gdrive_base
+  stage: deploy
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      changes:
+        - config/clarissa_credentials.json
+      when: always
+    - when: manual
+      allow_failure: true
+  needs: []
+  script:
+    - python3 scripts/sync_credentials_gdrive.py
+
+# Sync notebooks to GDrive/CLARISSA/notebooks
+gdrive:sync-notebooks:
+  extends: .gdrive_base
+  stage: deploy
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      changes:
+        - docs/tutorials/*.ipynb
+      when: always
+    - when: manual
+      allow_failure: true
+  needs: []
+  script:
+    - python3 scripts/sync_notebooks_gdrive.py
+  artifacts:
+    paths:
+      - notebook_colab_urls.json
+    expire_in: 1 week
+
+# Upload benchmark report to GDrive/CLARISSA/benchmarks
+gdrive:upload-benchmark:
+  extends: .gdrive_base
+  stage: deploy
+  rules:
+    - if: $UPLOAD_BENCHMARK == "true"
+      when: always
+    - when: manual
+      allow_failure: true
+  needs: []
+  script:
+    - python3 scripts/gdrive_upload_benchmark.py
+  artifacts:
+    paths:
+      - gdrive_upload_summary.json
+    expire_in: 1 week

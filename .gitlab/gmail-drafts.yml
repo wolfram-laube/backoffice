@@ -1,0 +1,92 @@
+# Gmail Draft Creation Pipeline
+#
+# Usage: Set DRAFTS_JSON_B64 variable (base64 encoded JSON array of drafts)
+# Example: [{"to":"email@example.com","subject":"Subject","body":"Body"}]
+
+gmail:create-drafts:
+  stage: .pre
+  tags:
+    - mac-group-shell
+  rules:
+    - if: $DRAFTS_JSON_B64
+      when: always
+    - when: manual
+      allow_failure: true
+  script:
+    - pip3 install requests --quiet --break-system-packages || pip3 install requests --quiet --user || true
+    - |
+      python3 << 'EOFPY'
+      import os, json, base64, requests, sys
+
+      CLIENT_ID = os.environ["GMAIL_CLIENT_ID"]
+      CLIENT_SECRET = os.environ["GMAIL_CLIENT_SECRET"]
+      REFRESH_TOKEN = os.environ["GMAIL_REFRESH_TOKEN"]
+      DRAFTS_B64 = os.environ.get("DRAFTS_JSON_B64", "")
+
+      if not DRAFTS_B64:
+          print("No DRAFTS_JSON_B64 provided")
+          sys.exit(0)
+
+      try:
+          drafts_json = base64.b64decode(DRAFTS_B64).decode("utf-8")
+          drafts = json.loads(drafts_json)
+          print(f"Decoded {len(drafts)} draft(s)")
+      except Exception as e:
+          print(f"Decode error: {e}")
+          sys.exit(1)
+
+      response = requests.post(
+          "https://oauth2.googleapis.com/token",
+          data={"client_id": CLIENT_ID, "client_secret": CLIENT_SECRET,
+                "refresh_token": REFRESH_TOKEN, "grant_type": "refresh_token"}
+      )
+      if response.status_code != 200:
+          print(f"Token error: {response.text}")
+          sys.exit(1)
+      access_token = response.json()["access_token"]
+      print("Got access token")
+
+      success = 0
+      for i, draft in enumerate(drafts):
+          to_addr = draft.get("to", "")
+          subject = draft.get("subject", "No Subject")
+          body = draft.get("body", "")
+
+          raw_email = f"To: {to_addr}\r\nSubject: {subject}\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n{body}"
+          raw_b64 = base64.urlsafe_b64encode(raw_email.encode("utf-8")).decode("utf-8")
+
+          resp = requests.post(
+              "https://gmail.googleapis.com/gmail/v1/users/me/drafts",
+              headers={"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"},
+              json={"message": {"raw": raw_b64}}
+          )
+          if resp.status_code in (200, 201):
+              success += 1
+              print(f"Draft {i+1}: {subject[:50]}...")
+          else:
+              print(f"Draft {i+1} failed: {resp.text}")
+
+      print(f"Created {success}/{len(drafts)} drafts")
+      EOFPY
+
+gmail:benchmark-report:
+  stage: deploy
+  tags:
+    - mac-group-shell
+  needs:
+    - job: benchmark-report
+      artifacts: true
+      optional: true
+  rules:
+    - if: $SEND_BENCHMARK_EMAIL == "true"
+      when: on_success
+    - when: manual
+      allow_failure: true
+  variables:
+    # LLM_PROVIDER: "openai" or "anthropic" (default: openai)
+    LLM_PROVIDER: "openai"
+    # EMAIL_LANGUAGE: "de", "en", "es", "fr" (default: de)
+    EMAIL_LANGUAGE: "de"
+  script:
+    - pip3 install requests openai anthropic --quiet --break-system-packages || pip3 install requests openai anthropic --quiet --user || true
+    - python3 scripts/ci/send_benchmark_email.py
