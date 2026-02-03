@@ -28,7 +28,7 @@ include:
   - local: '.gitlab/runner-fallback.yml'     # Dynamic runner selection
   - local: '.gitlab/gcp-check.yml'           # GCP status
   - local: '.gitlab/gcp-setup.yml'           # GCP setup
-  - local: '.gitlab/gcp-vm-control.yml'      # VM start/stop
+  # - local: '.gitlab/gcp-vm-control.yml'    # Merged into runner-fallback.yml      # VM start/stop
   - local: '.gitlab/terraform.yml'           # IaC
   - local: '.gitlab/docker-build.yml'        # Container builds
   - local: '.gitlab/k3s-setup.yml'           # Kubernetes
