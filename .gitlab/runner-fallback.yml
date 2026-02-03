@@ -76,6 +76,7 @@ runner-check:
     - if: $SKIP_RUNNER_CHECK == "true"
       when: never
     - when: always
+      allow_failure: true
 
 # -----------------------------------------------------------------------------
 # GCP START: Start GCP VM if needed
