@@ -1,0 +1,398 @@
+# =============================================================================
+# WORKFLOW ROUNDTRIP TEST
+# =============================================================================
+# End-to-end test of the complete application workflow:
+#   Email → CRM Issue → Application Draft → Gmail Draft
+#
+# Triggers:
+#   - Manual (Web UI)
+#   - Schedule (weekly)
+#   - Variable: RUN_ROUNDTRIP_TEST=true
+#
+# This is a "smoke test" that verifies all integrations work together.
+# =============================================================================
+
+variables:
+  # Test data
+  TEST_EMAIL: "roundtrip-test@example.com"
+  TEST_SUBJECT: "[ROUNDTRIP-TEST] IT-Architekt Test Application"
+  TEST_PROJECT_TITLE: "Roundtrip Test Project"
+
+# -----------------------------------------------------------------------------
+# STAGE 1: Create CRM Issue
+# -----------------------------------------------------------------------------
+roundtrip:create-issue:
+  stage: test
+  image: python:3.11-slim
+  tags:
+    - gitlab-org-docker
+  variables:
+    GIT_STRATEGY: none
+  script:
+    - pip install requests --quiet --break-system-packages
+    - |
+      python3 << 'EOFPY'
+      import os
+      import json
+      import requests
+      from datetime import datetime
+
+      TOKEN = os.environ["GITLAB_API_TOKEN"]
+      CRM_PROJECT = os.environ.get("CRM_PROJECT_ID", "78171527")
+      
+      timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+      
+      issue_data = {
+          "title": f"[ROUNDTRIP-TEST] {timestamp}",
+          "description": f"""## Roundtrip Test Issue
+
+      | Field | Value |
+      |-------|-------|
+      | **Type** | Automated Test |
+      | **Created** | {timestamp} |
+      | **Pipeline** | {os.environ.get('CI_PIPELINE_ID', 'local')} |
+
+      ## Purpose
+      This issue tests the CRM → Gmail Draft workflow.
+
+      ## Expected
+      - Issue created ✓
+      - Draft job triggered
+      - Gmail draft created
+      - Issue closed
+
+      ---
+      *Automated by roundtrip-test.yml*
+      """,
+          "labels": "status::test,type::roundtrip-test"
+      }
+      
+      resp = requests.post(
+          f"https://gitlab.com/api/v4/projects/{CRM_PROJECT}/issues",
+          headers={"PRIVATE-TOKEN": TOKEN},
+          json=issue_data
+      )
+      
+      if resp.status_code in (200, 201):
+          issue = resp.json()
+          print(f"✅ Created issue #{issue['iid']}")
+          print(f"   URL: {issue['web_url']}")
+          
+          # Save for next job
+          with open("issue.env", "w") as f:
+              f.write(f"TEST_ISSUE_IID={issue['iid']}\n")
+              f.write(f"TEST_ISSUE_ID={issue['id']}\n")
+      else:
+          print(f"❌ Failed: {resp.text}")
+          exit(1)
+      EOFPY
+  artifacts:
+    reports:
+      dotenv: issue.env
+  rules:
+    - if: $RUN_ROUNDTRIP_TEST == "true"
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $ROUNDTRIP_SCHEDULE == "true"
+    - when: manual
+      allow_failure: true
+
+# -----------------------------------------------------------------------------
+# STAGE 2: Create Gmail Draft
+# -----------------------------------------------------------------------------
+roundtrip:create-draft:
+  stage: test
+  image: python:3.11-slim
+  tags:
+    - gitlab-org-docker
+  needs:
+    - job: roundtrip:create-issue
+      artifacts: true
+  variables:
+    GIT_STRATEGY: none
+  script:
+    - pip install requests --quiet --break-system-packages
+    - |
+      python3 << 'EOFPY'
+      import os
+      import json
+      import base64
+      import requests
+      from datetime import datetime
+      from email.mime.multipart import MIMEMultipart
+      from email.mime.text import MIMEText
+
+      CLIENT_ID = os.environ["GMAIL_CLIENT_ID"]
+      CLIENT_SECRET = os.environ["GMAIL_CLIENT_SECRET"]
+      REFRESH_TOKEN = os.environ["GMAIL_REFRESH_TOKEN"]
+      ISSUE_IID = os.environ.get("TEST_ISSUE_IID", "unknown")
+      PIPELINE_ID = os.environ.get("CI_PIPELINE_ID", "local")
+      
+      timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+      
+      # Get access token
+      resp = requests.post(
+          "https://oauth2.googleapis.com/token",
+          data={
+              "client_id": CLIENT_ID,
+              "client_secret": CLIENT_SECRET,
+              "refresh_token": REFRESH_TOKEN,
+              "grant_type": "refresh_token"
+          }
+      )
+      if resp.status_code != 200:
+          print(f"❌ Token error: {resp.text}")
+          exit(1)
+      
+      access_token = resp.json()["access_token"]
+      print("✅ Got access token")
+      
+      # Create test email
+      subject = f"[ROUNDTRIP-TEST] Pipeline #{PIPELINE_ID} - {timestamp}"
+      body = f"""This is an automated roundtrip test email.
+
+      Pipeline: #{PIPELINE_ID}
+      CRM Issue: #{ISSUE_IID}
+      Timestamp: {timestamp}
+
+      If you see this draft, the workflow is working correctly.
+      You can delete this draft.
+
+      ---
+      Automated by ops/backoffice roundtrip-test.yml
+      """
+      
+      # Build MIME message
+      msg = MIMEMultipart()
+      msg["To"] = "wolfram.laube@blauweiss-edv.at"
+      msg["Subject"] = subject
+      msg.attach(MIMEText(body, "plain", "utf-8"))
+      
+      raw_b64 = base64.urlsafe_b64encode(msg.as_bytes()).decode("utf-8")
+      
+      # Create draft
+      resp = requests.post(
+          "https://gmail.googleapis.com/gmail/v1/users/me/drafts",
+          headers={
+              "Authorization": f"Bearer {access_token}",
+              "Content-Type": "application/json"
+          },
+          json={"message": {"raw": raw_b64}}
+      )
+      
+      if resp.status_code in (200, 201):
+          draft = resp.json()
+          print(f"✅ Created draft ID: {draft['id']}")
+          
+          with open("draft.env", "w") as f:
+              f.write(f"TEST_DRAFT_ID={draft['id']}\n")
+      else:
+          print(f"❌ Draft failed: {resp.text}")
+          exit(1)
+      EOFPY
+  artifacts:
+    reports:
+      dotenv: draft.env
+  rules:
+    - if: $RUN_ROUNDTRIP_TEST == "true"
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $ROUNDTRIP_SCHEDULE == "true"
+    - when: manual
+      allow_failure: true
+
+# -----------------------------------------------------------------------------
+# STAGE 3: Verify & Cleanup
+# -----------------------------------------------------------------------------
+roundtrip:verify:
+  stage: deploy
+  image: python:3.11-slim
+  tags:
+    - gitlab-org-docker
+  needs:
+    - job: roundtrip:create-issue
+      artifacts: true
+    - job: roundtrip:create-draft
+      artifacts: true
+  variables:
+    GIT_STRATEGY: none
+  script:
+    - pip install requests --quiet --break-system-packages
+    - |
+      python3 << 'EOFPY'
+      import os
+      import requests
+      from datetime import datetime
+
+      TOKEN = os.environ["GITLAB_API_TOKEN"]
+      CRM_PROJECT = os.environ.get("CRM_PROJECT_ID", "78171527")
+      ISSUE_IID = os.environ.get("TEST_ISSUE_IID", "")
+      DRAFT_ID = os.environ.get("TEST_DRAFT_ID", "")
+      PIPELINE_ID = os.environ.get("CI_PIPELINE_ID", "local")
+      PIPELINE_URL = os.environ.get("CI_PIPELINE_URL", "")
+      
+      timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+      
+      print("=" * 60)
+      print("  ROUNDTRIP TEST RESULTS")
+      print("=" * 60)
+      print()
+      
+      results = []
+      
+      # Check issue
+      if ISSUE_IID:
+          print(f"✅ CRM Issue: #{ISSUE_IID}")
+          results.append(("CRM Issue", "PASS", f"#{ISSUE_IID}"))
+      else:
+          print("❌ CRM Issue: NOT CREATED")
+          results.append(("CRM Issue", "FAIL", "Not created"))
+      
+      # Check draft
+      if DRAFT_ID:
+          print(f"✅ Gmail Draft: {DRAFT_ID}")
+          results.append(("Gmail Draft", "PASS", DRAFT_ID[:20]))
+      else:
+          print("❌ Gmail Draft: NOT CREATED")
+          results.append(("Gmail Draft", "FAIL", "Not created"))
+      
+      print()
+      
+      # Overall result
+      all_pass = all(r[1] == "PASS" for r in results)
+      
+      if all_pass:
+          print("🎉 ROUNDTRIP TEST PASSED")
+          status = "PASS"
+      else:
+          print("💥 ROUNDTRIP TEST FAILED")
+          status = "FAIL"
+      
+      # Add comment to issue
+      if ISSUE_IID:
+          comment = f"""## Roundtrip Test Results
+
+      | Component | Status | Details |
+      |-----------|--------|---------|
+      | CRM Issue | {'✅' if results[0][1] == 'PASS' else '❌'} | {results[0][2]} |
+      | Gmail Draft | {'✅' if results[1][1] == 'PASS' else '❌'} | {results[1][2]} |
+
+      **Overall: {status}**
+
+      Pipeline: [{PIPELINE_ID}]({PIPELINE_URL})
+      Timestamp: {timestamp}
+      """
+          
+          resp = requests.post(
+              f"https://gitlab.com/api/v4/projects/{CRM_PROJECT}/issues/{ISSUE_IID}/notes",
+              headers={"PRIVATE-TOKEN": TOKEN},
+              json={"body": comment}
+          )
+          
+          # Close test issue
+          resp = requests.put(
+              f"https://gitlab.com/api/v4/projects/{CRM_PROJECT}/issues/{ISSUE_IID}",
+              headers={"PRIVATE-TOKEN": TOKEN},
+              json={"state_event": "close", "labels": f"status::test-{status.lower()}"}
+          )
+          print(f"\n✅ Issue #{ISSUE_IID} closed with status: {status}")
+      
+      if not all_pass:
+          exit(1)
+      EOFPY
+  rules:
+    - if: $RUN_ROUNDTRIP_TEST == "true"
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $ROUNDTRIP_SCHEDULE == "true"
+    - when: manual
+      allow_failure: true
+
+# -----------------------------------------------------------------------------
+# QUICK HEALTH CHECK (no artifacts, just verify connectivity)
+# -----------------------------------------------------------------------------
+roundtrip:health-check:
+  stage: test
+  image: python:3.11-slim
+  tags:
+    - gitlab-org-docker
+  variables:
+    GIT_STRATEGY: none
+  script:
+    - pip install requests --quiet --break-system-packages
+    - |
+      python3 << 'EOFPY'
+      import os
+      import requests
+
+      print("=" * 60)
+      print("  HEALTH CHECK")
+      print("=" * 60)
+      
+      checks = []
+      
+      # 1. GitLab API
+      print("\n1. GitLab API...")
+      try:
+          resp = requests.get(
+              "https://gitlab.com/api/v4/user",
+              headers={"PRIVATE-TOKEN": os.environ.get("GITLAB_API_TOKEN", "")}
+          )
+          if resp.status_code == 200:
+              user = resp.json()
+              print(f"   ✅ Authenticated as: {user['username']}")
+              checks.append(True)
+          else:
+              print(f"   ❌ Auth failed: {resp.status_code}")
+              checks.append(False)
+      except Exception as e:
+          print(f"   ❌ Error: {e}")
+          checks.append(False)
+      
+      # 2. Gmail OAuth
+      print("\n2. Gmail OAuth...")
+      try:
+          resp = requests.post(
+              "https://oauth2.googleapis.com/token",
+              data={
+                  "client_id": os.environ.get("GMAIL_CLIENT_ID", ""),
+                  "client_secret": os.environ.get("GMAIL_CLIENT_SECRET", ""),
+                  "refresh_token": os.environ.get("GMAIL_REFRESH_TOKEN", ""),
+                  "grant_type": "refresh_token"
+              }
+          )
+          if resp.status_code == 200:
+              print("   ✅ Token refresh successful")
+              checks.append(True)
+          else:
+              print(f"   ❌ Token error: {resp.status_code}")
+              checks.append(False)
+      except Exception as e:
+          print(f"   ❌ Error: {e}")
+          checks.append(False)
+      
+      # 3. CRM Project Access
+      print("\n3. CRM Project...")
+      try:
+          CRM_PROJECT = os.environ.get("CRM_PROJECT_ID", "78171527")
+          resp = requests.get(
+              f"https://gitlab.com/api/v4/projects/{CRM_PROJECT}",
+              headers={"PRIVATE-TOKEN": os.environ.get("GITLAB_API_TOKEN", "")}
+          )
+          if resp.status_code == 200:
+              project = resp.json()
+              print(f"   ✅ Access OK: {project['path_with_namespace']}")
+              checks.append(True)
+          else:
+              print(f"   ❌ Access denied: {resp.status_code}")
+              checks.append(False)
+      except Exception as e:
+          print(f"   ❌ Error: {e}")
+          checks.append(False)
+      
+      # Summary
+      print("\n" + "=" * 60)
+      if all(checks):
+          print("  ✅ ALL HEALTH CHECKS PASSED")
+      else:
+          print(f"  ❌ {checks.count(False)}/{len(checks)} CHECKS FAILED")
+          exit(1)
+      EOFPY
+  rules:
+    - if: $RUN_HEALTH_CHECK == "true"
+    - when: manual
+      allow_failure: true
