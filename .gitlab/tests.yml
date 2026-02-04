@@ -6,6 +6,8 @@
 
 .test-base:
   image: python:3.11-slim
+  tags:
+    - docker-any  # Use our own runner (gitlab-runner-nordic)
   before_script:
     - pip install pytest pytest-cov pyyaml --quiet
     - pip install -r requirements.txt --quiet 2>/dev/null || true
