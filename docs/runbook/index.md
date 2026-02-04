@@ -56,14 +56,13 @@
 
 | Was | Wann | Repo | Schedule ID |
 |-----|------|------|-------------|
-| **Monthly Billing** | 1. des Monats, 06:00 | CLARISSA* | #4094512 |
+| **Monthly Billing** | 1. des Monats, 06:00 | backoffice ✅ | #4126476 |
 | **Applications Pipeline** | Mo-Fr 08:00 | CLARISSA* | #4125172 |
 | **CRM Integrity Check** | Mo 07:00 | CLARISSA* | #4125129 |
 | **CRM Automation** | Daily 08:00 | backoffice | #4126456 |
 | **CRM Weekly Report** | Mo 09:00 | backoffice | #4126452 |
 | **CRM Monthly Report** | 1. des Monats, 09:00 | backoffice | #4126453 |
 
-*⚠️ Migration nach backoffice pending (siehe [OPS-001](../adr/operations/OPS-001-billing-migration.md))
 
 ---
 
