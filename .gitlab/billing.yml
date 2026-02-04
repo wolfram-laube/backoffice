@@ -20,7 +20,7 @@ generate_timesheets:
   rules:
     - if: '$CI_PIPELINE_SOURCE == "schedule" && $BILLING_RUN == "true"'
       when: on_success
-    - if: '$CI_PIPELINE_SOURCE == "web" && $GENERATE_TIMESHEETS == "true"'
+    - if: '($CI_PIPELINE_SOURCE == "web" || $CI_PIPELINE_SOURCE == "api") && $GENERATE_TIMESHEETS == "true"'
       when: on_success
     - when: never
   before_script:
