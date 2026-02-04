@@ -22,9 +22,9 @@
 
 # Shared config for all application jobs
 .applications-base:
-  image: python:3.11-slim
+  # image: python:3.11-slim  # Shell runner
   tags:
-    - docker
+    - shell
   before_script:
     - pip install requests beautifulsoup4 lxml --quiet
 
