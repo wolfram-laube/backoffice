@@ -15,7 +15,7 @@ class TestFollowUpDetection:
         """Should detect issues without activity > FOLLOW_UP_DAYS."""
         FOLLOW_UP_DAYS = 7
         now = datetime(2026, 2, 1, 12, 0, 0)
-        cutoff = now - timedelta(days=FOLLOW_UP_DAYS)
+        cutoff = now - timedelta(days=FOLLOW_UP_DAYS)  # 2026-01-25
         
         def parse_dt(s):
             return datetime.fromisoformat(s.replace("Z", "+00:00")).replace(tzinfo=None)
@@ -30,9 +30,30 @@ class TestFollowUpDetection:
             if updated < cutoff:
                 needs_followup.append(issue["iid"])
         
-        # Issue 2 was last updated 2026-01-10, which is > 7 days before 2026-02-01
+        # Issue 1: updated 2026-01-20 (12 days ago) → SHOULD be flagged
+        # Issue 2: updated 2026-01-10 (22 days ago) → SHOULD be flagged
+        assert 1 in needs_followup  # Fixed: was wrong assertion
         assert 2 in needs_followup
-        # Issue 1 was updated 2026-01-20, which is within range
+    
+    def test_detect_recent_issues_not_flagged(self, sample_issues):
+        """Issues updated within FOLLOW_UP_DAYS should NOT be flagged."""
+        FOLLOW_UP_DAYS = 7
+        now = datetime(2026, 1, 22, 12, 0, 0)  # Only 2 days after Issue 1 update
+        cutoff = now - timedelta(days=FOLLOW_UP_DAYS)  # 2026-01-15
+        
+        def parse_dt(s):
+            return datetime.fromisoformat(s.replace("Z", "+00:00")).replace(tzinfo=None)
+        
+        needs_followup = []
+        for issue in sample_issues:
+            if "status::versendet" not in issue.get("labels", []):
+                continue
+            
+            updated = parse_dt(issue["updated_at"])
+            if updated < cutoff:
+                needs_followup.append(issue["iid"])
+        
+        # Issue 1: updated 2026-01-20, cutoff 2026-01-15 → NOT flagged (recent)
         assert 1 not in needs_followup
     
     def test_skip_already_marked_followups(self, sample_issues):
@@ -56,7 +77,7 @@ class TestGhostDetection:
         """Should detect issues without activity > GHOST_DAYS."""
         GHOST_DAYS = 30
         now = datetime(2026, 2, 1, 12, 0, 0)
-        cutoff = now - timedelta(days=GHOST_DAYS)
+        cutoff = now - timedelta(days=GHOST_DAYS)  # 2026-01-02
         
         def parse_dt(s):
             return datetime.fromisoformat(s.replace("Z", "+00:00")).replace(tzinfo=None)
