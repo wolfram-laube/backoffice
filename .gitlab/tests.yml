@@ -1,0 +1,76 @@
+# =============================================================================
+# TEST SUITE
+# =============================================================================
+# Pytest-based test suite for backoffice scripts
+# Runs on every push and MR
+
+.test-base:
+  image: python:3.11-slim
+  before_script:
+    - pip install pytest pytest-cov --quiet
+  cache:
+    key: ${CI_COMMIT_REF_SLUG}-pip
+    paths:
+      - .pip-cache/
+
+# -----------------------------------------------------------------------------
+# UNIT TESTS
+# -----------------------------------------------------------------------------
+
+test:unit:
+  extends: .test-base
+  stage: test
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $RUN_TESTS == "true"
+    - when: manual
+      allow_failure: true
+  script:
+    - echo "🧪 Running unit tests..."
+    - pytest tests/unit/ -v --tb=short -m "not integration"
+  artifacts:
+    when: always
+    reports:
+      junit: report.xml
+    expire_in: 7 days
+
+# -----------------------------------------------------------------------------
+# TEST WITH COVERAGE
+# -----------------------------------------------------------------------------
+
+test:coverage:
+  extends: .test-base
+  stage: test
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $TEST_COVERAGE == "true"
+    - when: manual
+      allow_failure: true
+  script:
+    - echo "📊 Running tests with coverage..."
+    - pytest tests/ -v --cov=scripts/ci --cov-report=term --cov-report=html
+  coverage: '/TOTAL.*\s+(\d+%)/'
+  artifacts:
+    when: always
+    paths:
+      - htmlcov/
+    expire_in: 30 days
+
+# -----------------------------------------------------------------------------
+# INTEGRATION TESTS (manual, needs API access)
+# -----------------------------------------------------------------------------
+
+test:integration:
+  extends: .test-base
+  stage: test
+  rules:
+    - if: $TEST_INTEGRATION == "true"
+    - when: manual
+      allow_failure: true
+  variables:
+    GITLAB_TOKEN: $GITLAB_API_TOKEN
+    CRM_PROJECT_ID: "78171527"
+  script:
+    - echo "🔗 Running integration tests..."
+    - pytest tests/integration/ -v --tb=short -m "integration"
