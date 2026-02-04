@@ -1,0 +1,596 @@
+# =============================================================================
+# PROFILE CONFIGURATION - Single Source of Truth
+# =============================================================================
+# Used by:
+#   - modules/profiles/       (loader, matching)
+#   - scripts/ci/             (applications pipeline)
+#   - modules/gmail/          (email drafting)
+# =============================================================================
+
+defaults:
+  attachments_dir: "attachments"
+  signature_footer: |
+    ---
+    Blauweiss LLC
+    https://blauweiss-llc.com
+
+# =============================================================================
+# INDIVIDUAL PROFILES
+# =============================================================================
+
+profiles:
+  wolfram:
+    # Contact
+    name: "Wolfram Laube"
+    email: "wolfram.laube@blauweiss-edv.at"
+    phone: "+43 664 4011521"
+    
+    # Rates
+    rate:
+      min: 90
+      max: 120
+      preferred: 105
+    
+    # Documents
+    attachments:
+      cv_de: "Profil_Laube_w_Summary_DE.pdf"
+      cv_en: "Profil_Laube_w_Summary_EN.pdf"
+      certificate: "Studienerfolg_08900915_1.pdf"
+    
+    # Email
+    signature: |
+      Mit freundlichen Grüßen,
+      
+      Wolfram Laube
+      Senior Solution Architect | AI Bachelor JKU 2026
+      +43 664 4011521
+      wolfram.laube@blauweiss-edv.at
+    
+    # Constraints
+    constraints:
+      remote_only: true
+      languages: ["Deutsch", "Englisch"]
+      min_duration_months: 3
+    
+    # Matching Keywords
+    keywords:
+      must_have:
+        # Core Skills
+        - java
+        - kubernetes
+        - k8s
+        - docker
+        - devops
+        - cloud
+        - aws
+        - azure
+        - gcp
+        - terraform
+        - ansible
+        - ci/cd
+        - gitlab
+        - jenkins
+        - openshift
+        # Python
+        - python
+        - python3
+        - python developer
+        - python entwickler
+        - fastapi
+        - flask
+        - django
+        # Architecture
+        - architekt
+        - architect
+        - solution
+        - infrastructure
+        - microservices
+        - spring boot
+        - spring
+        # AI/ML
+        - ai
+        - ki
+        - artificial intelligence
+        - künstliche intelligenz
+        - machine learning
+        - ml
+        - deep learning
+        - llm
+        - large language model
+        - rag
+        - nlp
+      
+      strong_match:
+        # Python Ecosystem
+        - pandas
+        - numpy
+        - scipy
+        - scikit-learn
+        - sklearn
+        - pytest
+        - poetry
+        - pip
+        - asyncio
+        - aiohttp
+        - pydantic
+        - sqlalchemy
+        - celery
+        - redis
+        # Certifications/Specializations
+        - cka
+        - ckad
+        - keycloak
+        - oauth
+        - oidc
+        - iam
+        - kafka
+        - rabbitmq
+        - event-driven
+        - prometheus
+        - grafana
+        - monitoring
+        - observability
+        - helm
+        - argocd
+        - gitops
+        - flux
+        # AI/ML Frameworks
+        - tensorflow
+        - pytorch
+        - keras
+        - huggingface
+        - langchain
+        - llamaindex
+        - openai
+        - claude
+        - mlops
+        - kubeflow
+        - mlflow
+        - sagemaker
+        - vector
+        - embedding
+        - pinecone
+        - milvus
+        - chroma
+        - prompt engineering
+        - fine-tuning
+        # Industries
+        - bank
+        - finance
+        - energie
+        - energy
+        - kritis
+        - kritische infrastruktur
+        - bahn
+        - railway
+        - mobility
+        - healthcare
+        - gesundheit
+      
+      nice_to_have:
+        - linux
+        - bash
+        - postgresql
+        - oracle
+        - mongodb
+        - rest
+        - api
+        - graphql
+        - grpc
+        - agile
+        - scrum
+        - kanban
+        - jira
+        - confluence
+        - security
+        - devsecops
+        - sast
+        - dast
+        - data lake
+        - data engineering
+        - etl
+        - remote
+        - 100% remote
+        - vollständig remote
+        - jupyter
+        - notebook
+        - streamlit
+        - gradio
+        - computer vision
+        - speech
+        - opencv
+        - beautifulsoup
+        - scrapy
+        - selenium
+      
+      exclude:
+        - vor ort pflicht
+        - keine remote
+        - onsite only
+        - junior
+        - werkstudent
+        - praktikum
+        - internship
+        - us citizen
+        - security clearance
+
+  ian:
+    # Contact
+    name: "Ian Matejka"
+    email: "ian.matejka@blauweiss-llc.com"
+    phone: "+1 XXX XXX XXXX"  # TODO
+    
+    # Rates
+    rate:
+      min: 85
+      max: 130
+      preferred: 105
+    
+    # Documents
+    attachments:
+      cv_de: "CV_Ian_Matejka_DE.pdf"
+      cv_en: "IanMatejkaCV1013MCM.pdf"
+    
+    # Email
+    signature: |
+      Best regards,
+      
+      Ian Matejka
+      AI/ML Engineer
+      Blauweiss LLC
+    
+    # Constraints
+    constraints:
+      remote_only: true
+      languages: ["Englisch", "Deutsch"]
+      min_duration_months: 3
+    
+    # Matching Keywords
+    keywords:
+      must_have:
+        - python
+        - ai
+        - ki
+        - machine learning
+        - ml
+        - llm
+        - large language model
+        - gpt
+        - claude
+        - openai
+        - rag
+        - retrieval
+        - embedding
+        - vector
+        - nlp
+        - natural language
+        - pytorch
+        - tensorflow
+        - keras
+        - huggingface
+        - langchain
+        - llamaindex
+        - dspy
+      
+      strong_match:
+        - mlops
+        - kubeflow
+        - mlflow
+        - sagemaker
+        - kubernetes
+        - k8s
+        - docker
+        - aws
+        - eks
+        - milvus
+        - pinecone
+        - weaviate
+        - chroma
+        - computer vision
+        - cv
+        - image
+        - video
+        - speech
+        - audio
+        - whisper
+        - fine-tuning
+        - training
+        - inference
+        - prompt engineering
+        - prompt
+        - agent
+        - agentic
+        - mcp
+        - tool use
+      
+      nice_to_have:
+        - fastapi
+        - flask
+        - streamlit
+        - gradio
+        - jupyter
+        - notebook
+        - pandas
+        - numpy
+        - sql
+        - postgresql
+        - mongodb
+        - git
+        - ci/cd
+        - linux
+        - research
+        - paper
+        - academic
+        - startup
+        - product
+      
+      exclude:
+        - vor ort pflicht
+        - onsite only
+        - no remote
+        - junior
+        - intern
+        - entry level
+        - java
+        - c++
+        - c#
+        - .net
+        - dotnet
+
+  michael:
+    # Contact
+    name: "Michael Matejka"
+    email: "michael.matejka@blauweiss-llc.com"
+    phone: "+1 XXX XXX XXXX"  # TODO
+    
+    # Rates
+    rate:
+      min: 100
+      max: 150
+      preferred: 120
+    
+    # Documents
+    attachments:
+      cv_de: "CV_Michael_Matejka_DE.pdf"
+      cv_en: "Michael_Matejka_CV_102025.pdf"
+    
+    # Email
+    signature: |
+      Best regards,
+      
+      Michael Matejka
+      Technical Project Manager | MBA
+      Blauweiss LLC
+    
+    # Constraints
+    constraints:
+      remote_only: true
+      languages: ["Englisch", "Deutsch"]
+      min_duration_months: 3
+    
+    # Matching Keywords
+    keywords:
+      must_have:
+        - project manager
+        - projektmanager
+        - program manager
+        - product manager
+        - product owner
+        - business
+        - strategy
+        - strategie
+        - mba
+        - consulting
+        - berater
+        - technical
+        - engineering manager
+        - tech lead
+        - agile
+        - scrum
+        - kanban
+      
+      strong_match:
+        - oil
+        - gas
+        - energy
+        - energie
+        - petroleum
+        - reservoir
+        - simulation
+        - drilling
+        - data analytics
+        - analytics
+        - bi
+        - business intelligence
+        - ai
+        - ki
+        - machine learning
+        - automation
+        - team lead
+        - leadership
+        - management
+        - stakeholder
+        - executive
+        - c-level
+        - transformation
+        - change management
+        - m&a
+        - merger
+        - acquisition
+      
+      nice_to_have:
+        - sql
+        - python
+        - excel
+        - powerbi
+        - tableau
+        - sap
+        - oracle
+        - salesforce
+        - pmp
+        - prince2
+        - safe
+        - budget
+        - p&l
+        - financial
+        - international
+        - global
+        - remote
+      
+      exclude:
+        - developer
+        - entwickler
+        - programmer
+        - coder
+        - junior
+        - entry level
+        - intern
+        - hands-on coding
+        - full-time coding
+
+# =============================================================================
+# TEAM COMBINATIONS
+# =============================================================================
+
+teams:
+  wolfram_ian:
+    members: [wolfram, ian]
+    name: "Wolfram Laube & Ian Matejka"
+    primary_contact: wolfram
+    rate: "verhandelbar"
+    pitch: "AI-fokussiertes Team: Architecture + ML Engineering"
+    description: "Doppelte AI-Expertise + Cloud Infrastructure = End-to-End AI Delivery"
+    keywords:
+      - ai
+      - ki
+      - ml
+      - llm
+      - rag
+      - nlp
+      - genai
+      - gpt
+      - chatgpt
+      - openai
+      - machine learning
+      - deep learning
+      - neural
+      - transformer
+      - mlops
+      - kubernetes
+      - k8s
+      - cloud
+      - aws
+      - azure
+      - gcp
+      - platform
+      - infrastructure
+      - devops
+      - docker
+      - python
+      - data engineer
+      - data scientist
+      - data analytics
+      - tensorflow
+      - pytorch
+      - langchain
+      - huggingface
+      - engineer
+      - entwickler
+      - architect
+      - senior
+
+  wolfram_michael:
+    members: [wolfram, michael]
+    name: "Wolfram Laube & Michael Matejka"
+    primary_contact: wolfram
+    rate: "verhandelbar"
+    pitch: "Technical Architecture + Business Strategy"
+    description: "Technical Architecture + Business Strategy"
+    keywords:
+      - architect
+      - architekt
+      - solution
+      - enterprise
+      - lead
+      - senior
+      - infrastructure
+      - platform
+      - system
+      - cloud
+      - devops
+      - kubernetes
+      - aws
+      - azure
+      - transformation
+      - strategy
+      - consulting
+      - berater
+      - project
+      - program
+      - management
+      - agile
+      - scrum
+      - stakeholder
+      - budget
+      - delivery
+      - migration
+
+  ian_michael:
+    members: [ian, michael]
+    name: "Ian Matejka & Michael Matejka"
+    primary_contact: ian
+    rate: "verhandelbar"
+    pitch: "AI/ML Implementation + Business/Product Strategy"
+    description: "AI/ML Implementation + Business/Product Strategy"
+    keywords:
+      - ai
+      - ki
+      - ml
+      - llm
+      - genai
+      - machine learning
+      - data
+      - product
+      - owner
+      - strategy
+      - transformation
+      - analytics
+      - business
+      - intelligence
+      - bi
+      - dashboard
+      - manager
+      - lead
+      - scientist
+      - analyst
+
+  all_three:
+    members: [wolfram, ian, michael]
+    name: "Wolfram Laube, Ian Matejka & Michael Matejka"
+    primary_contact: wolfram
+    rate: "verhandelbar"
+    pitch: "Full Stack Consulting Team"
+    description: "Complete delivery team: Infra + AI + Business"
+    keywords:
+      - ai
+      - ki
+      - ml
+      - llm
+      - genai
+      - platform
+      - enterprise
+      - transformation
+      - cloud
+      - devops
+      - product
+      - end-to-end
+      - architect
+      - engineer
+      - manager
+      - senior
+      - lead
+      - infrastructure
+      - data
+      - analytics
+      - strategy
+
