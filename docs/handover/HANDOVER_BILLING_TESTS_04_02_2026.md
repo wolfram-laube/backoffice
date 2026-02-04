@@ -104,6 +104,11 @@ projects/clarissa/                 ← RESEARCH ONLY
    - Shared Runner CI Minutes waren erschöpft
    - Gelöst durch Nutzung eigener Runner (gitlab-runner-nordic)
 
+3. **Gmail-Pipeline noch in CLARISSA:**
+   - Gehört nach backoffice (ist Operations, nicht Research)
+   - **Issue #386** angelegt für Migration
+   - Credentials bleiben Group-Level (kein Umbau nötig)
+
 ---
 
 ## 📋 Offene Punkte / Nächste Schritte
@@ -113,6 +118,7 @@ projects/clarissa/                 ← RESEARCH ONLY
 - [ ] CLARISSA billing/ Ordner löschen (nach Bewährungszeit)
 - [ ] Smoke Test der scheduled Runs abwarten (nächster Montag)
 - [ ] ADR-002 für Testing-Strategie schreiben
+- [ ] **Issue #386: Gmail-Pipeline CLARISSA → backoffice migrieren**
 - [ ] **EPIC: GitHub Mirroring Refactoring**
   - Zweck: Jupyter Notebooks & Google Colab Integration
   - Aktuell: Nur CLARISSA gespiegelt (historisch gewachsen)
@@ -179,7 +185,8 @@ Offene Themen:
 1. CRM Data Quality (Issue #379 ohne Status, 18 unbekannte Labels)
 2. ADR-002 Testing-Strategie dokumentieren
 3. Scheduled Runs monitoren (nächster Montag)
-4. EPIC: GitHub Mirroring Refactoring (Colab/Jupyter Integration)
+4. Issue #386: Gmail-Pipeline CLARISSA → backoffice migrieren
+5. EPIC: GitHub Mirroring Refactoring (Colab/Jupyter Integration)
    - Aktuell nur CLARISSA → GitHub gespiegelt
    - Prüfen ob weitere Repos Mirror brauchen
 
