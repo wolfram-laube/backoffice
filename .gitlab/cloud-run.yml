@@ -35,12 +35,7 @@ cloud-run:build:
     - echo "$GCP_SERVICE_ACCOUNT_KEY" | base64 -d > /kaniko/gcp-key.json
     - export GOOGLE_APPLICATION_CREDENTIALS=/kaniko/gcp-key.json
     - echo "=== Building with Kaniko ==="
-    - /kaniko/executor
-        --context="${CI_PROJECT_DIR}/services/runner_bandit"
-        --dockerfile="${CI_PROJECT_DIR}/services/runner_bandit/Dockerfile"
-        --destination="${IMAGE_NAME}:${CI_COMMIT_SHORT_SHA}"
-        --destination="${IMAGE_NAME}:latest"
-        --cache=false
+    - /kaniko/executor --context="${CI_PROJECT_DIR}/services/runner_bandit" --dockerfile="${CI_PROJECT_DIR}/services/runner_bandit/Dockerfile" --destination="${IMAGE_NAME}:${CI_COMMIT_SHORT_SHA}" --destination="${IMAGE_NAME}:latest" --cache=false
     - echo "Build complete! Image pushed to ${IMAGE_NAME}"
 
 # ============== Deploy to Cloud Run ==============
@@ -63,30 +58,12 @@ cloud-run:deploy:
     - echo "$GCP_SERVICE_ACCOUNT_KEY" | base64 -d > /tmp/gcp-key.json
     - gcloud auth activate-service-account --key-file=/tmp/gcp-key.json
     - gcloud config set project $GCP_PROJECT
-    
     - echo "=== Deploying to Cloud Run ==="
-    - gcloud run deploy $SERVICE_NAME
-        --image=${IMAGE_NAME}:${CI_COMMIT_SHORT_SHA}
-        --region=$GCP_REGION
-        --platform=managed
-        --allow-unauthenticated
-        --memory=256Mi
-        --cpu=1
-        --min-instances=0
-        --max-instances=2
-        --port=8080
-        --set-env-vars="BANDIT_ALGORITHM=ucb1"
-        --set-env-vars="BANDIT_STATE_FILE=/tmp/bandit_state.json"
-    
+    - gcloud run deploy $SERVICE_NAME --image=${IMAGE_NAME}:${CI_COMMIT_SHORT_SHA} --region=$GCP_REGION --platform=managed --allow-unauthenticated --memory=256Mi --cpu=1 --min-instances=0 --max-instances=2 --port=8080 --set-env-vars=BANDIT_ALGORITHM=ucb1,BANDIT_STATE_FILE=/tmp/bandit_state.json
     - echo "=== Getting Service URL ==="
     - SERVICE_URL=$(gcloud run services describe $SERVICE_NAME --region=$GCP_REGION --format='value(status.url)')
     - echo "SERVICE_URL=${SERVICE_URL}" >> deploy.env
-    - echo ""
-    - echo "✅ Deployed! Service URL: $SERVICE_URL"
-    - echo ""
-    - echo "Test with:"
-    - echo "  curl ${SERVICE_URL}/"
-    - echo "  curl ${SERVICE_URL}/recommend"
+    - echo "Deployed! Service URL ${SERVICE_URL}"
   artifacts:
     reports:
       dotenv: deploy.env
@@ -108,13 +85,9 @@ cloud-run:test:
       when: manual
   script:
     - echo "=== Smoke Test ==="
-    - echo "Service URL: ${SERVICE_URL}"
-    - |
-      echo "Testing health endpoint..."
-      curl -sf "${SERVICE_URL}/" | head -c 200
-      echo ""
-    - |
-      echo "Testing recommendation endpoint..."
-      curl -sf "${SERVICE_URL}/recommend" | head -c 500
-      echo ""
-    - echo "✅ Smoke test passed!"
+    - echo "Service URL ${SERVICE_URL}"
+    - echo "Testing health endpoint..."
+    - curl -sf "${SERVICE_URL}/" | head -c 200
+    - echo "Testing recommendation endpoint..."
+    - curl -sf "${SERVICE_URL}/recommend" | head -c 500
+    - echo "Smoke test passed!"
