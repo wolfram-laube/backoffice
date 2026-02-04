@@ -1,0 +1,84 @@
+# Gmail Draft Profiles Configuration
+# Used by modules/gmail for personalized applications
+
+defaults:
+  attachments_dir: "attachments"
+  signature_footer: |
+    ---
+    Blauweiss LLC
+    https://blauweiss-llc.com
+
+profiles:
+  wolfram:
+    name: "Wolfram Laube"
+    email: "wolfram.laube@blauweiss-edv.at"
+    phone: "+43 664 4011521"
+    rate: "105"
+    attachments:
+      - "Profil_Laube_w_Summary_DE.pdf"
+      - "Studienerfolg_08900915_1.pdf"
+    signature: |
+      Mit freundlichen Grüßen,
+      
+      Wolfram Laube
+      Senior Solution Architect | AI Bachelor JKU 2026
+      +43 664 4011521
+      wolfram.laube@blauweiss-edv.at
+    skills:
+      primary: ["kubernetes", "devops", "cloud", "python", "ai", "mlops"]
+      certifications: ["CKA", "CKAD", "IBM AI"]
+
+  ian:
+    name: "Ian Matejka"
+    email: "ian.matejka@blauweiss-llc.com"
+    phone: "+1 XXX XXX XXXX"
+    rate: "105"
+    attachments:
+      - "CV_Ian_Matejka_DE.pdf"
+    signature: |
+      Best regards,
+      
+      Ian Matejka
+      AI/ML Engineer
+      Blauweiss LLC
+    skills:
+      primary: ["ai", "ml", "llm", "rag", "python", "pytorch"]
+
+  michael:
+    name: "Michael Matejka"
+    email: "michael.matejka@blauweiss-llc.com"
+    phone: "+1 XXX XXX XXXX"
+    rate: "120"
+    attachments:
+      - "CV_Michael_Matejka_DE.pdf"
+    signature: |
+      Best regards,
+      
+      Michael Matejka
+      Technical Project Manager | MBA
+      Blauweiss LLC
+    skills:
+      primary: ["project-management", "strategy", "transformation"]
+
+# Team combinations
+teams:
+  wolfram_ian:
+    members: ["wolfram", "ian"]
+    name: "Wolfram Laube & Ian Matejka"
+    primary_contact: "wolfram"
+    rate: "verhandelbar"
+    pitch: "AI-fokussiertes Team: Architecture + ML Engineering"
+
+  wolfram_michael:
+    members: ["wolfram", "michael"]
+    name: "Wolfram Laube & Michael Matejka"
+    primary_contact: "wolfram"
+    rate: "verhandelbar"
+    pitch: "Technical Architecture + Business Strategy"
+
+  all_three:
+    members: ["wolfram", "ian", "michael"]
+    name: "Wolfram Laube, Ian Matejka & Michael Matejka"
+    primary_contact: "wolfram"
+    rate: "verhandelbar"
+    pitch: "Full Stack Consulting Team"
