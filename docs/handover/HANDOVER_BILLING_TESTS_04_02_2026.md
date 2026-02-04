@@ -161,14 +161,31 @@ a9b28739  docs(runbook): update index
 ## 💬 Prompt für nächsten Chat
 
 ```
-Kontext: Wir haben gerade die Billing-Migration von CLARISSA nach backoffice 
-abgeschlossen und getestet. Alle 3 Workflows (billing, crm-integrity, applications) 
-laufen auf dem eigenen Runner in Stockholm.
+Kontext: Billing-Migration von CLARISSA nach backoffice ist abgeschlossen 
+und getestet. 55 Unit Tests, 3 Workflows (billing, crm-integrity, applications) 
+verifiziert, Runner-Landschaft aufgeräumt (1 VM, 1 Runner in Stockholm).
 
-Lies bitte /mnt/project/HANDOVER_BILLING_TESTS_04_02_2026.md für Details.
+Lies bitte: /mnt/project/HANDOVER_BILLING_TESTS_04_02_2026.md
+(oder im Repo: ops/backoffice/docs/handover/)
+
+Credentials:
+- GitLab PAT: glpat--wmS4xEWjjWdOgaOd7oDWG86MQp1OnN4Y3gK.01.101dpjjbj
+- User: wolfram.laube (ID: 1349601)
+- GCP SA: claude-assistant@myk8sproject-207017.iam.gserviceaccount.com
+- Project-Level CI Var: GCP_SA_KEY (für Drive/Gmail)
+- Group-Level CI Vars: GCP_SERVICE_ACCOUNT_KEY, GMAIL_* tokens
 
 Offene Themen:
-- CRM Data Quality Issues (Issue #379, unbekannte Labels)
-- ADR-002 Testing-Strategie
-- Weitere Konsolidierung/Cleanup
+1. CRM Data Quality (Issue #379 ohne Status, 18 unbekannte Labels)
+2. ADR-002 Testing-Strategie dokumentieren
+3. Scheduled Runs monitoren (nächster Montag)
+4. EPIC: GitHub Mirroring Refactoring (Colab/Jupyter Integration)
+   - Aktuell nur CLARISSA → GitHub gespiegelt
+   - Prüfen ob weitere Repos Mirror brauchen
+
+Repos:
+- ops/backoffice (77555895) - Alle Operations
+- ops/crm (78171527) - CRM Issues
+- ops/corporate (77075415) - ADRs
+- projects/clarissa (77260390) - Research only
 ```
