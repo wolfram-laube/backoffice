@@ -54,15 +54,16 @@
 
 ## 📅 Automatische Schedules
 
-| Was | Wann | Repo | Schedule ID |
-|-----|------|------|-------------|
-| **Monthly Billing** | 1. des Monats, 06:00 | backoffice ✅ | #4126476 |
-| **Applications Pipeline** | Mo-Fr 08:00 | CLARISSA* | #4125172 |
-| **CRM Integrity Check** | Mo 07:00 | CLARISSA* | #4125129 |
-| **CRM Automation** | Daily 08:00 | backoffice | #4126456 |
-| **CRM Weekly Report** | Mo 09:00 | backoffice | #4126452 |
-| **CRM Monthly Report** | 1. des Monats, 09:00 | backoffice | #4126453 |
+**Alle Schedules laufen jetzt in backoffice (ops/backoffice).**
 
+| Was | Wann | Schedule ID | Variable |
+|-----|------|-------------|----------|
+| **Monthly Billing** | 1. des Monats, 06:00 | #4126476 | `BILLING_RUN=true` |
+| **Applications Pipeline** | Mo-Fr 08:00 | #4126478 | `APPLICATIONS_PIPELINE=true` |
+| **CRM Integrity Check** | Mo 07:00 | #4126477 | `CRM_INTEGRITY_CHECK=true` |
+| **CRM Automation** | Daily 08:00 | #4126456 | - |
+| **CRM Weekly Report** | Mo 09:00 | #4126452 | - |
+| **CRM Monthly Report** | 1. des Monats, 09:00 | #4126453 | - |
 
 ---
 
@@ -83,7 +84,7 @@
 | **ops/backoffice** | 77555895 | Alle Business Operations |
 | **ops/crm** | 78171527 | GitLab Issues als CRM |
 | **ops/corporate** | 77075415 | ADRs, Legal, Branding |
-| **projects/clarissa** | 77260390 | Research (+ billing bis Migration) |
+| **projects/clarissa** | 77260390 | Research only |
 
 ---
 
@@ -106,7 +107,7 @@
 
 **Kurzversion:**
 
-1. **Crawl:** Freelancermap-Projekte werden täglich gescraped
+1. **Crawl:** Freelancermap-Projekte werden täglich (Mo-Fr 08:00) gescraped
 2. **Match:** LLM bewertet Match gegen Profile
 3. **Draft:** Gmail-Entwürfe werden erstellt
 4. **CRM:** Issue wird angelegt/aktualisiert
@@ -156,4 +157,5 @@
 | Datum | Änderung | Autor |
 |-------|----------|-------|
 | 2026-02-04 | Initial version | Wolfram + Claude |
-
+| 2026-02-04 | Billing nach backoffice migriert | Wolfram + Claude |
+| 2026-02-04 | Alle Schedules nach backoffice migriert | Wolfram + Claude |
