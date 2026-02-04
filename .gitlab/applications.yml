@@ -23,8 +23,8 @@
 # Shared config for all application jobs
 .applications-base:
   image: python:3.11-slim
-  # tags: (disabled for test)
-    # - docker-any
+  tags:
+    - any-runner
   before_script:
     - pip install requests beautifulsoup4 lxml --quiet
 
