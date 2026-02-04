@@ -131,9 +131,17 @@ class _ProfilesDict(dict):
         self._ensure_loaded()
         return super().__getitem__(key)
     
+    def __contains__(self, key):
+        self._ensure_loaded()
+        return super().__contains__(key)
+    
     def __iter__(self):
         self._ensure_loaded()
         return super().__iter__()
+    
+    def __len__(self):
+        self._ensure_loaded()
+        return super().__len__()
     
     def items(self):
         self._ensure_loaded()
@@ -175,9 +183,17 @@ class _TeamCombosDict(dict):
         self._ensure_loaded()
         return super().__getitem__(key)
     
+    def __contains__(self, key):
+        self._ensure_loaded()
+        return super().__contains__(key)
+    
     def __iter__(self):
         self._ensure_loaded()
         return super().__iter__()
+    
+    def __len__(self):
+        self._ensure_loaded()
+        return super().__len__()
     
     def items(self):
         self._ensure_loaded()
