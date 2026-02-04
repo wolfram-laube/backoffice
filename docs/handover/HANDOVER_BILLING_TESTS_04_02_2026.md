@@ -122,7 +122,12 @@ projects/clarissa/                 ← RESEARCH ONLY
 - **GitLab PAT:** `glpat--wmS4xEWjjWdOgaOd7oDWG86MQp1OnN4Y3gK.01.101dpjjbj` (User: wolfram.laube, ID: 1349601)
 - **Google Service Account:** `claude-assistant@myk8sproject-207017.iam.gserviceaccount.com`
 
-**GitLab CI Variables (Group: blauweiss_llc / 120698013):**
+**GitLab CI Variables - Project (backoffice / 77555895):**
+- `GCP_SA_KEY` - Google Service Account für Drive/Gmail
+- `GITLAB_TOKEN` - API Token
+- `GITLAB_API_TOKEN` - API Token
+
+**GitLab CI Variables - Group (blauweiss_llc / 120698013):**
 - `GCP_SERVICE_ACCOUNT_KEY` - Runner Controller für VM Start/Stop
 - `GMAIL_CLIENT_ID` - OAuth für Gmail API
 - `GMAIL_CLIENT_SECRET` - OAuth für Gmail API
