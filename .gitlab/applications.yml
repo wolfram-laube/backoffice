@@ -24,7 +24,7 @@
 .applications-base:
   image: python:3.11-slim
   tags:
-    - any-runner
+    - docker
   before_script:
     - pip install requests beautifulsoup4 lxml --quiet
 
