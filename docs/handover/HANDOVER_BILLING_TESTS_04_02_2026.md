@@ -134,6 +134,10 @@ projects/clarissa/                 ← RESEARCH ONLY
 - `GMAIL_REFRESH_TOKEN` - OAuth für Gmail API
 - `GITLAB_API_TOKEN` - Für CI Automation
 
+**GitHub Mirror:**
+- CLARISSA: `https://github.com/wolfram-laube/clarissa.git` (Push Mirror aktiv)
+- Backoffice: Kein Mirror konfiguriert
+
 ---
 
 ## 📚 Relevante Commits
