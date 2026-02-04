@@ -118,7 +118,10 @@ projects/clarissa/                 ← RESEARCH ONLY
 - [ ] CLARISSA billing/ Ordner löschen (nach Bewährungszeit)
 - [ ] Smoke Test der scheduled Runs abwarten (nächster Montag)
 - [ ] ADR-002 für Testing-Strategie schreiben
-- [ ] **Issue #386: Gmail-Pipeline CLARISSA → backoffice migrieren**
+- [x] ~~Issue #386: Gmail-Pipeline CLARISSA → backoffice migrieren~~ ✅ MR !1 merged
+- [ ] **Issue #387: Profile-Module konsolidieren** (Prio hoch!)
+  - Zwei parallele Strukturen: `src/admin/.../profiles.py` + `modules/gmail/profiles.py`
+  - Ziel: Ein `modules/profiles/` für Matching + Email
 - [ ] **EPIC: GitHub Mirroring Refactoring**
   - Zweck: Jupyter Notebooks & Google Colab Integration
   - Aktuell: Nur CLARISSA gespiegelt (historisch gewachsen)
@@ -167,9 +170,8 @@ a9b28739  docs(runbook): update index
 ## 💬 Prompt für nächsten Chat
 
 ```
-Kontext: Billing-Migration von CLARISSA nach backoffice ist abgeschlossen 
-und getestet. 55 Unit Tests, 3 Workflows (billing, crm-integrity, applications) 
-verifiziert, Runner-Landschaft aufgeräumt (1 VM, 1 Runner in Stockholm).
+Kontext: Gmail-Migration (Issue #386) abgeschlossen, MR !1 merged.
+ABER: Parallele Profile-Strukturen entdeckt → Issue #387 (Prio hoch).
 
 Lies bitte: /mnt/project/HANDOVER_BILLING_TESTS_04_02_2026.md
 (oder im Repo: ops/backoffice/docs/handover/)
@@ -182,13 +184,14 @@ Credentials:
 - Group-Level CI Vars: GCP_SERVICE_ACCOUNT_KEY, GMAIL_* tokens
 
 Offene Themen:
-1. CRM Data Quality (Issue #379 ohne Status, 18 unbekannte Labels)
-2. ADR-002 Testing-Strategie dokumentieren
-3. Scheduled Runs monitoren (nächster Montag)
-4. Issue #386: Gmail-Pipeline CLARISSA → backoffice migrieren
+1. **Issue #387: Profile-Module konsolidieren** (Prio hoch!)
+   - `src/admin/applications/pipeline/profiles.py` (Matching)
+   - `modules/gmail/profiles.py` (Email)
+   - Ziel: Ein `modules/profiles/` für alles
+2. CRM Data Quality (Issue #379 ohne Status, 18 unbekannte Labels)
+3. ADR-002 Testing-Strategie dokumentieren
+4. Scheduled Runs monitoren (Montag)
 5. EPIC: GitHub Mirroring Refactoring (Colab/Jupyter Integration)
-   - Aktuell nur CLARISSA → GitHub gespiegelt
-   - Prüfen ob weitere Repos Mirror brauchen
 
 Repos:
 - ops/backoffice (77555895) - Alle Operations
