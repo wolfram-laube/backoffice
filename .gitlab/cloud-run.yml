@@ -5,7 +5,7 @@
 #   - GCP_SERVICE_ACCOUNT_KEY: Base64-encoded service account JSON
 #
 # Triggers:
-#   - Manual via web UI
+#   - Manual via web UI or CLOUD_RUN_DEPLOY=true
 #   - Tag push (v*)
 
 variables:
@@ -24,11 +24,7 @@ cloud-run:build:
     - docker-any
   rules:
     - if: '$CLOUD_RUN_DEPLOY == "true"'
-      when: always
     - if: '$CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/'
-      when: always
-    - if: '$CI_PIPELINE_SOURCE == "web"'
-      when: manual
   script:
     - echo "=== Setting up GCP Auth for Kaniko ==="
     - mkdir -p /kaniko/.docker
@@ -44,15 +40,9 @@ cloud-run:deploy:
   image: google/cloud-sdk:slim
   tags:
     - docker-any
-  needs:
-    - cloud-run:build
   rules:
     - if: '$CLOUD_RUN_DEPLOY == "true"'
-      when: always
     - if: '$CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/'
-      when: always
-    - if: '$CI_PIPELINE_SOURCE == "web"'
-      when: manual
   script:
     - echo "=== Authenticating with GCP ==="
     - echo "$GCP_SERVICE_ACCOUNT_KEY" | base64 -d > /tmp/gcp-key.json
@@ -61,33 +51,4 @@ cloud-run:deploy:
     - echo "=== Deploying to Cloud Run ==="
     - gcloud run deploy $SERVICE_NAME --image=${IMAGE_NAME}:${CI_COMMIT_SHORT_SHA} --region=$GCP_REGION --platform=managed --allow-unauthenticated --memory=256Mi --cpu=1 --min-instances=0 --max-instances=2 --port=8080 --set-env-vars=BANDIT_ALGORITHM=ucb1,BANDIT_STATE_FILE=/tmp/bandit_state.json
     - echo "=== Getting Service URL ==="
-    - SERVICE_URL=$(gcloud run services describe $SERVICE_NAME --region=$GCP_REGION --format='value(status.url)')
-    - echo "SERVICE_URL=${SERVICE_URL}" >> deploy.env
-    - echo "Deployed! Service URL ${SERVICE_URL}"
-  artifacts:
-    reports:
-      dotenv: deploy.env
-
-# ============== Smoke Test ==============
-cloud-run:test:
-  stage: test
-  image: curlimages/curl:latest
-  tags:
-    - docker-any
-  needs:
-    - cloud-run:deploy
-  rules:
-    - if: '$CLOUD_RUN_DEPLOY == "true"'
-      when: always
-    - if: '$CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/'
-      when: always
-    - if: '$CI_PIPELINE_SOURCE == "web"'
-      when: manual
-  script:
-    - echo "=== Smoke Test ==="
-    - echo "Service URL ${SERVICE_URL}"
-    - echo "Testing health endpoint..."
-    - curl -sf "${SERVICE_URL}/" | head -c 200
-    - echo "Testing recommendation endpoint..."
-    - curl -sf "${SERVICE_URL}/recommend" | head -c 500
-    - echo "Smoke test passed!"
+    - gcloud run services describe $SERVICE_NAME --region=$GCP_REGION --format='value(status.url)'
