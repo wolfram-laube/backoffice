@@ -31,3 +31,9 @@ Append new sessions at the top of the table. Format:
 ```
 | YYYY-MM-DD | Short Topic | keyword1, keyword2, ... | #issue1 #issue2 | [HANDOVER_NAME](./HANDOVER_NAME_DD_MM_YYYY.md) |
 ```
+
+---
+
+## Next Chat
+
+→ **[NEXT_CHAT_TEMPLATE.md](./NEXT_CHAT_TEMPLATE.md)** - Copy & paste für Session-Übergang
