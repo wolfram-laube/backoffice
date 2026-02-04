@@ -113,6 +113,11 @@ projects/clarissa/                 ← RESEARCH ONLY
 - [ ] CLARISSA billing/ Ordner löschen (nach Bewährungszeit)
 - [ ] Smoke Test der scheduled Runs abwarten (nächster Montag)
 - [ ] ADR-002 für Testing-Strategie schreiben
+- [ ] **EPIC: GitHub Mirroring Refactoring**
+  - Zweck: Jupyter Notebooks & Google Colab Integration
+  - Aktuell: Nur CLARISSA gespiegelt (historisch gewachsen)
+  - Prüfen: Welche Repos brauchen Mirror für Notebook-Zugriff?
+  - Ggf. backoffice oder andere Repos hinzufügen
 
 ---
 
