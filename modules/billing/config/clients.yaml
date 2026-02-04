@@ -1,0 +1,87 @@
+# BLAUWEISS Client Configuration
+# Used by generate_timesheet.py and generate_invoice.py
+
+# Consultant definitions (referenced by clients)
+consultants:
+  wolfram:
+    name: "Wolfram Laube"
+    gitlab_username: "wolfram.laube"
+    email: "wolfram@blauweiss-edv.com"
+  ian:
+    name: "Ian Matejka"
+    gitlab_username: "ian.matejka"
+    email: "ian.matejka@gmail.com"
+  ryan:
+    name: "Ryan Matejka"
+    gitlab_username: "ryan.m.matejka"
+    email: "ryan.m.matejka@gmail.com"
+
+clients:
+  nemensis:
+    name: "nemensis AG Deutschland"
+    short: "NEM"
+    address:
+      street: "Alter Wall 69"
+      city: "D - 20457 Hamburg"
+    reg_id: "HRB. NR.: 181535 Hamburg"
+    vat_id: "DE310161615"
+    contract_number: "00003153"
+    template: "rechnung-de"
+    currency: "EUR"
+    gitlab_label: "client:nemensis"    # Label to filter issues
+    billing_email: "buchhaltung@nemensis.de"  # For invoice emails
+    rates:
+      remote: 105
+      onsite: 120
+    approver:
+      name: "Max Mustermann"
+      title: "Projektleiter"
+    # Which consultants work for this client
+    consultants:
+      - wolfram
+      - ian
+      - ryan
+
+  oxy:
+    name: "Occidental Petroleum Corporation"
+    short: "OXY"
+    address:
+      street: "5 Greenway Plaza, Suite 110"
+      city: "Houston, TX 77046, USA"
+    reg_id: ""
+    vat_id: ""
+    contract_number: "OXY-2026-001"
+    template: "invoice-en-us"
+    currency: "USD"
+    gitlab_label: "client:oxy"
+    billing_email: "ap@oxy.com"  # For invoice emails
+    rates:
+      remote: 150
+      onsite: 175
+    approver:
+      name: "John Smith"
+      title: "Project Manager"
+    consultants:
+      - wolfram
+
+  # Template for new clients
+  _template:
+    name: "Client Name"
+    short: "CLT"
+    address:
+      street: "Street Address"
+      city: "City, ZIP"
+    reg_id: ""
+    vat_id: ""
+    contract_number: ""
+    template: "rechnung-de"
+    currency: "EUR"
+    gitlab_label: "client:xxx"
+    billing_email: ""  # For invoice emails
+    rates:
+      remote: 100
+      onsite: 120
+    approver:
+      name: "Approver Name"
+      title: "Title"
+    consultants: []

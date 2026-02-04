@@ -1,0 +1,7 @@
+# Invoice sequence numbers (global, per year)
+# Updated automatically by generate_invoice.py
+# Format: AR_{sequence}_{year}
+
+sequences:
+  2025: 1
+  2026: 1
