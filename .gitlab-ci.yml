@@ -67,7 +67,7 @@ workflow:
 default:
   image: python:3.11-slim
   tags:
-    - gitlab-org-docker
+    - docker-any
 
 # -----------------------------------------------------------------------------
 # STAGES
