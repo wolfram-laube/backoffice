@@ -8,9 +8,9 @@
 
 | Item | Value |
 |------|-------|
-| **Repo** | projects/clarissa (→ backoffice nach Migration) |
+| **Repo** | ops/backoffice ✅ |
 | **Pipeline** | `.gitlab-ci.yml` (Jobs: `generate_timesheets`, `build_invoice`, `upload_invoice`) |
-| **Schedule** | #4094512 (1. des Monats, 06:00 Vienna) |
+| **Schedule** | #4126476 (1. des Monats, 06:00 Vienna) |
 | **Trigger URL** | [Portal → Billing](https://irena-40cc50.gitlab.io/docs/billing-trigger.html) |
 | **Google Drive** | BLAUWEISS-EDV-LLC → Buchhaltung/ |
 | **Owner** | Wolfram |
@@ -102,7 +102,7 @@ Rechte Sidebar → "Time tracking" zeigt Gesamtzeit.
 
 ```bash
 curl -s --header "PRIVATE-TOKEN: $GITLAB_TOKEN" \
-  "https://gitlab.com/api/v4/projects/77260390/issues/36/timelogs" | jq
+  "https://gitlab.com/api/v4/projects/77555895/issues/36/timelogs" | jq
 ```
 
 ### Korrektur: Zeit entfernen
@@ -131,7 +131,7 @@ Die Pipeline läuft automatisch am **1. des Monats um 06:00** (Vienna Time).
 5. Uploaded nach Google Drive
 
 **Prüfen ob's geklappt hat:**
-- Pipeline: https://gitlab.com/wolfram_laube/blauweiss_llc/projects/clarissa/-/pipelines
+- Pipeline: https://gitlab.com/wolfram_laube/blauweiss_llc/ops/backoffice/-/pipelines
 - Google Drive: `Buchhaltung/contractors/{person}/{year}/{month}/`
 
 ### Manuell triggern
@@ -149,7 +149,7 @@ curl -X POST \
   -H "PRIVATE-TOKEN: $GITLAB_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"ref":"main","variables":[{"key":"GENERATE_TIMESHEETS","value":"true"},{"key":"BILLING_PERIOD","value":"2026-01"}]}' \
-  "https://gitlab.com/api/v4/projects/77260390/pipeline"
+  "https://gitlab.com/api/v4/projects/77555895/pipeline"
 ```
 
 **Option C: Via GitLab UI**
@@ -179,7 +179,7 @@ curl -X POST \
   -H "PRIVATE-TOKEN: $GITLAB_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"ref":"main","variables":[{"key":"GENERATE_INVOICE","value":"true"},{"key":"INVOICE_CLIENT","value":"nemensis"},{"key":"BILLING_PERIOD","value":"2026-01"}]}' \
-  "https://gitlab.com/api/v4/projects/77260390/pipeline"
+  "https://gitlab.com/api/v4/projects/77555895/pipeline"
 ```
 
 **Was passiert:**
@@ -360,8 +360,8 @@ typst compile billing/output/test.typ
 ## Referenzen
 
 - **ADR:** [OPS-001: Billing Migration](../adr/operations/OPS-001-billing-migration.md)
-- **Folder Structure:** [CLARISSA ADR-019](https://gitlab.com/wolfram_laube/blauweiss_llc/projects/clarissa/-/blob/main/docs/architecture/adr/ADR-019-billing-folder-structure.md)
-- **Schedule:** https://gitlab.com/wolfram_laube/blauweiss_llc/projects/clarissa/-/pipeline_schedules/4094512
+- **Folder Structure:** [CLARISSA ADR-019](https://gitlab.com/wolfram_laube/blauweiss_llc/ops/backoffice/-/blob/main/docs/architecture/adr/ADR-019-billing-folder-structure.md)
+- **Schedule:** https://gitlab.com/wolfram_laube/blauweiss_llc/ops/backoffice/-/pipeline_schedules/4094512
 - **Google Drive:** BLAUWEISS-EDV-LLC Shared Drive
 
 ---
@@ -371,3 +371,4 @@ typst compile billing/output/test.typ
 | Datum | Änderung | Autor |
 |-------|----------|-------|
 | 2026-02-04 | Initial version | Wolfram + Claude |
+| 2026-02-04 | Migrated to backoffice, updated paths | Wolfram + Claude |
