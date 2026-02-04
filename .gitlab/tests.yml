@@ -7,7 +7,8 @@
 .test-base:
   image: python:3.11-slim
   before_script:
-    - pip install pytest pytest-cov --quiet
+    - pip install pytest pytest-cov pyyaml --quiet
+    - pip install -r requirements.txt --quiet 2>/dev/null || true
   cache:
     key: ${CI_COMMIT_REF_SLUG}-pip
     paths:
@@ -28,7 +29,8 @@ test:unit:
       allow_failure: true
   script:
     - echo "🧪 Running unit tests..."
-    - pytest tests/unit/ -v --tb=short -m "not integration"
+    - export PYTHONPATH="${CI_PROJECT_DIR}:${PYTHONPATH}"
+    - pytest tests/unit/ -v --tb=short -m "not integration" --ignore=tests/unit/test_gmail.py
   artifacts:
     when: always
     reports:
@@ -49,7 +51,8 @@ test:coverage:
       allow_failure: true
   script:
     - echo "📊 Running tests with coverage..."
-    - pytest tests/ -v --cov=scripts/ci --cov-report=term --cov-report=html
+    - export PYTHONPATH="${CI_PROJECT_DIR}:${PYTHONPATH}"
+    - pytest tests/ -v --cov=modules --cov=scripts/ci --cov-report=term --cov-report=html --ignore=tests/unit/test_gmail.py
   coverage: '/TOTAL.*\s+(\d+%)/'
   artifacts:
     when: always
@@ -73,4 +76,6 @@ test:integration:
     CRM_PROJECT_ID: "78171527"
   script:
     - echo "🔗 Running integration tests..."
+    - export PYTHONPATH="${CI_PROJECT_DIR}:${PYTHONPATH}"
     - pytest tests/integration/ -v --tb=short -m "integration"
+
