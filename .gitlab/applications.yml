@@ -37,6 +37,7 @@ applications:crawl:
   stage: .pre
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule" && $APPLICATIONS_PIPELINE == "true"
+    - if: ($CI_PIPELINE_SOURCE == "web" || $CI_PIPELINE_SOURCE == "api") && $APPLICATIONS_CRAWL == "true"
     - if: $APPLICATIONS_CRAWL == "true"
     - when: manual
       allow_failure: true
@@ -64,6 +65,7 @@ applications:match:
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule" && $APPLICATIONS_PIPELINE == "true"
     - if: $APPLICATIONS_MATCH == "true"
+    - if: ($CI_PIPELINE_SOURCE == "web" || $CI_PIPELINE_SOURCE == "api") && $APPLICATIONS_MATCH == "true"
     - when: manual
       allow_failure: true
   variables:
@@ -140,6 +142,7 @@ crm:integrity-check:
   stage: test
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule" && $CRM_INTEGRITY_CHECK == "true"
+    - if: ($CI_PIPELINE_SOURCE == "web" || $CI_PIPELINE_SOURCE == "api") && $CRM_INTEGRITY_CHECK == "true"
     - if: $CRM_QA == "true"
     - when: manual
       allow_failure: true
