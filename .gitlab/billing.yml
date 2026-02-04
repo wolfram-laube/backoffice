@@ -13,8 +13,8 @@
 generate_timesheets:
   stage: build
   image: python:3.11-slim
-  # tags: (disabled for test)
-    # - docker-any
+  tags:
+    - any-runner
   variables:
     GITLAB_PROJECT_PATH: "wolfram_laube/blauweiss_llc/ops/backoffice"
   rules:
@@ -52,8 +52,8 @@ generate_timesheets:
 build_invoice:
   stage: build
   image: alpine:latest
-  # tags: (disabled for test)
-    # - docker-any
+  tags:
+    - any-runner
   needs: []
   rules:
     - if: '$FORCE_BILLING == "true"'
@@ -102,8 +102,8 @@ build_invoice:
 upload_invoice:
   stage: deploy
   image: python:3.11-slim
-  # tags: (disabled for test)
-    # - docker-any
+  tags:
+    - any-runner
   needs:
     - job: build_invoice
       artifacts: true
@@ -127,8 +127,8 @@ upload_invoice:
 billing_email:
   stage: deploy
   image: python:3.11-slim
-  # tags: (disabled for test)
-    # - docker-any
+  tags:
+    - any-runner
   needs:
     - job: build_invoice
       artifacts: true
