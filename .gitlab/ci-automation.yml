@@ -12,7 +12,7 @@ ci_classify:
   allow_failure: true
   image: python:3.11
   tags:
-    - docker-any
+    - shell
   variables:
     PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
   cache:
@@ -45,7 +45,7 @@ mr_report:
   stage: automation
   image: python:3.11
   tags:
-    - docker-any
+    - shell
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
       when: on_success
@@ -81,7 +81,7 @@ ci_flaky_ledger:
   allow_failure: true
   image: python:3.11
   tags:
-    - docker-any
+    - shell
   rules:
     - if: '$CI_COMMIT_BRANCH == "main"'
       when: always
@@ -98,7 +98,7 @@ ci_issue_on_failure:
   allow_failure: true
   image: python:3.11
   tags:
-    - docker-any
+    - shell
   rules:
     - if: '$CI_COMMIT_BRANCH == "main"'
       when: always
@@ -115,7 +115,7 @@ ci_issue_on_recovery:
   allow_failure: true
   image: python:3.11
   tags:
-    - docker-any
+    - shell
   rules:
     - if: '$CI_COMMIT_BRANCH == "main"'
       when: always
@@ -131,7 +131,7 @@ mr_comment_on_failure:
   stage: automation
   image: python:3.11
   tags:
-    - docker-any
+    - shell
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
       when: on_success
@@ -150,7 +150,7 @@ sync_infrastructure:
   stage: deploy
   image: python:3.11-slim
   tags:
-    - docker-any
+    - shell
   rules:
     - changes:
         - docs/infrastructure.md
