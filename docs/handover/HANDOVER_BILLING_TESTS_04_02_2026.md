@@ -136,6 +136,11 @@ projects/clarissa/                 ← RESEARCH ONLY
 - **GitLab PAT:** `glpat--wmS4xEWjjWdOgaOd7oDWG86MQp1OnN4Y3gK.01.101dpjjbj` (User: wolfram.laube, ID: 1349601)
 - **Google Service Account:** `claude-assistant@myk8sproject-207017.iam.gserviceaccount.com`
 
+**Gmail OAuth (aus /mnt/project/credentials.json):**
+- **Client ID:** `518587440396-vja0emiu68lro97toqguad2no0smlb9e.apps.googleusercontent.com`
+- **Client Secret:** `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`
+- **Refresh Token:** In CI Var `GMAIL_REFRESH_TOKEN` (Group-Level, masked)
+
 **GitLab CI Variables - Project (backoffice / 77555895):**
 - `GCP_SA_KEY` - Google Service Account für Drive/Gmail
 - `GITLAB_TOKEN` - API Token
@@ -180,6 +185,9 @@ Credentials:
 - GitLab PAT: glpat--wmS4xEWjjWdOgaOd7oDWG86MQp1OnN4Y3gK.01.101dpjjbj
 - User: wolfram.laube (ID: 1349601)
 - GCP SA: claude-assistant@myk8sproject-207017.iam.gserviceaccount.com
+- Gmail Client ID: 518587440396-vja0emiu68lro97toqguad2no0smlb9e.apps.googleusercontent.com
+- Gmail Client Secret: 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
+- Gmail Refresh Token: In CI Var (Group-Level, masked)
 - Project-Level CI Var: GCP_SA_KEY (für Drive/Gmail)
 - Group-Level CI Vars: GCP_SERVICE_ACCOUNT_KEY, GMAIL_* tokens
 
