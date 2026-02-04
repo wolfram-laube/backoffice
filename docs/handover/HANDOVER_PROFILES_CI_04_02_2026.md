@@ -74,16 +74,68 @@ Während der Tests wurde festgestellt, dass **Shared Runner CI Minutes erschöpf
 
 ---
 
-## 📋 Neues EPIC: CI Runner Migration
+## 📋 Neues EPIC: CI Runner Migration + Intelligente Runner-Auswahl
 
 ### Ziel
-Alle CI Jobs auf eigene Runner umstellen um Shared Runner Minutes zu sparen.
+1. Alle CI Jobs auf eigene Runner umstellen um Shared Runner Minutes zu sparen
+2. **Langfristig:** Intelligente, adaptive Runner-Auswahl mit Reinforcement Learning
 
-### Scope
+### Scope Phase 1: Migration
 1. **Audit:** Alle `.gitlab/*.yml` Dateien identifizieren
 2. **Migration:** `tags: [docker-any]` oder `tags: [shell]` zu jedem Job hinzufügen
 3. **Test:** Verifizieren dass alle Jobs auf eigenen Runnern laufen
 4. **Cleanup:** Ggf. nicht benötigte Jobs deaktivieren
+
+### Scope Phase 2: Multi-Armed Bandit Runner Selection 🎰
+
+**Aus früherem Chat (03.02.2026):** Idee für intelligente Runner-Auswahl mit RL.
+
+**Ansätze verglichen:**
+
+| Ansatz | Komplexität | Adaptive | Bewertung |
+|--------|-------------|----------|-----------|
+| Statische Priorität | Trivial | ❌ | Langweilig |
+| Statistisch (EMA) | Niedrig | ⚠️ langsam | Okay |
+| **Multi-Armed Bandit** | Mittel | ✅ | **Sweet Spot** |
+| Full RL (DQN/PPO) | Hoch | ✅✅ | Overkill, aber sexy |
+
+**Empfehlung: UCB1 oder Thompson Sampling**
+- Balanciert **Exploration** (neue Runner testen) vs **Exploitation** (bekannt guten nehmen)
+- Adaptiert sich automatisch wenn Performance sich ändert
+- ~50 Zeilen Python
+- **Paper-Material für JKU AI Bachelor!** 🎓
+
+**Architektur-Skizze:**
+```
+┌─────────────────────────────────────────────────┐
+│  RunnerBandit Service (e2-micro Always-On)      │
+│                                                 │
+│  1. GitLab Webhook empfängt Pipeline-Event      │
+│  2. Bandit wählt Runner (UCB1/Thompson)         │
+│  3. Startet ggf. GCP VM / weckt lokalen Runner  │
+│  4. Nach Job: Update Reward (duration/success)  │
+│                                                 │
+│  State: SQLite / Redis / JSON file              │
+└─────────────────────────────────────────────────┘
+         │
+         ▼
+┌─────────────────────────────────────────────────┐
+│  Runner Pool                                    │
+│                                                 │
+│  • mac#1     (local, fast, offline nachts)      │
+│  • mac#2     (local, fast, offline nachts)      │
+│  • yoga      (local, medium, oft offline)       │
+│  • gcp-vm    (cloud, consistent, kostet)        │
+└─────────────────────────────────────────────────┘
+```
+
+**Reward Function:**
+```python
+reward = (success * 1.0) / (normalized_duration + cost_penalty)
+```
+Wo `cost_penalty` für GCP höher ist als für lokale Runner.
+
+**Titel-Idee für Paper:** "Adaptive CI/CD Runner Selection using Multi-Armed Bandits"
 
 ### Betroffene CI-Dateien
 ```
@@ -137,6 +189,16 @@ Alle CI Jobs auf eigene Runner umstellen um Shared Runner Minutes zu sparen.
 
 ---
 
+## 🔗 Relevante Links & Referenzen
+
+- **Original Bandit-Diskussion:** Chat "Ops-Migration und Runner-Fallback-System" (03.02.2026)
+  - URL: https://claude.ai/chat/30a10032-7090-4db8-9d91-0d3874dbc2a3
+- **backoffice Repo:** https://gitlab.com/wolfram_laube/blauweiss_llc/ops/backoffice
+- **MR !2 (Profile):** https://gitlab.com/wolfram_laube/blauweiss_llc/ops/backoffice/-/merge_requests/2
+- **Issue #387 (closed):** https://gitlab.com/wolfram_laube/blauweiss_llc/ops/crm/-/issues/387
+
+---
+
 ## 📚 Relevante Commits (diese Session)
 
 ```
@@ -182,7 +244,7 @@ d892766d  feat(profiles): add matching.py
 
 ```
 Kontext: Profile-Modul konsolidiert (MR !2 merged), aber CI Minutes erschöpft.
-EPIC: Alle CI Jobs auf eigene Runner migrieren.
+EPIC: CI Runner Migration + Intelligente Runner-Auswahl
 
 Lies bitte: /mnt/project/HANDOVER_PROFILES_CI_04_02_2026.md
 (oder im Repo: ops/backoffice/docs/handover/)
@@ -193,21 +255,25 @@ Credentials:
 - GCP SA: claude-assistant@myk8sproject-207017.iam.gserviceaccount.com
 
 Problem: Shared Runner CI Minutes erschöpft (ci_quota_exceeded)
-Lösung: Alle Jobs auf eigene Runner umstellen
+
+Phase 1 - Sofort:
+- Alle Jobs auf eigene Runner umstellen (docker-any / shell Tags)
+- Default-Tags in .gitlab-ci.yml setzen
+- ~18 .gitlab/*.yml Dateien durchgehen
+
+Phase 2 - Spannend (Paper-Material für JKU!):
+- Multi-Armed Bandit Runner Selection
+- UCB1 oder Thompson Sampling
+- Exploration vs Exploitation für Runner-Auswahl
+- Reward = success / (duration + cost_penalty)
+- Architektur: RunnerBandit Service + GitLab Webhooks
 
 Eigene Runner:
 - gitlab-runner-nordic (GCP Stockholm): Tags [docker-any, shell, nordic, gcp]
 - Mac/Linux Runner (lokal): Backup
 
-Aufgaben:
-1. EPIC Issue erstellen für CI Runner Migration
-2. Audit aller .gitlab/*.yml Dateien
-3. Migration: Tags hinzufügen (docker-any oder shell)
-4. Default-Tags in .gitlab-ci.yml setzen
-5. Testen dass alle Jobs auf eigenen Runnern laufen
-
 Repos:
 - ops/backoffice (77555895) - Alle Operations
-- ops/crm (78171527) - CRM Issues
+- ops/crm (78171527) - CRM Issues  
 - ops/corporate (77075415) - ADRs
 ```
