@@ -118,8 +118,16 @@ projects/clarissa/                 ← RESEARCH ONLY
 
 ## 🔑 Credentials (Reference)
 
-- **GitLab PAT:** `glpat--wmS4xEWjjWdOgaOd7oDWG86MQp1OnN4Y3gK.01.101dpjjbj`
-- **GCP Key:** In GitLab CI Variable `GCP_SERVICE_ACCOUNT_KEY` (Group: blauweiss_llc)
+**Direkt:**
+- **GitLab PAT:** `glpat--wmS4xEWjjWdOgaOd7oDWG86MQp1OnN4Y3gK.01.101dpjjbj` (User: wolfram.laube, ID: 1349601)
+- **Google Service Account:** `claude-assistant@myk8sproject-207017.iam.gserviceaccount.com`
+
+**GitLab CI Variables (Group: blauweiss_llc / 120698013):**
+- `GCP_SERVICE_ACCOUNT_KEY` - Runner Controller für VM Start/Stop
+- `GMAIL_CLIENT_ID` - OAuth für Gmail API
+- `GMAIL_CLIENT_SECRET` - OAuth für Gmail API
+- `GMAIL_REFRESH_TOKEN` - OAuth für Gmail API
+- `GITLAB_API_TOKEN` - Für CI Automation
 
 ---
 
