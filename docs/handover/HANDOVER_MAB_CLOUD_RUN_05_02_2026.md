@@ -158,6 +158,34 @@ Der `gitlab-runner-controller` Service Account hat folgende Rollen erhalten:
 
 ---
 
+---
+
+## Prompt für nächste Session
+
+```
+Kontext: MAB Runner Bandit Service ist auf Cloud Run deployed und sammelt 
+aktiv Daten via GitLab Webhook. Branch Protection ist aktiviert (nur MRs 
+nach main).
+
+Handover der letzten Session:
+- GitLab: docs/handover/HANDOVER_MAB_CLOUD_RUN_05_02_2026.md
+- Portal: https://wolfram_laube.gitlab.io/blauweiss_llc/ops/backoffice/handover/HANDOVER_MAB_CLOUD_RUN_05_02_2026/
+
+Ziel dieser Session:
+1. NSAI Issue #25 (Neural-Symbolic Interface) implementieren
+2. CSP Solver mit MAB Service integrieren
+3. Flow: Job Requirements → CSP (Feasible Set) → MAB (Optimal Selection)
+
+Relevante Ressourcen:
+- MAB Service: https://runner-bandit-m5cziijwqa-lz.a.run.app
+- NSAI Code: services/nsai/ (Ontology, Parser, CSP)
+- Epic #27: Neurosymbolic AI Runner Selection
+- Git Workflow: docs/runbook/git-workflow.md
+
+Bitte feature branch erstellen und MR workflow einhalten.
+```
+
+
 ## Dieses Dokument
 
 **Pfad:** `docs/handover/HANDOVER_MAB_CLOUD_RUN_05_02_2026.md`  
