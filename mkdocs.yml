@@ -53,6 +53,8 @@ nav:
     - "📊 CRM": ops/crm.md
     - "🚀 Applications Pipeline": ops/applications-pipeline.md
     - "🔗 API Reference": ops/api-reference.md
+  - "🧠 Services":
+    - "NSAI Runner Selection": services/nsai.md
   - "⚡ Triggers":
     - "📝 Applications Crawl": triggers/applications-crawl.html
     - "✉️ Drafts": triggers/drafts.html
