@@ -179,3 +179,76 @@ git checkout main && git pull && git branch -d BRANCH_NAME
 - [GitLab Flow](https://docs.gitlab.com/ee/topics/gitlab_flow.html)
 - [Conventional Commits](https://www.conventionalcommits.org/)
 - [Semantic Versioning](https://semver.org/)
+
+---
+
+## 📝 Handover Best Practices
+
+Jedes Handover-Dokument sollte folgende Struktur haben:
+
+### Pflicht-Sektionen
+
+1. **Session-Metadaten** - Datum, Titel, Status
+2. **Zusammenfassung** - Was wurde erreicht
+3. **Offene Punkte** - Was bleibt zu tun
+4. **Wichtige Links** - Services, Docs, Issues
+5. **Nächste Session** - Titel der Folge-Session
+6. **Prompt für nächste Session** - Copy-paste ready
+7. **Dieses Dokument** - Self-Referenz (Pfad + Portal-URL)
+
+### Template
+
+```markdown
+# 🎯 Handover: [Thema]
+
+**Datum:** DD.MM.YYYY  
+**Session:** [Titel]  
+**Status:** ✅ Abgeschlossen / 🔄 In Progress
+
+---
+
+## Zusammenfassung
+[Was wurde erreicht]
+
+## Offene Punkte
+- [ ] Task 1
+- [ ] Task 2
+
+## Wichtige Links
+| Resource | URL |
+|----------|-----|
+| Service | https://... |
+| Docs | https://... |
+
+## Nächste Session
+**Titel:** [Nächstes Thema]
+
+## Prompt für nächste Session
+```
+Kontext: [Aktueller Stand]
+
+Handover der letzten Session:
+- GitLab: docs/handover/HANDOVER_XXX.md
+- Portal: https://...
+
+Ziel dieser Session:
+1. [Ziel 1]
+2. [Ziel 2]
+
+Relevante Ressourcen:
+- [Resource 1]
+- [Resource 2]
+```
+
+---
+
+## Dieses Dokument
+**Pfad:** `docs/handover/HANDOVER_XXX.md`  
+**Portal:** https://wolfram_laube.gitlab.io/.../handover/HANDOVER_XXX/
+```
+
+### Warum Self-Referenz?
+
+- **Kontinuität** - Nächste Session weiß wo sie weitermacht
+- **Auffindbarkeit** - Prompt enthält direkten Link
+- **Kette** - Jedes Handover verlinkt auf sich selbst → nächstes Handover verlinkt zurück
