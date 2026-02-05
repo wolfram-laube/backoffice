@@ -155,3 +155,10 @@ Der `gitlab-runner-controller` Service Account hat folgende Rollen erhalten:
 - Issue #25: Neural-Symbolic Interface
 - MAB in CSP Solver integrieren
 - Feasible Set → MAB → Optimal Runner
+
+---
+
+## Dieses Dokument
+
+**Pfad:** `docs/handover/HANDOVER_MAB_CLOUD_RUN_05_02_2026.md`  
+**Portal:** https://wolfram_laube.gitlab.io/blauweiss_llc/ops/backoffice/handover/HANDOVER_MAB_CLOUD_RUN_05_02_2026/
