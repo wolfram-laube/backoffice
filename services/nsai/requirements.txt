@@ -1,0 +1,13 @@
+# NSAI - Neurosymbolic AI Runner Selection
+# Core dependencies
+
+PyYAML>=6.0
+dataclasses-json>=0.5.7
+
+# Testing
+pytest>=7.0
+pytest-cov>=4.0
+
+# Optional: Full OWL support (for future expansion)
+# rdflib>=6.0
+# owlready2>=0.40
