@@ -33,7 +33,7 @@ test:unit:
   script:
     - echo "🧪 Running unit tests..."
     - export PYTHONPATH="${CI_PROJECT_DIR}:${PYTHONPATH}"
-    - pytest tests/unit/ -v --tb=short -m "not integration" --ignore=tests/unit/test_gmail.py
+    - pytest tests/unit/ -v --tb=short -m "not integration" --ignore=tests/unit/test_gmail.py --junitxml=report.xml
   artifacts:
     when: always
     reports:
@@ -55,7 +55,7 @@ test:coverage:
   script:
     - echo "📊 Running tests with coverage..."
     - export PYTHONPATH="${CI_PROJECT_DIR}:${PYTHONPATH}"
-    - pytest tests/ -v --cov=modules --cov=scripts/ci --cov-report=term --cov-report=html --ignore=tests/unit/test_gmail.py
+    - pytest tests/ -v --cov=modules --cov=scripts/ci --cov-report=term --cov-report=html --ignore=tests/unit/test_gmail.py --junitxml=report.xml
   coverage: '/TOTAL.*\s+(\d+%)/'
   artifacts:
     when: always

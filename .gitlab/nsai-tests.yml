@@ -35,7 +35,7 @@ test:nsai:unit:
   script:
     - echo "🧪 Running NSAI unit tests..."
     - cd services/nsai
-    - pytest tests/ -v --tb=short
+    - pytest tests/ -v --tb=short --junitxml=report.xml
   artifacts:
     when: always
     reports:
@@ -101,7 +101,7 @@ test:nsai:notebooks:
   script:
     - echo "📓 Running NSAI notebook validation..."
     - cd services/nsai
-    - pytest tests/test_notebooks.py -v -k "not Execution" --tb=short
+    - pytest tests/test_notebooks.py -v -k "not Execution" --tb=short --junitxml=report.xml
   artifacts:
     when: always
     reports:
