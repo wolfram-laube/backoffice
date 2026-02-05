@@ -38,6 +38,8 @@ test:nsai:unit:
     - pytest tests/ -v --tb=short --junitxml=report.xml
   artifacts:
     when: always
+    paths:
+      - services/nsai/report.xml
     reports:
       junit: services/nsai/report.xml
     expire_in: 7 days
@@ -104,6 +106,8 @@ test:nsai:notebooks:
     - pytest tests/test_notebooks.py -v -k "not Execution" --tb=short --junitxml=report.xml
   artifacts:
     when: always
+    paths:
+      - services/nsai/report.xml
     reports:
       junit: services/nsai/report.xml
     expire_in: 7 days

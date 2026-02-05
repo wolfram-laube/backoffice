@@ -1,0 +1,250 @@
+# =============================================================================
+# CI Metrics Collector — Build, Setup & Deploy Pipeline
+# =============================================================================
+# Lifecycle management for the CI Metrics Collector service.
+#
+# Jobs:
+#   - ci-metrics:test       → Run service tests
+#   - ci-metrics:setup-bq   → Create BigQuery dataset + tables (one-time)
+#   - ci-metrics:build      → Build & push Docker image
+#   - ci-metrics:deploy     → Deploy to Cloud Run
+#   - ci-metrics:collect    → Post-test ingest into BigQuery (Phase 3)
+#
+# Required CI Variables (Group Level):
+#   - GCP_SERVICE_ACCOUNT_KEY: Base64-encoded service account JSON
+#
+# Triggers:
+#   - ci-metrics:test     → changes in services/ci_metrics/**
+#   - ci-metrics:build    → manual or CI_METRICS_DEPLOY=true
+#   - ci-metrics:deploy   → manual or CI_METRICS_DEPLOY=true
+#   - ci-metrics:setup-bq → manual only (one-time)
+#   - ci-metrics:collect  → after test:unit (on main + MRs)
+# =============================================================================
+
+variables:
+  CI_METRICS_GCP_PROJECT: myk8sproject-207017
+  CI_METRICS_GCP_REGION: europe-north1
+  CI_METRICS_SERVICE_NAME: ci-metrics-collector
+  CI_METRICS_IMAGE: europe-north1-docker.pkg.dev/${CI_METRICS_GCP_PROJECT}/backoffice/${CI_METRICS_SERVICE_NAME}
+  CI_METRICS_BQ_DATASET: ci_metrics
+  CI_METRICS_BQ_LOCATION: europe-north1
+
+# =============================================================================
+# TEST: Run unit tests for ci-metrics service
+# =============================================================================
+ci-metrics:test:
+  stage: test
+  image: python:3.11-slim
+  tags:
+    - docker-any
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        - services/ci_metrics/**
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      changes:
+        - services/ci_metrics/**
+    - if: '$CI_METRICS_DEPLOY == "true"'
+  script:
+    - cd services/ci_metrics
+    - pip install --quiet -r requirements.txt pytest pytest-asyncio httpx
+    - python -m pytest tests/ -v --tb=short --junitxml=report.xml
+  artifacts:
+    when: always
+    reports:
+      junit: services/ci_metrics/report.xml
+    expire_in: 30 days
+
+# =============================================================================
+# SETUP: Create BigQuery dataset + tables (one-time, manual)
+# =============================================================================
+ci-metrics:setup-bq:
+  stage: build
+  image: google/cloud-sdk:slim
+  tags:
+    - docker-any
+  rules:
+    - when: manual
+  script:
+    - echo "=== Authenticating with GCP ==="
+    - echo "$GCP_SERVICE_ACCOUNT_KEY" | base64 -d > /tmp/gcp-key.json
+    - gcloud auth activate-service-account --key-file=/tmp/gcp-key.json
+    - gcloud config set project ${CI_METRICS_GCP_PROJECT}
+
+    - echo "=== Enabling BigQuery API ==="
+    - gcloud services enable bigquery.googleapis.com || true
+
+    - echo "=== Creating BigQuery Dataset ==="
+    - |
+      bq --project_id=${CI_METRICS_GCP_PROJECT} mk         --dataset         --location=${CI_METRICS_BQ_LOCATION}         --description="CI/CD test metrics for Blauweiss backoffice pipelines"         ${CI_METRICS_GCP_PROJECT}:${CI_METRICS_BQ_DATASET} || echo "Dataset may already exist"
+
+    - echo "=== Creating test_runs table ==="
+    - |
+      bq --project_id=${CI_METRICS_GCP_PROJECT} mk         --table         --time_partitioning_field=ingested_at         --description="Aggregated test suite results per pipeline run"         ${CI_METRICS_GCP_PROJECT}:${CI_METRICS_BQ_DATASET}.test_runs         pipeline_id:INTEGER,project_id:INTEGER,job_name:STRING,ref:STRING,commit_sha:STRING,suite_name:STRING,tests:INTEGER,passed:INTEGER,failed:INTEGER,skipped:INTEGER,errors:INTEGER,duration_s:FLOAT,ingested_at:TIMESTAMP         || echo "Table may already exist"
+
+    - echo "=== Creating test_cases table ==="
+    - |
+      bq --project_id=${CI_METRICS_GCP_PROJECT} mk         --table         --time_partitioning_field=ingested_at         --description="Individual test case results for failure analysis"         ${CI_METRICS_GCP_PROJECT}:${CI_METRICS_BQ_DATASET}.test_cases         pipeline_id:INTEGER,job_name:STRING,suite_name:STRING,test_name:STRING,classname:STRING,status:STRING,duration_s:FLOAT,message:STRING,ingested_at:TIMESTAMP         || echo "Table may already exist"
+
+    - echo "=== Verifying ==="
+    - bq ls ${CI_METRICS_GCP_PROJECT}:${CI_METRICS_BQ_DATASET}
+    - echo "✅ BigQuery setup complete!"
+
+# =============================================================================
+# BUILD: Docker image → Artifact Registry
+# =============================================================================
+ci-metrics:build:
+  stage: build
+  image:
+    name: gcr.io/kaniko-project/executor:v1.19.2-debug
+    entrypoint: [""]
+  tags:
+    - docker-any
+  rules:
+    - if: '$CI_METRICS_DEPLOY == "true"'
+    - when: manual
+  script:
+    - echo "=== Setting up GCP Auth for Kaniko ==="
+    - mkdir -p /kaniko/.docker
+    - echo "$GCP_SERVICE_ACCOUNT_KEY" | base64 -d > /kaniko/gcp-key.json
+    - export GOOGLE_APPLICATION_CREDENTIALS=/kaniko/gcp-key.json
+    - echo "=== Building ci-metrics-collector ==="
+    - /kaniko/executor
+      --context="${CI_PROJECT_DIR}/services/ci_metrics"
+      --dockerfile="${CI_PROJECT_DIR}/services/ci_metrics/Dockerfile"
+      --destination="${CI_METRICS_IMAGE}:${CI_COMMIT_SHORT_SHA}"
+      --destination="${CI_METRICS_IMAGE}:latest"
+      --cache=false
+    - echo "✅ Image pushed to ${CI_METRICS_IMAGE}"
+
+# =============================================================================
+# DEPLOY: Cloud Run
+# =============================================================================
+ci-metrics:deploy:
+  stage: deploy
+  image: google/cloud-sdk:slim
+  tags:
+    - docker-any
+  needs:
+    - ci-metrics:build
+  rules:
+    - if: '$CI_METRICS_DEPLOY == "true"'
+    - when: manual
+  script:
+    - echo "=== Authenticating with GCP ==="
+    - echo "$GCP_SERVICE_ACCOUNT_KEY" | base64 -d > /tmp/gcp-key.json
+    - gcloud auth activate-service-account --key-file=/tmp/gcp-key.json
+    - gcloud config set project ${CI_METRICS_GCP_PROJECT}
+
+    - echo "=== Deploying to Cloud Run ==="
+    - gcloud run deploy ${CI_METRICS_SERVICE_NAME}
+      --image=${CI_METRICS_IMAGE}:${CI_COMMIT_SHORT_SHA}
+      --region=${CI_METRICS_GCP_REGION}
+      --platform=managed
+      --no-allow-unauthenticated
+      --memory=256Mi
+      --cpu=1
+      --min-instances=0
+      --max-instances=2
+      --port=8080
+      --set-env-vars=METRICS_BACKEND=bigquery,LOG_LEVEL=INFO
+      --service-account=gitlab-runner-controller@${CI_METRICS_GCP_PROJECT}.iam.gserviceaccount.com
+
+    - echo "=== Service URL ==="
+    - gcloud run services describe ${CI_METRICS_SERVICE_NAME}
+      --region=${CI_METRICS_GCP_REGION}
+      --format='value(status.url)'
+
+# =============================================================================
+# COLLECT: Post-test metrics ingestion (Phase 3)
+# =============================================================================
+# Runs after test jobs and inserts JUnit XML results into BigQuery.
+# Uses scripts/collect-metrics.py — direct BQ insert, no Cloud Run needed.
+# =============================================================================
+
+ci-metrics:collect:
+  stage: notify
+  image: python:3.11-slim
+  tags:
+    - docker-any
+  needs:
+    - job: "test:unit"
+      artifacts: true
+      optional: true
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$RUN_TESTS == "true"'
+  allow_failure: true  # don't block pipeline if metrics ingestion fails
+  script:
+    - pip install --quiet google-cloud-bigquery google-auth
+    - python scripts/collect-metrics.py
+  variables:
+    GCP_SERVICE_ACCOUNT_KEY: $GCP_SERVICE_ACCOUNT_KEY
+
+# Variant for NSAI tests
+ci-metrics:collect:nsai:
+  stage: notify
+  image: python:3.11-slim
+  tags:
+    - docker-any
+  needs:
+    - job: "test:nsai:unit"
+      artifacts: true
+      optional: true
+    - job: "test:nsai:notebooks"
+      artifacts: true
+      optional: true
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      changes:
+        - services/nsai/**
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        - services/nsai/**
+    - if: '$RUN_NSAI_TESTS == "true"'
+  allow_failure: true
+  script:
+    - pip install --quiet google-cloud-bigquery google-auth
+    - python scripts/collect-metrics.py
+  variables:
+    GCP_SERVICE_ACCOUNT_KEY: $GCP_SERVICE_ACCOUNT_KEY
+
+# =============================================================================
+# DASHBOARD: Regenerate static HTML dashboard from BigQuery data
+# =============================================================================
+# Generates docs/ci-dashboard.html and commits it back to the repo.
+# Runs after collect jobs, or manually / on schedule.
+# =============================================================================
+
+ci-metrics:dashboard:
+  stage: notify
+  image: python:3.11-slim
+  tags:
+    - docker-any
+  needs:
+    - job: "ci-metrics:collect"
+      optional: true
+    - job: "ci-metrics:collect:nsai"
+      optional: true
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+    - when: manual
+      allow_failure: true
+  allow_failure: true
+  variables:
+    GCP_SERVICE_ACCOUNT_KEY: $GCP_SERVICE_ACCOUNT_KEY
+  script:
+    - pip install --quiet google-cloud-bigquery google-auth
+    - python scripts/generate-dashboard.py
+    - |
+      echo "=== Committing updated dashboard ==="
+      apt-get update -qq && apt-get install -y -qq git > /dev/null 2>&1
+      git config user.email "ci@blauweiss.dev"
+      git config user.name "CI Metrics Bot"
+      git remote set-url origin "https://oauth2:${GITLAB_API_TOKEN}@gitlab.com/wolfram_laube/blauweiss_llc/ops/backoffice.git"
+      git fetch origin main
+      git checkout main
+      git add docs/ci-dashboard.html
+      git diff --cached --quiet && echo "No changes" || (git commit -m "chore(ci-metrics): update dashboard [skip ci]" && git push origin main)

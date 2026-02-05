@@ -33,6 +33,7 @@ include:
   - local: '.gitlab/terraform.yml'           # IaC
   - local: '.gitlab/docker-build.yml'        # Container builds
   - local: '.gitlab/cloud-run.yml'         # Cloud Run deployments
+  - local: '.gitlab/ci-metrics.yml'        # CI Metrics Collector
   - local: '.gitlab/k3s-setup.yml'           # Kubernetes
   - local: '.gitlab/infra-setup.yml'         # General infra
   - local: '.gitlab/benchmark.yml'           # Performance tests
