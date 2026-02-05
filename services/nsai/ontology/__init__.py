@@ -8,4 +8,3 @@ Provides the knowledge base for constraint-based runner filtering.
 from .runner_ontology import RunnerOntology, create_blauweiss_ontology
 
 __all__ = ["RunnerOntology", "create_blauweiss_ontology"]
-

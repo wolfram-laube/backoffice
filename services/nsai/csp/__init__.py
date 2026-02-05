@@ -5,6 +5,6 @@ Solves the runner selection problem as a CSP.
 Integrates ontology and parser to find feasible runners.
 """
 
-from .constraint_solver import ConstraintSolver, SelectionResult
+from .constraint_solver import ConstraintSolver, SelectionResult, SolverStatus
 
-__all__ = ["ConstraintSolver", "SelectionResult"]
+__all__ = ["ConstraintSolver", "SelectionResult", "SolverStatus"]

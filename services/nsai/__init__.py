@@ -1,33 +1,44 @@
 """
 NSAI - Neurosymbolic AI Runner Selection
 
-A two-layer architecture combining symbolic reasoning (Knowledge Graph,
-Constraint Satisfaction) with subsymbolic learning (Multi-Armed Bandits)
-for intelligent CI/CD runner selection.
+A two-layer architecture combining symbolic reasoning (CSP)
+with adaptive learning (MAB) for intelligent CI/CD runner selection.
 
-Architecture:
-    Symbolic Layer (this package):
-        - ontology: Runner Capability Ontology (OWL/RDF)
-        - parser: Job Requirement Parser (.gitlab-ci.yml)
-        - csp: Constraint Satisfaction Problem solver
-    
-    Subsymbolic Layer (runner_bandit service):
-        - UCB1, Thompson Sampling, ε-Greedy bandits
-    
-    Integration (interface module):
-        - Neural-Symbolic bidirectional communication
+Quick Start:
+    >>> from nsai import NeurosymbolicBandit
+    >>> nsai = NeurosymbolicBandit.create_default()
+    >>> runner, explanation = nsai.select_runner({"tags": ["docker-any"]})
 
-Related:
-    - ADR: AI-001 Neurosymbolic Runner Selection Architecture
-    - Epic: #27 [EPIC] Neurosymbolic AI Runner Selection
-    - Paper: #26 JKU Bachelor Paper Draft
+Modules:
+    - ontology: Runner capability knowledge base
+    - parser: Job requirement extraction
+    - csp: Constraint satisfaction solver
+    - interface: Neurosymbolic integration (CSP + MAB)
+
+See Also:
+    - README.md for architecture overview
+    - Epic #27 for project tracking
 """
 
-__version__ = "0.1.0"
-__author__ = "Wolfram Laube"
+from .ontology import RunnerOntology, create_blauweiss_ontology
+from .parser import JobRequirementParser, JobRequirements
+from .csp import ConstraintSolver, SelectionResult, SolverStatus
+from .interface import NeurosymbolicBandit, Explanation, NSAI
 
-from .ontology import RunnerOntology
-from .parser import JobRequirementParser
-from .csp import ConstraintSolver
+__all__ = [
+    # Core classes
+    "NeurosymbolicBandit",
+    "NSAI",
+    "Explanation",
+    # Symbolic layer
+    "ConstraintSolver",
+    "SelectionResult", 
+    "SolverStatus",
+    "RunnerOntology",
+    "create_blauweiss_ontology",
+    # Parser
+    "JobRequirementParser",
+    "JobRequirements",
+]
 
-__all__ = ["RunnerOntology", "JobRequirementParser", "ConstraintSolver"]
+__version__ = "0.2.0"
