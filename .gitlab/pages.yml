@@ -42,6 +42,7 @@ pages:
   image: python:3.11-slim
   tags:
     - docker-any
+  needs: []
   variables:
     ENABLE_PDF_EXPORT: "0"
   before_script:
