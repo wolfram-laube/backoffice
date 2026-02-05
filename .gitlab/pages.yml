@@ -11,7 +11,7 @@ mkdocs_nav_check:
   stage: validate
   image: python:3.11-slim
   tags:
-    - docker-any
+    - gitlab-org-docker
   script:
     - pip install pyyaml
     - |
@@ -41,7 +41,7 @@ pages:
   stage: deploy
   image: python:3.11-slim
   tags:
-    - docker-any
+    - gitlab-org-docker
   needs: []
   variables:
     ENABLE_PDF_EXPORT: "0"
@@ -72,7 +72,7 @@ rebuild_docs:
   stage: deploy
   image: python:3.11-slim
   tags:
-    - docker-any
+    - gitlab-org-docker
   script:
     - pip install mkdocs mkdocs-material mkdocs-jupyter pymdown-extensions
     - mkdocs build --strict
@@ -95,7 +95,7 @@ docs_preview:
   stage: deploy
   image: python:3.11-slim
   tags:
-    - docker-any
+    - gitlab-org-docker
   script:
     - pip install mkdocs mkdocs-material mkdocs-jupyter pymdown-extensions
     - mkdocs build
