@@ -61,6 +61,8 @@ nav:
     - "🔍 Match": triggers/match.html
     - "🔧 CRM Integrity": triggers/crm-integrity.html
     - "💰 Billing": billing-trigger.html
+  - "📖 Runbooks":
+    - "Feature Workflow": runbook/feature-workflow.md
   - "📚 Handover":
     - "CI Refactoring (03.02.2026)": handover/HANDOVER_CI_REFACTOR_03_02_2026.md
     - "Portal Launch (02.02.2026)": handover/HANDOVER_PORTAL_02_02_2026.md
