@@ -36,6 +36,8 @@ test:unit:
     - pytest tests/unit/ -v --tb=short -m "not integration" --ignore=tests/unit/test_gmail.py --junitxml=report.xml
   artifacts:
     when: always
+    paths:
+      - report.xml
     reports:
       junit: report.xml
     expire_in: 7 days

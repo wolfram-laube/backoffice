@@ -55,6 +55,7 @@ nav:
     - "🔗 API Reference": ops/api-reference.md
   - "🧠 Services":
     - "NSAI Runner Selection": services/nsai.md
+    - "📊 CI Metrics": ci-dashboard.html
   - "⚡ Triggers":
     - "📝 Applications Crawl": triggers/applications-crawl.html
     - "✉️ Drafts": triggers/drafts.html
