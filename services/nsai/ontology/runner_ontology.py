@@ -150,7 +150,8 @@ class RunnerOntology:
     def add_runner(self, name: str, runner_id: int = None,
                    capabilities: List[str] = None, 
                    tags: List[str] = None,
-                   cost_per_minute: float = 0.0) -> Runner:
+                   cost_per_minute: float = 0.0,
+                   online: bool = True) -> Runner:
         """
         Register a runner with its capabilities.
         
@@ -182,7 +183,8 @@ class RunnerOntology:
             runner_id=runner_id,
             capabilities=caps,
             tags=tags or [],
-            cost_per_minute=cost_per_minute
+            cost_per_minute=cost_per_minute,
+            online=online
         )
         self.runners[name] = runner
         return runner
