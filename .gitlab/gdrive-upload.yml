@@ -95,3 +95,73 @@ gdrive:upload-benchmark:
     paths:
       - gdrive_upload_summary.json
     expire_in: 1 week
+
+# =============================================================================
+# NOTEBOOK SYNC (for Colab access)
+# =============================================================================
+
+# Sync Jupyter notebooks to GDrive for Colab access
+gdrive:sync-notebooks:
+  extends: .gdrive_base
+  stage: deploy
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+      changes:
+        - "**/*.ipynb"
+    - if: $SYNC_NOTEBOOKS == "true"
+    - when: manual
+      allow_failure: true
+  script:
+    - |
+      python3 << 'PYSCRIPT'
+      import os
+      import json
+      from pathlib import Path
+      from googleapiclient.discovery import build
+      from googleapiclient.http import MediaFileUpload
+      from google.oauth2 import service_account
+
+      # GDrive notebooks folder ID
+      NOTEBOOKS_FOLDER_ID = "1Sfbox7iCbopeaf5SQ_jU7IxEOY6pNLi-"
+
+      # Auth
+      creds_json = os.environ.get('GDRIVE_SERVICE_ACCOUNT_KEY')
+      if creds_json:
+          creds_dict = json.loads(creds_json)
+          creds = service_account.Credentials.from_service_account_info(creds_dict)
+          drive = build('drive', 'v3', credentials=creds)
+
+          # Find all notebooks
+          notebooks = list(Path('.').rglob('*.ipynb'))
+          print(f"Found {len(notebooks)} notebooks")
+
+          for nb in notebooks:
+              print(f"Uploading: {nb}")
+              # Check if exists
+              query = f"name='{nb.name}' and '{NOTEBOOKS_FOLDER_ID}' in parents and trashed=false"
+              results = drive.files().list(q=query, fields="files(id)").execute()
+              
+              media = MediaFileUpload(str(nb), mimetype='application/x-ipynb+json')
+              
+              if results.get('files'):
+                  # Update existing
+                  file_id = results['files'][0]['id']
+                  drive.files().update(fileId=file_id, media_body=media).execute()
+                  print(f"  Updated: {file_id}")
+              else:
+                  # Create new
+                  metadata = {
+                      'name': nb.name,
+                      'parents': [NOTEBOOKS_FOLDER_ID]
+                  }
+                  file = drive.files().create(body=metadata, media_body=media).execute()
+                  print(f"  Created: {file['id']}")
+          
+          print("✅ Notebook sync complete!")
+      else:
+          print("❌ GDRIVE_SERVICE_ACCOUNT_KEY not set")
+      PYSCRIPT
+  artifacts:
+    reports:
+      dotenv: gdrive_urls.env
+    expire_in: 1 week
