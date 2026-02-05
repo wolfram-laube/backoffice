@@ -78,3 +78,50 @@ test:nsai:coverage:
 #   script:
 #     - pip install mypy --quiet
 #     - mypy services/nsai/nsai/ --ignore-missing-imports
+
+# -----------------------------------------------------------------------------
+# NSAI NOTEBOOK VALIDATION
+# -----------------------------------------------------------------------------
+
+test:nsai:notebooks:
+  extends: .nsai-test-base
+  stage: test
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        - services/nsai/notebooks/**/*
+        - services/nsai/tests/test_notebooks.py
+    - if: $CI_COMMIT_BRANCH == "main"
+      changes:
+        - services/nsai/notebooks/**/*
+        - services/nsai/tests/test_notebooks.py
+    - if: $RUN_NSAI_TESTS == "true"
+    - when: manual
+      allow_failure: true
+  script:
+    - echo "📓 Running NSAI notebook validation..."
+    - cd services/nsai
+    - pytest tests/test_notebooks.py -v -k "not Execution" --tb=short
+  artifacts:
+    when: always
+    reports:
+      junit: services/nsai/report.xml
+    expire_in: 7 days
+
+test:nsai:notebooks:execute:
+  extends: .nsai-test-base
+  stage: test
+  rules:
+    - if: $RUN_NOTEBOOK_EXECUTION == "true"
+    - when: manual
+      allow_failure: true
+  before_script:
+    - pip install pytest pytest-cov pyyaml nbformat jupyter nbconvert ipykernel --quiet
+    - pip install -e services/nsai/ --quiet || pip install pyyaml --quiet
+    - python -m ipykernel install --user --name python3
+  script:
+    - echo "🚀 Running NSAI notebook execution tests..."
+    - cd services/nsai
+    - pytest tests/test_notebooks.py::TestNotebookExecution -v --tb=long --timeout=300
+  timeout: 10m
+
