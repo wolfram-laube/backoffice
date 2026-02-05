@@ -40,7 +40,8 @@ include:
   - local: '.gitlab/parallel-jobs.yml'       # Parallelization
 
   # === QUALITY ASSURANCE ===
-  - local: '.gitlab/tests.yml'            # Pytest unit/integration tests
+  - local: '.gitlab/tests.yml'
+  - local: '.gitlab/nsai-tests.yml'       # NSAI Symbolic Layer tests            # Pytest unit/integration tests
   - local: '.gitlab/roundtrip-test.yml'      # Workflow integration test
 
 # -----------------------------------------------------------------------------

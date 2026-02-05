@@ -1,0 +1,80 @@
+# =============================================================================
+# NSAI - NEUROSYMBOLIC AI TESTS
+# =============================================================================
+# Tests for the Neurosymbolic AI Runner Selection service
+# Related: ADR AI-001, Epic #27, Issues #22-24
+
+.nsai-test-base:
+  image: python:3.11-slim
+  tags:
+    - docker-any
+  needs: []
+  variables:
+    PYTHONPATH: "${CI_PROJECT_DIR}/services/nsai:${CI_PROJECT_DIR}"
+  before_script:
+    - pip install pytest pytest-cov pyyaml --quiet
+    - pip install -e services/nsai/ --quiet || pip install pyyaml --quiet
+
+# -----------------------------------------------------------------------------
+# NSAI UNIT TESTS
+# -----------------------------------------------------------------------------
+
+test:nsai:unit:
+  extends: .nsai-test-base
+  stage: test
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        - services/nsai/**/*
+    - if: $CI_COMMIT_BRANCH == "main"
+      changes:
+        - services/nsai/**/*
+    - if: $RUN_NSAI_TESTS == "true"
+    - when: manual
+      allow_failure: true
+  script:
+    - echo "🧪 Running NSAI unit tests..."
+    - cd services/nsai
+    - pytest tests/ -v --tb=short
+  artifacts:
+    when: always
+    reports:
+      junit: services/nsai/report.xml
+    expire_in: 7 days
+
+# -----------------------------------------------------------------------------
+# NSAI COVERAGE
+# -----------------------------------------------------------------------------
+
+test:nsai:coverage:
+  extends: .nsai-test-base
+  stage: test
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        - services/nsai/**/*
+    - if: $TEST_NSAI_COVERAGE == "true"
+    - when: manual
+      allow_failure: true
+  script:
+    - echo "📊 Running NSAI tests with coverage..."
+    - cd services/nsai
+    - pytest tests/ -v --cov=nsai --cov-report=term --cov-report=html
+  coverage: '/TOTAL.*\s+(\d+%)/'
+  artifacts:
+    paths:
+      - services/nsai/htmlcov/
+    expire_in: 7 days
+
+# -----------------------------------------------------------------------------
+# NSAI TYPE CHECK (optional, for future)
+# -----------------------------------------------------------------------------
+
+# lint:nsai:mypy:
+#   extends: .nsai-test-base
+#   stage: lint
+#   rules:
+#     - when: manual
+#   script:
+#     - pip install mypy --quiet
+#     - mypy services/nsai/nsai/ --ignore-missing-imports
