@@ -7,10 +7,15 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY src/ ./src/
 
-# GCS persistence (set BANDIT_GCS_BUCKET to enable)
+# Configuration via environment
 ENV BANDIT_ALGORITHM=ucb1
 ENV BANDIT_STATE_FILE=/tmp/bandit_state.json
-# ENV BANDIT_GCS_BUCKET=blauweiss-mab-state  ← set at deploy time
+# Set at deploy time:
+# ENV BANDIT_GCS_BUCKET=blauweiss-mab-state
+# ENV GITLAB_API_TOKEN=glpat-...
+# ENV GCP_PROJECT=myk8sproject-207017
+# ENV GCP_ZONE=europe-north2-a
+# ENV GCP_INSTANCE=gitlab-runner-nordic
 
 EXPOSE 8080
 

@@ -1,13 +1,20 @@
-"""FastAPI webhook handler for GitLab events + MAB API."""
+"""FastAPI webhook handler for GitLab events + MAB API.
+
+v0.3.0: Availability-aware recommendations + GCP VM auto-start/stop.
+"""
 import os
 import logging
-from typing import Optional
+from typing import Optional, List
 from fastapi import FastAPI, Request, HTTPException, Header
 from pydantic import BaseModel
 
 from .bandit import (
     UCB1Bandit, ThompsonSamplingBandit,
     calculate_reward, create_backend
+)
+from .availability import (
+    check_runner_availability, start_gcp_vm, stop_gcp_vm,
+    get_gcp_vm_status, GCP_RUNNERS
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -16,7 +23,7 @@ logger = logging.getLogger(__name__)
 app = FastAPI(
     title="Runner Bandit Service",
     description="Intelligent CI Runner Selection using Multi-Armed Bandits",
-    version="0.2.0"
+    version="0.3.0"
 )
 
 # Configuration
@@ -38,7 +45,6 @@ RUNNER_COSTS = {  # EUR/hour
     "Mac2 K8s Runner": 0.0,
 }
 
-# Runner name → GitLab CI tag mapping
 RUNNER_TAG_MAP = {
     "gitlab-runner-nordic": "nordic",
     "Mac Docker Runner": "mac-docker",
@@ -50,8 +56,9 @@ RUNNER_TAG_MAP = {
 
 ALGORITHM = os.getenv("BANDIT_ALGORITHM", "ucb1")
 WEBHOOK_SECRET = os.getenv("GITLAB_WEBHOOK_SECRET", "")
+GITLAB_TOKEN = os.getenv("GITLAB_API_TOKEN", "")
 
-# Initialize bandit with auto-detected backend (GCS or local)
+# Initialize bandit
 backend = create_backend()
 if ALGORITHM == "thompson":
     bandit = ThompsonSamplingBandit(RUNNERS, backend=backend)
@@ -65,6 +72,9 @@ class RecommendationResponse(BaseModel):
     recommended_tag: str
     algorithm: str
     total_observations: int
+    availability_checked: bool
+    online_runners: List[str]
+    gcp_auto_started: bool
     exploration_info: dict
 
 
@@ -81,18 +91,76 @@ class UpdateRequest(BaseModel):
 async def root():
     return {
         "service": "Runner Bandit",
-        "version": "0.2.0",
+        "version": "0.3.0",
         "algorithm": bandit.__class__.__name__,
         "total_observations": bandit.total_pulls,
         "runners": list(RUNNERS),
-        "persistence": "gcs" if os.getenv("BANDIT_GCS_BUCKET") else "local"
+        "persistence": "gcs" if os.getenv("BANDIT_GCS_BUCKET") else "local",
+        "features": ["availability-check", "gcp-auto-start", "gcp-auto-stop"]
     }
 
 
 @app.get("/recommend", response_model=RecommendationResponse)
-async def recommend_runner(job_type: str = "default"):
-    """Get runner recommendation based on MAB policy."""
-    runner = bandit.select_runner()
+async def recommend_runner(
+    job_type: str = "default",
+    check_availability: bool = True,
+    auto_start_gcp: bool = True,
+):
+    """Get runner recommendation based on MAB policy + availability.
+
+    Flow:
+      1. Check which runners are online (GitLab API)
+      2. If none → auto-start GCP VM (if enabled)
+      3. MAB selects from online runners only
+      4. Fallback to docker-any if everything fails
+    """
+    gcp_started = False
+    online_runners = list(RUNNERS)  # Assume all if no check
+
+    if check_availability and GITLAB_TOKEN:
+        avail = check_runner_availability(GITLAB_TOKEN)
+        online_runners = avail.online_runners
+
+        if not online_runners:
+            logger.warning("No runners online!")
+
+            if auto_start_gcp:
+                logger.info("Attempting GCP VM auto-start...")
+                success, msg = start_gcp_vm()
+                gcp_started = success
+                logger.info(f"GCP auto-start: {msg}")
+
+                if success:
+                    # Nordic will come online in ~30-60s
+                    # For now, recommend it optimistically
+                    online_runners = ["gitlab-runner-nordic"]
+
+            if not online_runners:
+                # Total fallback
+                return RecommendationResponse(
+                    recommended_runner="fallback",
+                    recommended_tag="docker-any",
+                    algorithm=bandit.__class__.__name__,
+                    total_observations=bandit.total_pulls,
+                    availability_checked=True,
+                    online_runners=[],
+                    gcp_auto_started=gcp_started,
+                    exploration_info=bandit.get_stats()
+                )
+
+    # MAB selects from available runners only
+    # Temporarily filter bandit to online runners
+    original_runners = bandit.runners
+    bandit.runners = [r for r in original_runners if r in online_runners]
+
+    if not bandit.runners:
+        bandit.runners = original_runners
+        runner = bandit.select_runner()
+    else:
+        runner = bandit.select_runner()
+
+    bandit.runners = original_runners  # Restore
+
     tag = RUNNER_TAG_MAP.get(runner, "docker-any")
 
     return RecommendationResponse(
@@ -100,6 +168,9 @@ async def recommend_runner(job_type: str = "default"):
         recommended_tag=tag,
         algorithm=bandit.__class__.__name__,
         total_observations=bandit.total_pulls,
+        availability_checked=check_availability and bool(GITLAB_TOKEN),
+        online_runners=online_runners,
+        gcp_auto_started=gcp_started,
         exploration_info=bandit.get_stats()
     )
 
@@ -112,7 +183,6 @@ async def update_observation(request: UpdateRequest):
 
     cost = RUNNER_COSTS.get(request.runner, 0.0)
     reward = calculate_reward(request.success, request.duration, cost)
-
     bandit.update(request.runner, reward, request.success, request.duration)
 
     logger.info(
@@ -120,7 +190,6 @@ async def update_observation(request: UpdateRequest):
         f"duration={request.duration:.1f}s, reward={reward:.4f}, "
         f"job={request.job_name}, project={request.project}"
     )
-
     return {
         "status": "updated",
         "runner": request.runner,
@@ -143,16 +212,14 @@ async def handle_gitlab_webhook(
 
     if object_kind == "build":
         return await _handle_build_event(payload)
-
-    return {"status": "ignored", "reason": f"Unhandled event type: {object_kind}"}
+    return {"status": "ignored", "reason": f"Unhandled: {object_kind}"}
 
 
 async def _handle_build_event(payload: dict):
-    """Process build (job) events from GitLab webhook."""
+    """Process build (job) events."""
     status = payload.get("build_status")
-
     if status not in ["success", "failed"]:
-        return {"status": "ignored", "reason": f"Build status: {status}"}
+        return {"status": "ignored", "reason": f"Status: {status}"}
 
     runner_info = payload.get("runner")
     if not runner_info:
@@ -160,24 +227,18 @@ async def _handle_build_event(payload: dict):
 
     runner_name = runner_info.get("description", "unknown")
     duration = payload.get("build_duration", 0)
-    job_name = payload.get("build_name", "unknown")
-    project = payload.get("project_name", "unknown")
 
     if runner_name not in RUNNERS:
-        logger.warning(f"Unknown runner in webhook: {runner_name}")
         return {"status": "ignored", "reason": f"Unknown runner: {runner_name}"}
 
     success = status == "success"
     cost = RUNNER_COSTS.get(runner_name, 0.0)
     reward = calculate_reward(success, duration, cost)
-
     bandit.update(runner_name, reward, success, duration)
 
     logger.info(
-        f"Webhook: {runner_name} | {status} | {duration:.1f}s | "
-        f"reward={reward:.4f} | job={job_name} | project={project}"
+        f"Webhook: {runner_name} | {status} | {duration:.1f}s | reward={reward:.4f}"
     )
-
     return {
         "status": "updated",
         "runner": runner_name,
@@ -186,6 +247,46 @@ async def _handle_build_event(payload: dict):
         "total_observations": bandit.total_pulls
     }
 
+
+# ---- Availability & VM Control ----
+
+@app.get("/availability")
+async def get_availability():
+    """Check which runners are online right now."""
+    if not GITLAB_TOKEN:
+        return {"error": "GITLAB_API_TOKEN not configured", "runners": []}
+
+    avail = check_runner_availability(GITLAB_TOKEN)
+    return {
+        "online": avail.online_runners,
+        "offline": avail.offline_runners,
+        "online_count": len(avail.online_runners),
+        "offline_count": len(avail.offline_runners),
+    }
+
+
+@app.post("/vm/start")
+async def vm_start():
+    """Manually start the GCP VM."""
+    success, msg = start_gcp_vm()
+    return {"success": success, "message": msg}
+
+
+@app.post("/vm/stop")
+async def vm_stop():
+    """Manually stop the GCP VM (save costs)."""
+    success, msg = stop_gcp_vm()
+    return {"success": success, "message": msg}
+
+
+@app.get("/vm/status")
+async def vm_status():
+    """Get GCP VM status."""
+    status = get_gcp_vm_status()
+    return {"instance": "gitlab-runner-nordic", "status": status}
+
+
+# ---- Stats & Admin ----
 
 @app.get("/stats")
 async def get_statistics():
@@ -213,12 +314,11 @@ async def reset_bandit():
         bandit = ThompsonSamplingBandit(RUNNERS, backend=new_backend)
     else:
         bandit = UCB1Bandit(RUNNERS, c=2.0, backend=new_backend)
-    # Save empty state to clear GCS
     bandit._save_state()
     return {"status": "reset", "algorithm": bandit.__class__.__name__}
 
 
 @app.get("/health")
 async def health():
-    """Health check for monitoring."""
+    """Health check."""
     return {"status": "healthy", "observations": bandit.total_pulls}
