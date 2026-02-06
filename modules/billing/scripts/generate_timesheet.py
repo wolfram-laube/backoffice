@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
 """
-CLARISSA Timesheet Generator
+BLAUWEISS Multi-Repo Timesheet Generator
 
-Generates timesheets from GitLab Time Tracking data using GraphQL API.
-
-The GraphQL API correctly returns the `spentAt` date, unlike the Notes API
-which only shows the note creation date.
+Generates timesheets from GitLab Time Tracking data across multiple projects.
+Uses GraphQL API to correctly fetch `spentAt` dates.
 
 Usage:
     # Single consultant
@@ -13,11 +11,11 @@ Usage:
     
     # All consultants for a client
     python generate_timesheet.py --client nemensis --period 2026-01 --all-consultants
-    
-Requirements:
-    - GitLab issues must have label matching client's gitlab_label (e.g., "client:nemensis")
-    - Time is tracked via /spend command on issues
-    - GITLAB_TOKEN environment variable must be set
+
+Changes from v1:
+    - Multi-repo support: queries all projects in config
+    - Project grouping: groups time by project:: label
+    - Per-client consultant rates
 """
 
 import argparse
@@ -27,7 +25,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 from collections import defaultdict
-from typing import Optional
+from typing import Optional, List, Dict
 
 try:
     import yaml
@@ -46,7 +44,6 @@ OUTPUT_DIR = BILLING_DIR / "output"
 
 # GitLab API
 GITLAB_GRAPHQL_URL = os.environ.get("GITLAB_GRAPHQL_URL", "https://gitlab.com/api/graphql")
-GITLAB_PROJECT_PATH = os.environ.get("GITLAB_PROJECT_PATH", "wolfram_laube/blauweiss_llc/clarissa")
 GITLAB_TOKEN = os.environ.get("GITLAB_TOKEN", "")
 
 
@@ -60,32 +57,28 @@ def load_config() -> dict:
         return yaml.safe_load(f)
 
 
-def fetch_time_entries_graphql(
-    project_path: str,
+def fetch_time_entries_multi_repo(
+    projects: List[str],
     year: int,
     month: int,
     gitlab_label: str,
     gitlab_username: Optional[str] = None
-) -> dict:
+) -> Dict[str, List[tuple]]:
     """
-    Fetch time tracking entries from GitLab using GraphQL API.
-    
-    The GraphQL API correctly returns `spentAt` date, unlike the REST Notes API.
+    Fetch time tracking entries from multiple GitLab projects.
     
     Args:
-        project_path: GitLab project path (e.g., "wolfram_laube/blauweiss_llc/clarissa")
+        projects: List of project paths
         year: Year (e.g., 2026)
         month: Month (1-12)
-        gitlab_label: Label to filter issues (e.g., "client:nemensis")
+        gitlab_label: Label to filter issues (e.g., "client::nemensis")
         gitlab_username: Optional - filter by who spent the time
     
     Returns:
-        dict: {day: [(hours, description, issue_title), ...]}
+        dict: {project_name: {day: [(hours, description, issue_title), ...]}}
     """
     if not GITLAB_TOKEN:
         print("❌ GITLAB_TOKEN environment variable not set")
-        print("   Export your GitLab Personal Access Token:")
-        print("   export GITLAB_TOKEN='glpat-xxx'")
         return {}
     
     headers = {
@@ -100,9 +93,9 @@ def fetch_time_entries_graphql(
     else:
         end_date = datetime(year, month + 1, 1)
     
-    entries_by_day = defaultdict(list)
+    all_entries = defaultdict(lambda: defaultdict(list))  # {project: {day: [entries]}}
     
-    # GraphQL query to fetch issues with timelogs
+    # GraphQL query - also fetch labels to detect project
     query = """
     query($projectPath: ID!, $labelName: String!, $cursor: String) {
       project(fullPath: $projectPath) {
@@ -114,6 +107,11 @@ def fetch_time_entries_graphql(
           nodes {
             iid
             title
+            labels {
+              nodes {
+                title
+              }
+            }
             timelogs {
               nodes {
                 spentAt
@@ -129,184 +127,101 @@ def fetch_time_entries_graphql(
     }
     """
     
-    print(f"   Fetching issues with label '{gitlab_label}' via GraphQL...")
-    
-    cursor = None
-    total_issues = 0
-    
-    while True:
-        variables = {
-            "projectPath": project_path,
-            "labelName": gitlab_label,
-            "cursor": cursor
-        }
+    for project_path in projects:
+        project_name = project_path.split("/")[-1]  # e.g., "clarissa"
+        print(f"   📂 Scanning {project_path}...")
         
-        response = requests.post(
-            GITLAB_GRAPHQL_URL,
-            headers=headers,
-            json={"query": query, "variables": variables}
-        )
+        cursor = None
+        total_issues = 0
         
-        if response.status_code != 200:
-            print(f"❌ GraphQL error: {response.status_code}")
-            print(f"   {response.text[:200]}")
-            return {}
-        
-        data = response.json()
-        
-        if "errors" in data:
-            print(f"❌ GraphQL query errors:")
-            for error in data["errors"]:
-                print(f"   {error.get('message', error)}")
-            return {}
-        
-        project_data = data.get("data", {}).get("project")
-        if not project_data:
-            print(f"❌ Project not found: {project_path}")
-            return {}
-        
-        issues_data = project_data.get("issues", {})
-        issues = issues_data.get("nodes", [])
-        total_issues += len(issues)
-        
-        for issue in issues:
-            issue_title = issue.get("title", "")
-            timelogs = issue.get("timelogs", {}).get("nodes", [])
+        while True:
+            variables = {
+                "projectPath": project_path,
+                "labelName": gitlab_label,
+                "cursor": cursor
+            }
             
-            for timelog in timelogs:
-                spent_at_str = timelog.get("spentAt")
-                time_spent_seconds = timelog.get("timeSpent", 0)
-                user = timelog.get("user", {})
-                username = user.get("username", "")
+            response = requests.post(
+                GITLAB_GRAPHQL_URL,
+                headers=headers,
+                json={"query": query, "variables": variables}
+            )
+            
+            if response.status_code != 200:
+                print(f"      ⚠️ Error: {response.status_code}")
+                break
+            
+            data = response.json()
+            
+            if "errors" in data:
+                print(f"      ⚠️ GraphQL error: {data['errors'][0].get('message', '')}")
+                break
+            
+            project_data = data.get("data", {}).get("project")
+            if not project_data:
+                break
+            
+            issues_data = project_data.get("issues", {})
+            issues = issues_data.get("nodes", [])
+            total_issues += len(issues)
+            
+            for issue in issues:
+                issue_title = issue.get("title", "")
                 
-                # Filter by username if specified
-                if gitlab_username and username != gitlab_username:
-                    continue
+                # Detect project from labels (project::clarissa, project::magnus, etc.)
+                labels = [l.get("title", "") for l in issue.get("labels", {}).get("nodes", [])]
+                detected_project = None
+                for label in labels:
+                    if label.startswith("project::"):
+                        detected_project = label.replace("project::", "")
+                        break
                 
-                if not spent_at_str:
-                    continue
+                # Use detected project or fall back to repo name
+                entry_project = detected_project or project_name
                 
-                # Parse date - format: "2026-01-03T17:02:13Z"
-                try:
-                    spent_at = datetime.fromisoformat(spent_at_str.replace("Z", "+00:00"))
-                except ValueError:
-                    continue
+                timelogs = issue.get("timelogs", {}).get("nodes", [])
                 
-                # Check if within our target month
-                spent_at_naive = spent_at.replace(tzinfo=None)
-                if not (start_date <= spent_at_naive < end_date):
-                    continue
-                
-                # Convert seconds to hours
-                hours = time_spent_seconds / 3600
-                
-                # Skip negative entries (corrections) for display purposes
-                # They're still included in the total calculation
-                if hours == 0:
-                    continue
-                
-                day = spent_at.day
-                desc = issue_title[:50] + "..." if len(issue_title) > 50 else issue_title
-                entries_by_day[day].append((hours, desc))
+                for timelog in timelogs:
+                    spent_at_str = timelog.get("spentAt")
+                    time_spent_seconds = timelog.get("timeSpent", 0)
+                    user = timelog.get("user", {})
+                    username = user.get("username", "")
+                    
+                    # Filter by username if specified
+                    if gitlab_username and username != gitlab_username:
+                        continue
+                    
+                    if not spent_at_str:
+                        continue
+                    
+                    # Parse date
+                    try:
+                        spent_at = datetime.fromisoformat(spent_at_str.replace("Z", "+00:00"))
+                    except ValueError:
+                        continue
+                    
+                    # Check if within target month
+                    spent_at_naive = spent_at.replace(tzinfo=None)
+                    if not (start_date <= spent_at_naive < end_date):
+                        continue
+                    
+                    # Convert seconds to hours
+                    hours = time_spent_seconds / 3600.0
+                    day = spent_at_naive.day
+                    
+                    all_entries[entry_project][day].append((hours, issue_title, username))
+            
+            # Check pagination
+            page_info = issues_data.get("pageInfo", {})
+            if page_info.get("hasNextPage"):
+                cursor = page_info.get("endCursor")
+            else:
+                break
         
-        # Pagination
-        page_info = issues_data.get("pageInfo", {})
-        if page_info.get("hasNextPage"):
-            cursor = page_info.get("endCursor")
-        else:
-            break
+        if total_issues > 0:
+            print(f"      ✅ Found {total_issues} issues")
     
-    print(f"   Found {total_issues} issues")
-    
-    return dict(entries_by_day)
-
-
-def consolidate_entries(entries: dict) -> dict:
-    """
-    Consolidate entries per day - sum hours and combine descriptions.
-    Handles negative entries (time corrections).
-    """
-    consolidated = {}
-    
-    for day, day_entries in entries.items():
-        total_hours = sum(h for h, _ in day_entries)
-        
-        # Skip days with zero or negative net time
-        if total_hours <= 0:
-            continue
-        
-        # Combine unique descriptions
-        descriptions = list(set(d for _, d in day_entries if d))
-        desc = "; ".join(descriptions[:2])
-        if len(descriptions) > 2:
-            desc += f" (+{len(descriptions)-2} more)"
-        
-        consolidated[day] = [(total_hours, desc)]
-    
-    return consolidated
-
-
-def generate_timesheet_typ(
-    year: int,
-    month: int,
-    client_id: str,
-    client_config: dict,
-    consultant_id: str,
-    consultant_config: dict,
-    entries: dict,
-    lang: str = "de"
-) -> str:
-    """Generate Typst timesheet content."""
-    
-    # Build daily_entries string
-    daily_entries_parts = []
-    for day, day_entries in sorted(entries.items()):
-        total_hours = sum(h for h, _ in day_entries)
-        # Combine descriptions
-        descriptions = list(set(d for _, d in day_entries))
-        desc = "; ".join(descriptions[:2])
-        if len(descriptions) > 2:
-            desc += f" (+{len(descriptions)-2} more)"
-        # Escape quotes in description
-        desc = desc.replace('"', '\"')
-        daily_entries_parts.append(f'    "{day}": ({total_hours:.2f}, "{desc}"),')
-    
-    daily_entries_str = "
-".join(daily_entries_parts) if daily_entries_parts else "    // No entries"
-    
-    # Determine country from consultant or default
-    country = "AT"  # Default
-    
-    # Get approver info
-    approver = client_config.get("approver", {})
-    approver_name = approver.get("name", "")
-    approver_title = approver.get("title", "")
-    
-    content = f'''// BLAUWEISS Timesheet - {year}-{month:02d}
-// Client: {client_config.get('name', '')}
-// Consultant: {consultant_config.get('name', '')}
-// Generated: {datetime.now().strftime("%Y-%m-%d %H:%M")}
-
-#import "../templates/timesheet.typ": timesheet
-
-#timesheet(
-  year: {year},
-  month: {month},
-  client_name: "{client_config.get('name', '')}",
-  client_short: "{client_config.get('short', '')}",
-  project_name: "{client_config.get('contract_number', '')}",
-  contract_number: "{client_config.get('contract_number', '')}",
-  consultant_name: "{consultant_config.get('name', '')}",
-  country: "{country}",
-  lang: "{lang}",
-  approver_name: "{approver_name}",
-  approver_title: "{approver_title}",
-  daily_entries: (
-{daily_entries_str}
-  ),
-)
-'''
-    return content
+    return dict(all_entries)
 
 
 def generate_timesheet(
@@ -317,101 +232,97 @@ def generate_timesheet(
     lang: str,
     config: dict
 ) -> Optional[Path]:
-    """Generate a single timesheet for one consultant."""
+    """Generate timesheet for a consultant, grouped by project."""
     
     client_config = config["clients"][client_id]
-    consultant_config = config["consultants"][consultant_id]
+    consultant_config = config["consultants"].get(consultant_id, {})
     
-    gitlab_label = client_config.get("gitlab_label", f"client:{client_id}")
+    # Get consultant's GitLab username
     gitlab_username = consultant_config.get("gitlab_username")
+    if not gitlab_username:
+        print(f"   ⚠️ No gitlab_username for consultant '{consultant_id}'")
+        return None
     
-    print(f"
-📋 Generating timesheet:")
-    print(f"   Client: {client_config['name']}")
-    print(f"   Consultant: {consultant_config['name']} (@{gitlab_username})")
-    print(f"   Period: {year}-{month:02d}")
+    # Get rate (client-specific or default)
+    client_consultant_config = client_config.get("consultants", {}).get(consultant_id, {})
+    rate = client_consultant_config.get("rate") or consultant_config.get("default_rate", 100)
     
-    # Fetch time entries via GraphQL
-    entries = fetch_time_entries_graphql(
-        GITLAB_PROJECT_PATH,
+    print(f"\n📋 {consultant_config.get('name', consultant_id)} @ {client_config['name']}")
+    print(f"   Rate: {rate} {client_config.get('currency', 'EUR')}/h")
+    
+    # Get projects list
+    projects = config.get("projects", [])
+    if not projects:
+        print("   ⚠️ No projects configured in clients.yaml")
+        return None
+    
+    # Fetch time entries from all projects
+    entries_by_project = fetch_time_entries_multi_repo(
+        projects,
         year,
         month,
-        gitlab_label,
+        client_config.get("gitlab_label", f"client::{client_id}"),
         gitlab_username
     )
     
-    if not entries:
-        print("   ⚠️ No time entries found")
+    if not entries_by_project:
+        print(f"   ⚠️ No time entries found")
         return None
     
-    # Consolidate entries per day
-    entries = consolidate_entries(entries)
+    # Calculate totals
+    total_hours = 0
+    project_hours = defaultdict(float)
     
-    if not entries:
-        print("   ⚠️ No positive time entries after consolidation")
+    for project, days in entries_by_project.items():
+        for day, entries in days.items():
+            for hours, _, _ in entries:
+                total_hours += hours
+                project_hours[project] += hours
+    
+    if total_hours == 0:
+        print(f"   ⚠️ No time entries for this consultant")
         return None
     
-    # Calculate total
-    total_hours = sum(sum(h for h, _ in day_entries) for day_entries in entries.values())
-    print(f"   ✅ Found {total_hours:.1f} hours across {len(entries)} days")
+    # Print summary
+    print(f"\n   Summary:")
+    for project, hours in sorted(project_hours.items()):
+        print(f"      {project}: {hours:.1f}h")
+    print(f"      ────────────")
+    print(f"      Total: {total_hours:.1f}h × {rate} = {total_hours * rate:.2f} {client_config.get('currency', 'EUR')}")
     
-    # Generate Typst content
-    content = generate_timesheet_typ(
-        year, month, client_id, client_config,
-        consultant_id, consultant_config, entries, lang
-    )
-    
-    # Write output file
+    # Generate output file (simplified - just JSON for now)
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    filename = f"{consultant_id}_{client_id}_{year}-{month:02d}_timesheet.typ"
-    output_file = OUTPUT_DIR / filename
+    period_str = f"{year}-{month:02d}"
+    output_file = OUTPUT_DIR / f"timesheet_{client_id}_{consultant_id}_{period_str}.json"
     
-    with open(output_file, "w", encoding="utf-8") as f:
-        f.write(content)
-    
-    print(f"   📄 Generated: {output_file.name}")
-    
-    # Also write sync metadata
-    sync_data = {
-        "client_id": client_id,
-        "consultant_id": consultant_id,
-        "year": year,
-        "month": month,
-        "lang": lang,
+    output_data = {
+        "client": client_id,
+        "consultant": consultant_id,
+        "period": period_str,
+        "rate": rate,
+        "currency": client_config.get("currency", "EUR"),
         "total_hours": total_hours,
-        "entries": {str(k): v for k, v in entries.items()},
-        "generated_at": datetime.now().isoformat(),
-        "api_source": "graphql"  # Mark that this used GraphQL API
+        "total_amount": total_hours * rate,
+        "by_project": dict(project_hours),
+        "entries": {proj: {day: [(h, d) for h, d, _ in e] 
+                          for day, e in days.items()} 
+                   for proj, days in entries_by_project.items()}
     }
-    sync_file = output_file.with_suffix(".sync.json")
-    with open(sync_file, "w", encoding="utf-8") as f:
-        json.dump(sync_data, f, indent=2)
     
+    with open(output_file, "w") as f:
+        json.dump(output_data, f, indent=2)
+    
+    print(f"   📄 {output_file.name}")
     return output_file
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Generate timesheets from GitLab time tracking (GraphQL API)",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-    # Single consultant
-    %(prog)s --client nemensis --period 2026-01 --consultant wolfram
-    
-    # All consultants for a client
-    %(prog)s --client nemensis --period 2026-01 --all-consultants
-    
-Environment:
-    GITLAB_TOKEN        GitLab Personal Access Token (required)
-    GITLAB_PROJECT_PATH Project path (default: wolfram_laube/blauweiss_llc/clarissa)
-"""
-    )
+    parser = argparse.ArgumentParser(description="Generate timesheets from GitLab time tracking (multi-repo)")
     parser.add_argument("--client", "-c", required=True, help="Client ID from clients.yaml")
     parser.add_argument("--period", "-p", required=True, help="Period as YYYY-MM")
-    parser.add_argument("--consultant", help="Consultant ID (from clients.yaml consultants)")
+    parser.add_argument("--consultant", help="Consultant ID")
     parser.add_argument("--all-consultants", action="store_true", help="Generate for all consultants")
-    parser.add_argument("--lang", "-l", default="de", help="Language (de, en, vi, ar, is)")
+    parser.add_argument("--lang", "-l", default="de", help="Language (de, en)")
     
     args = parser.parse_args()
     
@@ -420,7 +331,6 @@ Environment:
         year, month = map(int, args.period.split("-"))
     except ValueError:
         print(f"❌ Invalid period format: {args.period}")
-        print("   Use YYYY-MM (e.g., 2026-01)")
         sys.exit(1)
     
     # Load config
@@ -435,51 +345,27 @@ Environment:
     
     client_config = config["clients"][args.client]
     
-    # Determine which consultants to process
+    # Determine consultants
     if args.all_consultants:
-        consultant_ids = client_config.get("consultants", [])
-        if not consultant_ids:
-            print(f"❌ No consultants configured for client '{args.client}'")
-            sys.exit(1)
-        print(f"🔄 Generating timesheets for {len(consultant_ids)} consultants...")
+        consultant_ids = list(client_config.get("consultants", {}).keys())
     elif args.consultant:
-        if args.consultant not in config.get("consultants", {}):
-            print(f"❌ Unknown consultant: {args.consultant}")
-            available = list(config.get("consultants", {}).keys())
-            print(f"   Available: {', '.join(available)}")
-            sys.exit(1)
         consultant_ids = [args.consultant]
     else:
         print("❌ Specify --consultant or --all-consultants")
         sys.exit(1)
     
+    print(f"🧾 Generating timesheets for {args.client} ({args.period})")
+    
     # Generate timesheets
     generated = []
     for consultant_id in consultant_ids:
-        result = generate_timesheet(
-            args.client,
-            consultant_id,
-            year,
-            month,
-            args.lang,
-            config
-        )
+        result = generate_timesheet(args.client, consultant_id, year, month, args.lang, config)
         if result:
             generated.append(result)
     
     # Summary
-    print(f"
-{'='*50}")
+    print(f"\n{'='*50}")
     print(f"✅ Generated {len(generated)} timesheet(s)")
-    for f in generated:
-        print(f"   📄 {f.name}")
-    
-    if generated:
-        print(f"
-Next steps:")
-        print(f"   1. Review and get approvals")
-        print(f"   2. Generate invoice:")
-        print(f"      python generate_invoice.py --client {args.client} --period {args.period}")
 
 
 if __name__ == "__main__":
