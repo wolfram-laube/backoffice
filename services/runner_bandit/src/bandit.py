@@ -157,6 +157,8 @@ class BaseBandit(ABC):
             "Mac Docker Runner": "mac-docker",
             "Mac2 Docker Runner": "mac2-docker",
             "Linux Yoga Docker Runner": "linux-docker",
+            "Mac K8s Runner": "mac-k8s",
+            "Mac2 K8s Runner": "mac2-k8s",
         }
         return tag_map.get(runner, "docker-any")
 

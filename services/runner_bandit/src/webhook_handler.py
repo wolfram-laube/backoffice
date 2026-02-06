@@ -24,7 +24,9 @@ RUNNERS = [
     "gitlab-runner-nordic",
     "Mac Docker Runner",
     "Mac2 Docker Runner",
-    "Linux Yoga Docker Runner"
+    "Linux Yoga Docker Runner",
+    "Mac K8s Runner",
+    "Mac2 K8s Runner",
 ]
 
 RUNNER_COSTS = {  # EUR/hour
@@ -32,6 +34,8 @@ RUNNER_COSTS = {  # EUR/hour
     "Mac Docker Runner": 0.0,
     "Mac2 Docker Runner": 0.0,
     "Linux Yoga Docker Runner": 0.0,
+    "Mac K8s Runner": 0.0,
+    "Mac2 K8s Runner": 0.0,
 }
 
 # Runner name → GitLab CI tag mapping
@@ -40,6 +44,8 @@ RUNNER_TAG_MAP = {
     "Mac Docker Runner": "mac-docker",
     "Mac2 Docker Runner": "mac2-docker",
     "Linux Yoga Docker Runner": "linux-docker",
+    "Mac K8s Runner": "mac-k8s",
+    "Mac2 K8s Runner": "mac2-k8s",
 }
 
 ALGORITHM = os.getenv("BANDIT_ALGORITHM", "ucb1")
