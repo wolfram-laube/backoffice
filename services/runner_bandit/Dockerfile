@@ -7,8 +7,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY src/ ./src/
 
-ENV BANDIT_STATE_FILE=/data/bandit_state.json
+# GCS persistence (set BANDIT_GCS_BUCKET to enable)
 ENV BANDIT_ALGORITHM=ucb1
+ENV BANDIT_STATE_FILE=/tmp/bandit_state.json
+# ENV BANDIT_GCS_BUCKET=blauweiss-mab-state  ← set at deploy time
 
 EXPOSE 8080
 

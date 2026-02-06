@@ -49,6 +49,6 @@ cloud-run:deploy:
     - gcloud auth activate-service-account --key-file=/tmp/gcp-key.json
     - gcloud config set project $GCP_PROJECT
     - echo "=== Deploying to Cloud Run ==="
-    - gcloud run deploy $SERVICE_NAME --image=${IMAGE_NAME}:${CI_COMMIT_SHORT_SHA} --region=$GCP_REGION --platform=managed --allow-unauthenticated --memory=256Mi --cpu=1 --min-instances=0 --max-instances=2 --port=8080 --set-env-vars=BANDIT_ALGORITHM=ucb1,BANDIT_STATE_FILE=/tmp/bandit_state.json
+    - gcloud run deploy $SERVICE_NAME --image=${IMAGE_NAME}:${CI_COMMIT_SHORT_SHA} --region=$GCP_REGION --platform=managed --allow-unauthenticated --memory=256Mi --cpu=1 --min-instances=0 --max-instances=2 --port=8080 --set-env-vars=BANDIT_ALGORITHM=ucb1,BANDIT_GCS_BUCKET=blauweiss-mab-state,BANDIT_STATE_FILE=/tmp/bandit_state.json
     - echo "=== Getting Service URL ==="
     - gcloud run services describe $SERVICE_NAME --region=$GCP_REGION --format='value(status.url)'

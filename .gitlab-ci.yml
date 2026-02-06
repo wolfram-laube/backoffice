@@ -40,6 +40,9 @@ include:
   - local: '.gitlab/fix-shell-runner.yml'    # Runner fixes
   - local: '.gitlab/parallel-jobs.yml'       # Parallelization
 
+  # === MAB RUNNER INTEGRATION ===
+  - local: '.gitlab/mab-integration.yml'     # MAB intelligent runner selection
+
   # === QUALITY ASSURANCE ===
   - local: '.gitlab/tests.yml'
   - local: '.gitlab/nsai-tests.yml'       # NSAI Symbolic Layer tests            # Pytest unit/integration tests

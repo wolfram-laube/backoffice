@@ -1,0 +1,108 @@
+# =============================================================================
+# MAB RUNNER INTEGRATION
+# =============================================================================
+# Multi-Armed Bandit integration for intelligent CI runner selection.
+#
+# Architecture:
+#   1. Webhook (passive):  GitLab → MAB webhook → learns from all jobs
+#   2. after_script (active): Each MAB-enabled job reports outcome directly
+#   3. recommend (optional): Parent job queries MAB → child uses recommended tag
+#
+# Usage:
+#   Minimal (just reporting):
+#     my-job:
+#       extends: .mab-enabled
+#       script: ...
+#
+#   With recommendation (parent-child):
+#     See mab:recommend job below
+# =============================================================================
+
+variables:
+  MAB_SERVICE_URL: "https://runner-bandit-m5cziijwqa-lz.a.run.app"
+
+# -----------------------------------------------------------------------------
+# TEMPLATE: Add MAB reporting to any job
+# -----------------------------------------------------------------------------
+.mab-enabled:
+  after_script:
+    - |
+      # MAB Reporter (inline for jobs that can't source scripts)
+      MAB_URL="${MAB_SERVICE_URL:-https://runner-bandit-m5cziijwqa-lz.a.run.app}"
+      if [[ "$CI_JOB_STATUS" == "success" || "$CI_JOB_STATUS" == "failed" ]]; then
+        SUCCESS="false"
+        [[ "$CI_JOB_STATUS" == "success" ]] && SUCCESS="true"
+        curl -sf -X POST "${MAB_URL}/update" \
+          -H "Content-Type: application/json" \
+          -d "{\"runner\":\"${CI_RUNNER_DESCRIPTION}\",\"success\":${SUCCESS},\"duration\":${CI_JOB_DURATION:-0},\"job_name\":\"${CI_JOB_NAME}\",\"project\":\"${CI_PROJECT_NAME}\"}" \
+          > /dev/null 2>&1 || true
+        echo "[MAB] Reported: ${CI_RUNNER_DESCRIPTION} | ${CI_JOB_STATUS} | ${CI_JOB_DURATION:-0}s"
+      fi
+
+# -----------------------------------------------------------------------------
+# JOB: Query MAB for runner recommendation (use in parent-child pipelines)
+# -----------------------------------------------------------------------------
+mab:recommend:
+  stage: .pre
+  image: alpine:latest
+  tags:
+    - docker-any
+  variables:
+    GIT_STRATEGY: none
+  rules:
+    - if: '$MAB_ENABLED == "true"'
+    - if: '$CI_PIPELINE_SOURCE == "web"'
+      when: manual
+      allow_failure: true
+  before_script:
+    - apk add --no-cache curl python3 > /dev/null 2>&1
+  script:
+    - |
+      echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      echo "  MAB Runner Recommendation"
+      echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      RESPONSE=$(curl -sf "${MAB_SERVICE_URL}/recommend" 2>&1)
+      if [ -z "$RESPONSE" ]; then
+        echo "⚠️  MAB unreachable, defaulting to docker-any"
+        echo "MAB_RUNNER_TAG=docker-any" > mab.env
+      else
+        echo "$RESPONSE" | python3 -m json.tool
+        TAG=$(echo "$RESPONSE" | python3 -c "import json,sys; print(json.load(sys.stdin).get('recommended_tag','docker-any'))")
+        echo "MAB_RUNNER_TAG=${TAG}" > mab.env
+        echo "MAB_RUNNER_NAME=$(echo "$RESPONSE" | python3 -c "import json,sys; print(json.load(sys.stdin)['recommended_runner'])")" >> mab.env
+      fi
+      cat mab.env
+  artifacts:
+    reports:
+      dotenv: mab.env
+
+# -----------------------------------------------------------------------------
+# JOB: MAB Dashboard / Stats
+# -----------------------------------------------------------------------------
+mab:stats:
+  stage: notify
+  image: alpine:latest
+  tags:
+    - docker-any
+  variables:
+    GIT_STRATEGY: none
+  extends: .mab-enabled
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+    - if: '$CI_PIPELINE_SOURCE == "web"'
+      when: manual
+      allow_failure: true
+  before_script:
+    - apk add --no-cache curl python3 > /dev/null 2>&1
+  script:
+    - |
+      echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      echo "  MAB Runner Statistics"
+      echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      curl -sf "${MAB_SERVICE_URL}/stats" | python3 -m json.tool
+
+      echo ""
+      echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      echo "  Current Recommendation"
+      echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      curl -sf "${MAB_SERVICE_URL}/recommend" | python3 -m json.tool
