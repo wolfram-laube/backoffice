@@ -2,4 +2,4 @@
 
 > **Status:** Placeholder — original document moved/archived.
 
-See [CRM documentation](../ops/crm.md) for current workflow.
+See [CRM documentation](../../ops/crm.md) for current workflow.
