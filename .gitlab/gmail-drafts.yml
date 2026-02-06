@@ -17,7 +17,7 @@
 gmail:create-drafts:
   stage: .pre
   tags:
-    - gitlab-org-docker
+    - docker-any
   rules:
     - if: $DRAFTS_JSON_B64
       when: always
@@ -139,7 +139,7 @@ gmail:create-drafts:
 gmail:benchmark-report:
   stage: deploy
   tags:
-    - gitlab-org-docker
+    - docker-any
   needs:
     - job: benchmark-report
       artifacts: true
@@ -164,7 +164,7 @@ gmail:crm-sync:
   stage: deploy
   image: python:3.11-slim
   tags:
-    - gitlab-org-docker
+    - docker-any
   needs:
     - job: gmail:create-drafts
       optional: true

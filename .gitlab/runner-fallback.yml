@@ -1,13 +1,14 @@
 # =============================================================================
-# RUNNER FALLBACK SYSTEM v2
+# RUNNER FALLBACK SYSTEM v3
 # =============================================================================
 # Smart runner selection with GCP auto-start capability.
 #
 # Priority:
 #   1. Local runners (mac#1, mac#2, yoga) - Tag: local-shell
 #   2. GCP runners (Nordic) - Tag: gcp-shell
-#   3. GitLab SaaS - Tag: gitlab-org-docker (fallback)
+#   3. Any self-hosted docker runner - Tag: docker-any
 #
+# All jobs use docker-any (self-hosted) to avoid GitLab SaaS CI quota limits.
 # The system checks runner availability and starts GCP if needed.
 # =============================================================================
 
@@ -15,7 +16,7 @@ variables:
   # Runner tag priorities
   LOCAL_RUNNER_TAG: "local-shell"
   GCP_RUNNER_TAG: "gcp-shell"
-  SAAS_RUNNER_TAG: "gitlab-org-docker"
+  FALLBACK_RUNNER_TAG: "docker-any"
   
   # GCP VM Configuration
   GCP_PROJECT: "myk8sproject-207017"
@@ -33,7 +34,7 @@ variables:
   stage: .pre
   image: alpine:latest
   tags:
-    - gitlab-org-docker
+    - docker-any
   variables:
     GIT_STRATEGY: none
   before_script:
@@ -110,7 +111,7 @@ gcp-auto-start:
   stage: .pre
   image: google/cloud-sdk:slim
   tags:
-    - gitlab-org-docker
+    - docker-any
   needs:
     - job: runner-check
       artifacts: true
@@ -193,7 +194,7 @@ gcp-auto-stop:
   stage: .post
   image: google/cloud-sdk:slim
   tags:
-    - gitlab-org-docker
+    - docker-any
   variables:
     GIT_STRATEGY: none
   script:
@@ -234,7 +235,7 @@ gcp-vm-start:
   stage: deploy
   image: google/cloud-sdk:slim
   tags:
-    - gitlab-org-docker
+    - docker-any
   variables:
     GIT_STRATEGY: none
   script:
@@ -254,7 +255,7 @@ gcp-vm-stop:
   stage: deploy
   image: google/cloud-sdk:slim
   tags:
-    - gitlab-org-docker
+    - docker-any
   variables:
     GIT_STRATEGY: none
   script:
@@ -272,7 +273,7 @@ gcp-vm-status:
   stage: deploy
   image: google/cloud-sdk:slim
   tags:
-    - gitlab-org-docker
+    - docker-any
   variables:
     GIT_STRATEGY: none
   script:

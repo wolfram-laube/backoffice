@@ -5,7 +5,7 @@
 .gdrive_base:
   image: python:3.11-slim
   tags:
-    - gitlab-org-docker
+    - docker-any
   before_script:
     - pip install google-auth google-api-python-client --quiet
 

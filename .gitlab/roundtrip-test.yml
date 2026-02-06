@@ -25,7 +25,7 @@ roundtrip:create-issue:
   stage: test
   image: python:3.11-slim
   tags:
-    - gitlab-org-docker
+    - docker-any
   variables:
     GIT_STRATEGY: none
   script:
@@ -102,7 +102,7 @@ roundtrip:create-draft:
   stage: test
   image: python:3.11-slim
   tags:
-    - gitlab-org-docker
+    - docker-any
   needs:
     - job: roundtrip:create-issue
       artifacts: true
@@ -204,7 +204,7 @@ roundtrip:verify:
   stage: deploy
   image: python:3.11-slim
   tags:
-    - gitlab-org-docker
+    - docker-any
   needs:
     - job: roundtrip:create-issue
       artifacts: true
@@ -309,7 +309,7 @@ roundtrip:health-check:
   stage: test
   image: python:3.11-slim
   tags:
-    - gitlab-org-docker
+    - docker-any
   variables:
     GIT_STRATEGY: none
   script:
