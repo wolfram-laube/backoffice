@@ -1,0 +1,812 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ADR-027: NSAI â€“ Neurosymbolic Runner Selection</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Outfit:wght@300;400;600;700;900&display=swap');
+  
+  :root {
+    --bg: #0a0e17;
+    --surface: #111827;
+    --surface2: #1a2332;
+    --border: #2a3a4d;
+    --text: #e2e8f0;
+    --text-dim: #64748b;
+    --accent-sym: #f59e0b;    /* Symbolic = amber/gold */
+    --accent-sub: #3b82f6;    /* Subsymbolic = blue */
+    --accent-nsai: #10b981;   /* Integration = emerald */
+    --accent-data: #8b5cf6;   /* Data flow = purple */
+    --danger: #ef4444;
+    --done: #10b981;
+    --progress: #3b82f6;
+    --planned: #64748b;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Outfit', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  .grain {
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 100;
+  }
+
+  header {
+    padding: 3rem 2rem 2rem;
+    text-align: center;
+    position: relative;
+  }
+
+  header::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 80%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--border), transparent);
+  }
+
+  .title {
+    font-size: clamp(2rem, 5vw, 3.5rem);
+    font-weight: 900;
+    letter-spacing: -0.03em;
+    background: linear-gradient(135deg, var(--accent-sym), var(--accent-nsai), var(--accent-sub));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 0.5rem;
+  }
+
+  .subtitle {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    letter-spacing: 0.05em;
+  }
+
+  .container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2rem;
+  }
+
+  /* === DIALECTIC SECTION === */
+  .dialectic {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr auto 1fr;
+    gap: 0;
+    align-items: stretch;
+    margin: 2rem 0 3rem;
+  }
+
+  .dial-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    position: relative;
+    transition: all 0.3s ease;
+  }
+
+  .dial-card:hover {
+    border-color: var(--accent-nsai);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 32px rgba(16, 185, 129, 0.1);
+  }
+
+  .dial-card.thesis { border-top: 3px solid var(--accent-sub); }
+  .dial-card.antithesis { border-top: 3px solid var(--accent-sym); }
+  .dial-card.synthesis { border-top: 3px solid var(--accent-nsai); }
+
+  .dial-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    margin-bottom: 0.75rem;
+  }
+
+  .thesis .dial-label { color: var(--accent-sub); }
+  .antithesis .dial-label { color: var(--accent-sym); }
+  .synthesis .dial-label { color: var(--accent-nsai); }
+
+  .dial-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+  }
+
+  .dial-desc {
+    font-size: 0.82rem;
+    color: var(--text-dim);
+    line-height: 1.6;
+  }
+
+  .dial-arrow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 0.5rem;
+    color: var(--text-dim);
+    font-size: 1.5rem;
+  }
+
+  /* === ARCHITECTURE DIAGRAM === */
+  .arch-section {
+    margin: 2.5rem 0;
+  }
+
+  .section-title {
+    font-size: 1.3rem;
+    font-weight: 700;
+    margin-bottom: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .section-title .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+
+  .arch-grid {
+    display: grid;
+    grid-template-rows: auto auto auto;
+    gap: 0;
+    position: relative;
+  }
+
+  .layer {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    position: relative;
+    background: var(--surface);
+  }
+
+  .layer + .layer {
+    margin-top: -1px;
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+  }
+
+  .layer:first-child {
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+
+  .layer:nth-child(2) {
+    border-radius: 0;
+  }
+
+  .layer-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6rem;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .layer.symbolic .layer-label { color: var(--accent-sym); }
+  .layer.interface .layer-label { color: var(--accent-nsai); }
+  .layer.subsymbolic .layer-label { color: var(--accent-sub); }
+
+  .layer-tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.55rem;
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid;
+  }
+
+  .layer.symbolic .layer-tag { border-color: var(--accent-sym); color: var(--accent-sym); }
+  .layer.interface .layer-tag { border-color: var(--accent-nsai); color: var(--accent-nsai); }
+  .layer.subsymbolic .layer-tag { border-color: var(--accent-sub); color: var(--accent-sub); }
+
+  .modules {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+  }
+
+  .module {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem;
+    transition: all 0.2s;
+  }
+
+  .module:hover {
+    border-color: var(--text-dim);
+  }
+
+  .module-name {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    font-weight: 500;
+    margin-bottom: 0.3rem;
+  }
+
+  .module-desc {
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    line-height: 1.5;
+  }
+
+  .module-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6rem;
+    margin-top: 0.5rem;
+    padding: 2px 8px;
+    border-radius: 4px;
+  }
+
+  .status-done { background: rgba(16,185,129,0.15); color: var(--done); }
+  .status-progress { background: rgba(59,130,246,0.15); color: var(--progress); }
+  .status-planned { background: rgba(100,116,139,0.15); color: var(--planned); }
+
+  .status-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+  }
+
+  .status-done .status-dot { background: var(--done); }
+  .status-progress .status-dot { background: var(--progress); }
+  .status-planned .status-dot { background: var(--planned); }
+
+  /* === FLOW ARROWS === */
+  .flow-connector {
+    text-align: center;
+    padding: 0.5rem 0;
+    position: relative;
+  }
+
+  .flow-arrow {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+  }
+
+  .flow-arrow::before,
+  .flow-arrow::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* === ISSUES TABLE === */
+  .issues {
+    margin: 2.5rem 0;
+  }
+
+  .issue-grid {
+    display: grid;
+    gap: 0.5rem;
+  }
+
+  .issue-row {
+    display: grid;
+    grid-template-columns: 50px 1fr 140px 80px;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 0.82rem;
+    transition: all 0.2s;
+  }
+
+  .issue-row:hover {
+    border-color: var(--text-dim);
+  }
+
+  .issue-id {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+  }
+
+  .issue-phase {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--text-dim);
+  }
+
+  /* === KEY METRICS === */
+  .metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1rem;
+    margin: 2rem 0;
+  }
+
+  .metric {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.25rem;
+    text-align: center;
+  }
+
+  .metric-value {
+    font-size: 2rem;
+    font-weight: 900;
+    letter-spacing: -0.03em;
+  }
+
+  .metric-value.sym { color: var(--accent-sym); }
+  .metric-value.sub { color: var(--accent-sub); }
+  .metric-value.nsai { color: var(--accent-nsai); }
+  .metric-value.data { color: var(--accent-data); }
+
+  .metric-label {
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    margin-top: 0.25rem;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* === DIALECTIC ROADMAP === */
+  .roadmap {
+    margin: 2.5rem 0;
+  }
+
+  .cycle {
+    display: grid;
+    grid-template-columns: 60px 1fr;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    position: relative;
+  }
+
+  .cycle::before {
+    content: '';
+    position: absolute;
+    left: 29px;
+    top: 40px;
+    bottom: -20px;
+    width: 2px;
+    background: var(--border);
+  }
+
+  .cycle:last-child::before { display: none; }
+
+  .cycle-marker {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 900;
+    font-size: 1.1rem;
+    position: relative;
+    z-index: 2;
+  }
+
+  .cycle-marker.c1 { background: rgba(59,130,246,0.2); border: 2px solid var(--accent-sub); color: var(--accent-sub); }
+  .cycle-marker.c2 { background: rgba(245,158,11,0.2); border: 2px solid var(--accent-sym); color: var(--accent-sym); }
+  .cycle-marker.c3 { background: rgba(16,185,129,0.2); border: 2px solid var(--accent-nsai); color: var(--accent-nsai); }
+  .cycle-marker.c4 { background: rgba(139,92,246,0.2); border: 2px solid var(--accent-data); color: var(--accent-data); }
+
+  .cycle-content {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.25rem;
+  }
+
+  .cycle-title {
+    font-weight: 700;
+    font-size: 1rem;
+    margin-bottom: 0.4rem;
+  }
+
+  .cycle-tsa {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 0.75rem;
+    margin-top: 0.75rem;
+  }
+
+  .tsa-item {
+    font-size: 0.72rem;
+    line-height: 1.5;
+    padding: 0.5rem;
+    border-radius: 6px;
+    background: var(--surface2);
+  }
+
+  .tsa-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.55rem;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    margin-bottom: 0.3rem;
+    display: block;
+  }
+
+  .tsa-item.t .tsa-label { color: var(--accent-sub); }
+  .tsa-item.a .tsa-label { color: var(--accent-sym); }
+  .tsa-item.s .tsa-label { color: var(--accent-nsai); }
+
+  /* === RESPONSIVE === */
+  @media (max-width: 768px) {
+    .dialectic { grid-template-columns: 1fr; gap: 0.5rem; }
+    .dial-arrow { transform: rotate(90deg); padding: 0.25rem 0; }
+    .cycle-tsa { grid-template-columns: 1fr; }
+    .issue-row { grid-template-columns: 50px 1fr 80px; }
+    .issue-phase { display: none; }
+  }
+
+  /* === ADR METADATA === */
+  .adr-meta {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent-nsai);
+    border-radius: 0 10px 10px 0;
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 2.5rem;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 0.75rem 2rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.72rem;
+  }
+
+  .adr-field {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .adr-key {
+    color: var(--text-dim);
+    white-space: nowrap;
+  }
+
+  .adr-val {
+    color: var(--text);
+    font-weight: 500;
+  }
+
+  .adr-val.accepted {
+    color: var(--done);
+  }
+
+  .adr-val.supersedes {
+    color: var(--accent-sym);
+  }
+
+</style>
+</head>
+<body>
+<div class="grain"></div>
+
+<header>
+  <div class="title">NSAI</div>
+  <div class="subtitle">Neurosymbolic AI Â· Runner Selection Â· Gesamtbild</div>
+</header>
+
+<div class="container">
+
+  <!-- ADR METADATA -->
+  <div class="adr-meta">
+    <div class="adr-field">
+      <span class="adr-key">ADR:</span>
+      <span class="adr-val">027 — NSAI Architecture</span>
+    </div>
+    <div class="adr-field">
+      <span class="adr-key">Status:</span>
+      <span class="adr-val accepted">✓ Accepted</span>
+    </div>
+    <div class="adr-field">
+      <span class="adr-key">Epic:</span>
+      <span class="adr-val">#27 Neurosymbolic Runner Selection</span>
+    </div>
+    <div class="adr-field">
+      <span class="adr-key">Context:</span>
+      <span class="adr-val">CI/CD runner selection for heterogeneous self-hosted fleet</span>
+    </div>
+    <div class="adr-field">
+      <span class="adr-key">Decision:</span>
+      <span class="adr-val">Neurosymbolic approach — CSP filter → MAB optimize</span>
+    </div>
+    <div class="adr-field">
+      <span class="adr-key">Consequences:</span>
+      <span class="adr-val">Explainable, constraint-safe, adaptive runner selection</span>
+    </div>
+    <div class="adr-field">
+      <span class="adr-key">Version:</span>
+      <span class="adr-val">v0.3.0 · 85 tests · 4 runners</span>
+    </div>
+    <div class="adr-field">
+      <span class="adr-key">Date:</span>
+      <span class="adr-val">2026-02-06</span>
+    </div>
+  </div>
+
+
+  <!-- DIALECTIC FRAMING -->
+  <section class="arch-section">
+    <div class="section-title">
+      <span class="dot" style="background: var(--accent-nsai)"></span>
+      Dialektische Grundstruktur
+    </div>
+    <div class="dialectic">
+      <div class="dial-card thesis">
+        <div class="dial-label">These Â· Subsymbolisch</div>
+        <div class="dial-title">MAB lernt blind</div>
+        <div class="dial-desc">UCB1 exploriert alle Runner ohne Vorwissen. Konvergiert langsam, ignoriert bekannte Constraints, keine ErklÃ¤rbarkeit. Aber: adaptiv, datengetrieben, findet unerwartete Patterns.</div>
+      </div>
+      <div class="dial-arrow">â†’</div>
+      <div class="dial-card antithesis">
+        <div class="dial-label">Antithese Â· Symbolisch</div>
+        <div class="dial-title">Regeln ohne Lernen</div>
+        <div class="dial-desc">Ontologie + CSP filtert nach Capabilities, Kosten, Location. Deterministisch, erklÃ¤rbar, sofort korrekt. Aber: starr, lernt nicht aus Erfahrung, keine Optimierung.</div>
+      </div>
+      <div class="dial-arrow">â†’</div>
+      <div class="dial-card synthesis">
+        <div class="dial-label">Synthese Â· NSAI</div>
+        <div class="dial-title">GefÃ¼hrtes Lernen</div>
+        <div class="dial-desc">Symbolische Ebene reduziert den Action Space, subsymbolische optimiert innerhalb. ErklÃ¤rbar + adaptiv. Constraints garantiert, Performance gelernt.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- KEY METRICS -->
+  <div class="metrics">
+    <div class="metric">
+      <div class="metric-value sub">33</div>
+      <div class="metric-label">MAB Observations</div>
+    </div>
+    <div class="metric">
+      <div class="metric-value sub">96%</div>
+      <div class="metric-label">Success Rate (Nordic)</div>
+    </div>
+    <div class="metric">
+      <div class="metric-value sym">85</div>
+      <div class="metric-label">NSAI Tests ✓ âœ“</div>
+    </div>
+    <div class="metric">
+      <div class="metric-value nsai">4</div>
+      <div class="metric-label">Runner im Pool</div>
+    </div>
+    <div class="metric">
+      <div class="metric-value data">3</div>
+      <div class="metric-label">Repos mit Webhooks</div>
+    </div>
+  </div>
+
+  <!-- ARCHITECTURE -->
+  <section class="arch-section">
+    <div class="section-title">
+      <span class="dot" style="background: var(--accent-data)"></span>
+      Schichtenarchitektur
+    </div>
+
+    <div class="arch-grid">
+      <!-- Symbolic Layer -->
+      <div class="layer symbolic">
+        <div class="layer-label">
+          â—† Symbolische Ebene
+          <span class="layer-tag">Hard Constraints Â· ErklÃ¤rbarkeit</span>
+        </div>
+        <div class="modules">
+          <div class="module">
+            <div class="module-name">ontology/</div>
+            <div class="module-desc">Runner Capability Ontology â€” OWL-inspiriert mit Capability Taxonomy, Implikationen, Kosten-Tracking</div>
+            <div class="module-status status-done"><span class="status-dot"></span> #22 Done</div>
+          </div>
+          <div class="module">
+            <div class="module-name">parser/</div>
+            <div class="module-desc">Job Requirement Parser â€” extrahiert Tags, Images, Timeouts, Resources aus .gitlab-ci.yml</div>
+            <div class="module-status status-done"><span class="status-dot"></span> #23 Done</div>
+          </div>
+          <div class="module">
+            <div class="module-name">csp/</div>
+            <div class="module-desc">Constraint Satisfaction â€” Feasibility Check, Preference Scoring, Explanation Generation</div>
+            <div class="module-status status-done"><span class="status-dot"></span> #24 Done</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Interface Layer -->
+      <div class="layer interface">
+        <div class="layer-label">
+          â—† Neural-Symbolic Interface
+          <span class="layer-tag">BrÃ¼cke Â· Action Space Reduction</span>
+        </div>
+        <div class="modules">
+          <div class="module">
+            <div class="module-name">interface.py</div>
+            <div class="module-desc">NeurosymbolicBandit â€” verbindet CSP Solver mit UCB1, dynamischer Action Space, Explanation Synthesis</div>
+            <div class="module-status status-done"><span class="status-dot"></span> #25 v0.3.0 ✓</div>
+          </div>
+          <div class="module">
+            <div class="module-name">explanation.py</div>
+            <div class="module-desc">"Runner X weilâ€¦" â€” menschenlesbare BegrÃ¼ndung aus symbolischen Constraints + statistischem Ranking</div>
+            <div class="module-status status-done"><span class="status-dot"></span> #25 v0.3.0 ✓</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Subsymbolic Layer -->
+      <div class="layer subsymbolic">
+        <div class="layer-label">
+          â—† Subsymbolische Ebene
+          <span class="layer-tag">Adaptive Optimierung Â· Performance Learning</span>
+        </div>
+        <div class="modules">
+          <div class="module">
+            <div class="module-name">runner_bandit/</div>
+            <div class="module-desc">UCB1 Multi-Armed Bandit â€” Cloud Run Service, GCS State, Webhook Learning</div>
+            <div class="module-status status-progress"><span class="status-dot"></span> #28 Deployed</div>
+          </div>
+          <div class="module">
+            <div class="module-name">mab-integration.yml</div>
+            <div class="module-desc">GitLab CI Templates â€” .mab-enabled, mab:recommend, dotenv Artifacts</div>
+            <div class="module-status status-progress"><span class="status-dot"></span> Active</div>
+          </div>
+          <div class="module">
+            <div class="module-name">Algorithmen</div>
+            <div class="module-desc">UCB1 (c=2.0), Thompson Sampling, Îµ-Greedy â€” reward = success / (duration + cost + 0.1)</div>
+            <div class="module-status status-done"><span class="status-dot"></span> Implementiert</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- DIALECTIC ROADMAP -->
+  <section class="roadmap">
+    <div class="section-title">
+      <span class="dot" style="background: var(--accent-sym)"></span>
+      Dialektische Entwicklungszyklen
+    </div>
+
+    <div class="cycle">
+      <div class="cycle-marker c1">Z1</div>
+      <div class="cycle-content">
+        <div class="cycle-title">Zyklus 1: Fundament â€” MAB Baseline</div>
+        <div class="cycle-tsa">
+          <div class="tsa-item t"><span class="tsa-label">These</span>Statische Runner-Zuweisung via Tags (docker-any) â€” funktioniert, aber keine Optimierung</div>
+          <div class="tsa-item a"><span class="tsa-label">Antithese</span>Random/Round-Robin verschwendet Ressourcen, ignoriert Performance-Unterschiede</div>
+          <div class="tsa-item s"><span class="tsa-label">Synthese</span>UCB1 Bandit lernt aus Job-Outcomes â†’ adaptiv, aber ohne Constraints âœ…</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="cycle">
+      <div class="cycle-marker c2">Z2</div>
+      <div class="cycle-content">
+        <div class="cycle-title">Zyklus 2: Wissen â€” Symbolische Schicht</div>
+        <div class="cycle-tsa">
+          <div class="tsa-item t"><span class="tsa-label">These</span>MAB lernt alles selbst â€” langsam, probiert unmÃ¶gliche Runner, keine ErklÃ¤rung</div>
+          <div class="tsa-item a"><span class="tsa-label">Antithese</span>Ontologie + CSP kennt Capabilities a priori â€” aber starr, lernt nicht</div>
+          <div class="tsa-item s"><span class="tsa-label">Synthese</span>CSP filtert â†’ MAB optimiert im Feasible Set â†’ erklÃ¤rbar + adaptiv â† WIR SIND HIER</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="cycle">
+      <div class="cycle-marker c3">Z3</div>
+      <div class="cycle-content">
+        <div class="cycle-title">Zyklus 3: Kontext â€” Contextual Bandits</div>
+        <div class="cycle-tsa">
+          <div class="tsa-item t"><span class="tsa-label">These</span>NSAI v1 behandelt jeden Job gleich â€” MAB hat keinen Job-Kontext</div>
+          <div class="tsa-item a"><span class="tsa-label">Antithese</span>Jobs haben Features (Image, Stage, History) die Runner-Performance vorhersagen</div>
+          <div class="tsa-item s"><span class="tsa-label">Synthese</span>Contextual Bandit nutzt Job-Features + symbolische Constraints als gemeinsamen Kontext</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="cycle">
+      <div class="cycle-marker c4">Z4</div>
+      <div class="cycle-content">
+        <div class="cycle-title">Zyklus 4: Reflexion â€” Paper & Evaluation</div>
+        <div class="cycle-tsa">
+          <div class="tsa-item t"><span class="tsa-label">These</span>System funktioniert in der Praxis â€” aber wissenschaftlich nicht validiert</div>
+          <div class="tsa-item a"><span class="tsa-label">Antithese</span>A/B Testing: Pure MAB vs. NSAI vs. Rule-Based â€” Regret-Analyse, Convergence Speed</div>
+          <div class="tsa-item s"><span class="tsa-label">Synthese</span>JKU Bachelor Paper: "Neurosymbolic MAB for CI/CD Runner Selection" â†’ Issue #26</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ISSUES -->
+  <section class="issues">
+    <div class="section-title">
+      <span class="dot" style="background: var(--accent-data)"></span>
+      Epic #27 â€“ Issue-Landkarte
+    </div>
+    <div class="issue-grid">
+      <div class="issue-row">
+        <span class="issue-id">#28</span>
+        <span>MAB Runner Bandit Service â€” Baseline</span>
+        <span class="issue-phase">Phase 1 Â· Fundament</span>
+        <span class="module-status status-progress"><span class="status-dot"></span> deployed</span>
+      </div>
+      <div class="issue-row">
+        <span class="issue-id">#22</span>
+        <span>Runner Capability Ontology</span>
+        <span class="issue-phase">Phase 2 Â· Wissen</span>
+        <span class="module-status status-done"><span class="status-dot"></span> done</span>
+      </div>
+      <div class="issue-row">
+        <span class="issue-id">#23</span>
+        <span>Job Requirement Parser</span>
+        <span class="issue-phase">Phase 2 Â· Wissen</span>
+        <span class="module-status status-done"><span class="status-dot"></span> done</span>
+      </div>
+      <div class="issue-row">
+        <span class="issue-id">#24</span>
+        <span>Constraint Satisfaction Module</span>
+        <span class="issue-phase">Phase 2 Â· Wissen</span>
+        <span class="module-status status-done"><span class="status-dot"></span> done</span>
+      </div>
+      <div class="issue-row">
+        <span class="issue-id">#25</span>
+        <span>Neural-Symbolic Interface</span>
+        <span class="issue-phase">Phase 3 Â· Integration</span>
+        <span class="module-status status-done"><span class="status-dot"></span> v0.3.0 ✓</span>
+      </div>
+      <div class="issue-row">
+        <span class="issue-id">#26</span>
+        <span>JKU Bachelor Paper Draft</span>
+        <span class="issue-phase">Phase 4 Â· Reflexion</span>
+        <span class="module-status status-planned"><span class="status-dot"></span> planned</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- FORMULA -->
+  <section class="arch-section" style="margin-top: 3rem;">
+    <div class="section-title">
+      <span class="dot" style="background: var(--accent-sym)"></span>
+      Kernformel
+    </div>
+    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 2rem; text-align: center;">
+      <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.95rem; line-height: 2.2; color: var(--text);">
+        <span style="color: var(--accent-nsai);">NSAI(job)</span> = <span style="color: var(--accent-sub);">MAB.select</span>(<span style="color: var(--accent-sym);">CSP.filter</span>(runners, job.requirements))<br>
+        <span style="color: var(--accent-sub);">UCB1(r)</span> = Î¼Ì‚(r) + c Â· âˆš(ln(t) / n<sub>r</sub>)  <span style="color: var(--text-dim);">// Ã¼ber feasible set</span><br>
+        <span style="color: var(--accent-sym);">CSP.filter</span> = { r âˆˆ R | âˆ€c âˆˆ job.required: c âˆˆ r.capabilities }  <span style="color: var(--text-dim);">// hard constraints</span><br>
+        <span style="color: var(--accent-data);">reward(r, job)</span> = success / (duration<sub>min</sub> + cost_penalty + Îµ)
+      </div>
+    </div>
+  </section>
+
+  <footer style="text-align: center; padding: 3rem 0 2rem; color: var(--text-dim); font-size: 0.7rem; font-family: 'JetBrains Mono', monospace;">
+    NSAI v0.3.0 · ADR-027 Â· Epic #27 Â· Blauweiss LLC Â· Stand 2026-02-06
+  </footer>
+
+</div>
+</body>
+</html>

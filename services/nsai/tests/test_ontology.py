@@ -184,8 +184,19 @@ class TestBlauweissOntology:
         assert nordic.has_capability("nordic")
         assert nordic.online is True
     
-    def test_local_runners_offline_by_default(self):
+    def test_all_runners_registered(self):
         onto = create_blauweiss_ontology()
         
-        assert onto.runners["mac-local"].online is False
-        assert onto.runners["linux-local"].online is False
+        expected = {
+            "gitlab-runner-nordic", "Mac Docker Runner",
+            "Mac2 Docker Runner", "Linux Yoga Docker Runner"
+        }
+        assert set(onto.runners.keys()) == expected
+    
+    def test_mab_tag_mapping(self):
+        onto = create_blauweiss_ontology()
+        
+        assert onto.mab_tag_for_runner("gitlab-runner-nordic") == "nordic"
+        assert onto.mab_tag_for_runner("Mac Docker Runner") == "mac-docker"
+        assert onto.runner_name_for_mab_tag("nordic") == "gitlab-runner-nordic"
+        assert onto.runner_name_for_mab_tag("linux-docker") == "Linux Yoga Docker Runner"

@@ -294,30 +294,74 @@ class NeurosymbolicBandit:
         """
         Sync statistics from external MAB service.
         
-        Allows warm-starting from the deployed Cloud Run service.
+        Handles name mapping: MAB service uses its own runner names,
+        which may differ from ontology names. Uses ontology mab_tag mapping.
         
         Args:
             stats: Stats dict from MAB service /stats endpoint
+                   Keys are MAB runner names (e.g. "gitlab-runner-nordic")
         """
-        for runner, data in stats.items():
-            if runner in self._stats:
-                # Approximate reconstruction
-                self._stats[runner]["pulls"] = data.get("pulls", 0)
-                self._stats[runner]["successes"] = int(
-                    data.get("pulls", 0) * data.get("success_rate", 0.5)
-                )
-                self._stats[runner]["failures"] = (
-                    data.get("pulls", 0) - self._stats[runner]["successes"]
-                )
-                self._stats[runner]["total_duration"] = (
-                    data.get("pulls", 0) * data.get("avg_duration", 0)
-                )
-                # Reconstruct total_reward from mean
-                self._stats[runner]["total_reward"] = (
-                    data.get("mean_reward", 0) * data.get("pulls", 1)
-                )
+        ontology = self.symbolic.ontology
+        
+        for mab_runner_name, data in stats.items():
+            # Try direct match first, then MAB tag resolution
+            target = None
+            if mab_runner_name in self._stats:
+                target = mab_runner_name
+            else:
+                # Try to resolve via ontology MAB tag mapping
+                resolved = ontology.runner_name_for_mab_tag(mab_runner_name)
+                if resolved and resolved in self._stats:
+                    target = resolved
+            
+            if target is None:
+                continue
+            
+            # Approximate reconstruction from summary stats
+            pulls = data.get("pulls", 0)
+            self._stats[target]["pulls"] = pulls
+            self._stats[target]["successes"] = int(
+                pulls * data.get("success_rate", 0.5)
+            )
+            self._stats[target]["failures"] = (
+                pulls - self._stats[target]["successes"]
+            )
+            self._stats[target]["total_duration"] = (
+                pulls * data.get("avg_duration", 0)
+            )
+            self._stats[target]["total_reward"] = (
+                data.get("mean_reward", 0) * max(pulls, 1)
+            )
         
         self._total_pulls = sum(s["pulls"] for s in self._stats.values())
+    
+    @classmethod
+    def from_live_service(cls, service_url: str = "https://runner-bandit-m5cziijwqa-lz.a.run.app") -> "NeurosymbolicBandit":
+        """
+        Factory: create NSAI instance warm-started from live MAB service.
+        
+        Args:
+            service_url: Base URL of the MAB Cloud Run service
+            
+        Returns:
+            NeurosymbolicBandit with stats synced from live service
+        """
+        import urllib.request
+        import json as _json
+        
+        nsai = cls.create_default()
+        
+        try:
+            req = urllib.request.Request(f"{service_url}/stats")
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                data = _json.loads(resp.read())
+            
+            runners_stats = data.get("runners", {})
+            nsai.sync_from_mab_service(runners_stats)
+        except Exception:
+            pass  # Fall back to cold start
+        
+        return nsai
 
 
 # Convenience alias

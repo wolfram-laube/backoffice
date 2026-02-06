@@ -10,9 +10,7 @@ Classes:
 Example:
     >>> onto = RunnerOntology()
     >>> onto.add_runner("nordic", capabilities=["docker", "shell", "gcp"])
-    >>> onto.add_runner("mac-local", capabilities=["shell", "macos"])
     >>> runners = onto.get_runners_with_capability("docker")
-    >>> print(runners)  # ["nordic"]
 """
 
 from dataclasses import dataclass, field
@@ -38,17 +36,17 @@ class RunnerCapability:
     cap_type: CapabilityType
     description: str = ""
     constraints: Dict[str, any] = field(default_factory=dict)
-    
+
     def __hash__(self):
         return hash(self.name)
-    
+
     def __eq__(self, other):
         if isinstance(other, str):
             return self.name == other
         return self.name == other.name
 
 
-@dataclass 
+@dataclass
 class Runner:
     """A GitLab CI runner with its capabilities."""
     name: str
@@ -56,164 +54,117 @@ class Runner:
     capabilities: Set[RunnerCapability] = field(default_factory=set)
     tags: List[str] = field(default_factory=list)
     online: bool = True
-    cost_per_minute: float = 0.0  # For cost-aware selection
-    
+    cost_per_minute: float = 0.0
+    mab_tag: str = ""  # Tag used by MAB service for this runner
+
     def has_capability(self, cap_name: str) -> bool:
-        """Check if runner has a specific capability."""
         return any(c.name == cap_name for c in self.capabilities)
-    
+
     def has_all_capabilities(self, cap_names: List[str]) -> bool:
-        """Check if runner has ALL specified capabilities."""
         return all(self.has_capability(c) for c in cap_names)
-    
+
     def has_any_capability(self, cap_names: List[str]) -> bool:
-        """Check if runner has ANY of the specified capabilities."""
         return any(self.has_capability(c) for c in cap_names)
 
 
 class RunnerOntology:
     """
     OWL-inspired ontology for runner capabilities.
-    
+
     Provides semantic reasoning about runner suitability based on
     declared capabilities and job requirements.
-    
-    Attributes:
-        runners: Dictionary of registered runners
-        capabilities: Dictionary of defined capabilities
-        capability_hierarchy: Parent-child relationships between capabilities
     """
-    
-    # Predefined capability taxonomy
+
     STANDARD_CAPABILITIES = {
-        # Executors
         "docker": CapabilityType.EXECUTOR,
         "shell": CapabilityType.EXECUTOR,
         "kubernetes": CapabilityType.EXECUTOR,
         "docker-machine": CapabilityType.EXECUTOR,
-        
-        # Platforms
         "linux": CapabilityType.PLATFORM,
         "macos": CapabilityType.PLATFORM,
         "windows": CapabilityType.PLATFORM,
-        
-        # Cloud providers
         "gcp": CapabilityType.CLOUD,
         "aws": CapabilityType.CLOUD,
         "azure": CapabilityType.CLOUD,
-        
-        # Hardware
         "gpu": CapabilityType.HARDWARE,
         "arm64": CapabilityType.HARDWARE,
         "x86_64": CapabilityType.HARDWARE,
-        
-        # Regions
         "nordic": CapabilityType.NETWORK,
         "eu-west": CapabilityType.NETWORK,
         "us-east": CapabilityType.NETWORK,
     }
-    
-    # Capability implications (A implies B)
+
     CAPABILITY_IMPLICATIONS = {
-        "docker": ["linux"],           # Docker runners typically run Linux
+        "docker": ["linux"],
         "gcp": ["cloud"],
         "aws": ["cloud"],
         "azure": ["cloud"],
-        "nordic": ["eu-west", "gcp"],  # Nordic runner is in GCP EU
+        "nordic": ["eu-west", "gcp"],
     }
-    
+
     def __init__(self):
         self.runners: Dict[str, Runner] = {}
         self.capabilities: Dict[str, RunnerCapability] = {}
+        self._mab_tag_map: Dict[str, str] = {}  # mab_tag → runner_name
         self._init_standard_capabilities()
-    
+
     def _init_standard_capabilities(self):
-        """Initialize the standard capability taxonomy."""
         for name, cap_type in self.STANDARD_CAPABILITIES.items():
-            self.capabilities[name] = RunnerCapability(
-                name=name,
-                cap_type=cap_type
-            )
-    
-    def add_capability(self, name: str, cap_type: CapabilityType, 
+            self.capabilities[name] = RunnerCapability(name=name, cap_type=cap_type)
+
+    def add_capability(self, name: str, cap_type: CapabilityType,
                        description: str = "", **constraints) -> RunnerCapability:
-        """Define a new capability in the ontology."""
-        cap = RunnerCapability(
-            name=name,
-            cap_type=cap_type,
-            description=description,
-            constraints=constraints
-        )
+        cap = RunnerCapability(name=name, cap_type=cap_type,
+                               description=description, constraints=constraints)
         self.capabilities[name] = cap
         return cap
-    
+
     def add_runner(self, name: str, runner_id: int = None,
-                   capabilities: List[str] = None, 
+                   capabilities: List[str] = None,
                    tags: List[str] = None,
                    cost_per_minute: float = 0.0,
-                   online: bool = True) -> Runner:
-        """
-        Register a runner with its capabilities.
-        
-        Args:
-            name: Unique runner identifier
-            runner_id: GitLab runner ID
-            capabilities: List of capability names
-            tags: GitLab runner tags
-            cost_per_minute: Cost for billing calculations
-            
-        Returns:
-            The registered Runner object
-        """
+                   online: bool = True,
+                   mab_tag: str = "") -> Runner:
+        """Register a runner with its capabilities and MAB tag mapping."""
         caps = set()
         for cap_name in (capabilities or []):
             if cap_name in self.capabilities:
                 caps.add(self.capabilities[cap_name])
-                # Add implied capabilities
                 for implied in self.CAPABILITY_IMPLICATIONS.get(cap_name, []):
                     if implied in self.capabilities:
                         caps.add(self.capabilities[implied])
             else:
-                # Create custom capability on-the-fly
                 new_cap = self.add_capability(cap_name, CapabilityType.CUSTOM)
                 caps.add(new_cap)
-        
+
         runner = Runner(
-            name=name,
-            runner_id=runner_id,
-            capabilities=caps,
-            tags=tags or [],
-            cost_per_minute=cost_per_minute,
-            online=online
+            name=name, runner_id=runner_id, capabilities=caps,
+            tags=tags or [], cost_per_minute=cost_per_minute,
+            online=online, mab_tag=mab_tag or name
         )
         self.runners[name] = runner
+        self._mab_tag_map[runner.mab_tag] = name
         return runner
-    
+
+    def runner_name_for_mab_tag(self, mab_tag: str) -> Optional[str]:
+        """Resolve MAB service tag → ontology runner name."""
+        return self._mab_tag_map.get(mab_tag)
+
+    def mab_tag_for_runner(self, runner_name: str) -> Optional[str]:
+        """Get MAB service tag for a runner."""
+        runner = self.runners.get(runner_name)
+        return runner.mab_tag if runner else None
+
     def get_runners_with_capability(self, cap_name: str) -> List[Runner]:
-        """Find all runners that have a specific capability."""
         return [r for r in self.runners.values() if r.has_capability(cap_name)]
-    
+
     def get_runners_with_all_capabilities(self, cap_names: List[str]) -> List[Runner]:
-        """Find runners that have ALL specified capabilities."""
         return [r for r in self.runners.values() if r.has_all_capabilities(cap_names)]
-    
-    def get_feasible_runners(self, required: List[str], 
+
+    def get_feasible_runners(self, required: List[str],
                              excluded: List[str] = None) -> List[Runner]:
-        """
-        Get runners that satisfy requirements and don't have exclusions.
-        
-        This is the main query method for the CSP layer.
-        
-        Args:
-            required: Capabilities the runner MUST have
-            excluded: Capabilities the runner must NOT have
-            
-        Returns:
-            List of feasible runners
-        """
         excluded = excluded or []
         feasible = []
-        
         for runner in self.runners.values():
             if not runner.online:
                 continue
@@ -222,32 +173,29 @@ class RunnerOntology:
             if any(runner.has_capability(e) for e in excluded):
                 continue
             feasible.append(runner)
-        
         return feasible
-    
+
     def to_dict(self) -> dict:
-        """Serialize ontology to dictionary."""
         return {
             "runners": {
                 name: {
                     "runner_id": r.runner_id,
-                    "capabilities": [c.name for c in r.capabilities],
+                    "capabilities": sorted(c.name for c in r.capabilities),
                     "tags": r.tags,
                     "online": r.online,
-                    "cost_per_minute": r.cost_per_minute
+                    "cost_per_minute": r.cost_per_minute,
+                    "mab_tag": r.mab_tag
                 }
                 for name, r in self.runners.items()
             },
-            "capabilities": list(self.capabilities.keys())
+            "capabilities": sorted(self.capabilities.keys())
         }
-    
+
     def to_json(self, indent: int = 2) -> str:
-        """Serialize ontology to JSON."""
         return json.dumps(self.to_dict(), indent=indent)
-    
+
     @classmethod
     def from_dict(cls, data: dict) -> "RunnerOntology":
-        """Deserialize ontology from dictionary."""
         onto = cls()
         for name, rdata in data.get("runners", {}).items():
             onto.add_runner(
@@ -255,45 +203,68 @@ class RunnerOntology:
                 runner_id=rdata.get("runner_id"),
                 capabilities=rdata.get("capabilities", []),
                 tags=rdata.get("tags", []),
-                cost_per_minute=rdata.get("cost_per_minute", 0.0)
+                cost_per_minute=rdata.get("cost_per_minute", 0.0),
+                mab_tag=rdata.get("mab_tag", "")
             )
         return onto
 
 
-# Convenience function to create production ontology
+# ============================================================
+# Production Ontology
+# ============================================================
+
 def create_blauweiss_ontology() -> RunnerOntology:
     """
     Create the ontology with actual blauweiss_llc runners.
-    
-    Current runners (as of 2026-02):
-        - gitlab-runner-nordic: GCP Stockholm, docker + shell
-        - (local runners as backup)
+
+    Runner Mapping (2026-02):
+        Ontology Name              MAB Tag        GitLab Tags
+        ─────────────────────────  ─────────────  ──────────────────────
+        gitlab-runner-nordic       nordic         docker-any, nordic
+        Mac Docker Runner          mac-docker     docker-any, mac-docker
+        Mac2 Docker Runner         mac2-docker    docker-any, mac2-docker
+        Linux Yoga Docker Runner   linux-docker   docker-any, linux-docker
     """
     onto = RunnerOntology()
-    
-    # Production runner in Stockholm
+
+    # ── GCP Cloud Runner (Stockholm e2-small) ─────────────────
     onto.add_runner(
         name="gitlab-runner-nordic",
-        capabilities=["docker", "shell", "gcp", "nordic", "linux"],
+        capabilities=["docker", "shell", "gcp", "nordic", "linux", "x86_64"],
         tags=["docker-any", "shell", "nordic", "gcp"],
-        cost_per_minute=0.01  # e2-small pricing estimate
+        cost_per_minute=0.01,
+        online=True,
+        mab_tag="nordic"
     )
-    
-    # Local backup runners (when available)
+
+    # ── Local Mac Docker Runner ───────────────────────────────
     onto.add_runner(
-        name="mac-local",
-        capabilities=["shell", "macos"],
-        tags=["shell", "macos", "local"],
-        cost_per_minute=0.0,  # No cloud cost
-        online=False  # Mark as offline by default
-    )
-    
-    onto.add_runner(
-        name="linux-local", 
-        capabilities=["docker", "shell", "linux"],
-        tags=["docker", "shell", "linux", "local"],
+        name="Mac Docker Runner",
+        capabilities=["docker", "macos"],
+        tags=["docker-any", "mac-docker"],
         cost_per_minute=0.0,
-        online=False
+        online=True,
+        mab_tag="mac-docker"
     )
-    
+
+    # ── Local Mac2 Docker Runner ──────────────────────────────
+    onto.add_runner(
+        name="Mac2 Docker Runner",
+        capabilities=["docker", "macos"],
+        tags=["docker-any", "mac2-docker"],
+        cost_per_minute=0.0,
+        online=True,
+        mab_tag="mac2-docker"
+    )
+
+    # ── Local Linux Yoga Docker Runner ────────────────────────
+    onto.add_runner(
+        name="Linux Yoga Docker Runner",
+        capabilities=["docker", "shell", "linux", "x86_64"],
+        tags=["docker-any", "linux-docker"],
+        cost_per_minute=0.0,
+        online=True,
+        mab_tag="linux-docker"
+    )
+
     return onto
