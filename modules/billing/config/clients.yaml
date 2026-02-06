@@ -1,21 +1,38 @@
-# BLAUWEISS Client Configuration
+# BLAUWEISS Client & Billing Configuration
 # Used by generate_timesheet.py and generate_invoice.py
+# =============================================================================
 
-# Consultant definitions (referenced by clients)
+# -----------------------------------------------------------------------------
+# PROJECTS: All GitLab projects to query for time entries
+# -----------------------------------------------------------------------------
+projects:
+  - wolfram_laube/blauweiss_llc/ops/backoffice
+  - wolfram_laube/blauweiss_llc/projects/clarissa
+  - wolfram_laube/blauweiss_llc/ops/MAGNUS
+
+# -----------------------------------------------------------------------------
+# CONSULTANTS: Team members with default rates
+# -----------------------------------------------------------------------------
 consultants:
   wolfram:
     name: "Wolfram Laube"
     gitlab_username: "wolfram.laube"
     email: "wolfram@blauweiss-edv.com"
+    default_rate: 105
   ian:
     name: "Ian Matejka"
     gitlab_username: "ian.matejka"
     email: "ian.matejka@gmail.com"
+    default_rate: 85
   ryan:
     name: "Ryan Matejka"
     gitlab_username: "ryan.m.matejka"
     email: "ryan.m.matejka@gmail.com"
+    default_rate: 75
 
+# -----------------------------------------------------------------------------
+# CLIENTS: Billing configuration per client
+# -----------------------------------------------------------------------------
 clients:
   nemensis:
     name: "nemensis AG Deutschland"
@@ -28,19 +45,59 @@ clients:
     contract_number: "00003153"
     template: "rechnung-de"
     currency: "EUR"
-    gitlab_label: "client:nemensis"    # Label to filter issues
-    billing_email: "buchhaltung@nemensis.de"  # For invoice emails
-    rates:
-      remote: 105
-      onsite: 120
+    gitlab_label: "client::nemensis"    # Note: double colon for scoped label
+    billing_email: "buchhaltung@nemensis.de"
     approver:
       name: "Max Mustermann"
       title: "Projektleiter"
-    # Which consultants work for this client
+    # Consultant rates for this client (overrides default)
     consultants:
-      - wolfram
-      - ian
-      - ryan
+      wolfram:
+        rate: 105
+      ian:
+        rate: 85
+      ryan:
+        rate: 75
+
+  db:
+    name: "Deutsche Bahn AG"
+    short: "DB"
+    address:
+      street: "Potsdamer Platz 2"
+      city: "D - 10785 Berlin"
+    reg_id: "HRB 50000"
+    vat_id: "DE123456789"
+    contract_number: "DB-2026-001"
+    template: "rechnung-de"
+    currency: "EUR"
+    gitlab_label: "client::db"
+    billing_email: "einkauf@deutschebahn.com"
+    approver:
+      name: "Hans Schmidt"
+      title: "Projektleiter IT"
+    consultants:
+      wolfram:
+        rate: 120
+
+  aok:
+    name: "AOK Bundesverband"
+    short: "AOK"
+    address:
+      street: "Rosenthaler Str. 31"
+      city: "D - 10178 Berlin"
+    reg_id: ""
+    vat_id: "DE123456790"
+    contract_number: "AOK-2026-001"
+    template: "rechnung-de"
+    currency: "EUR"
+    gitlab_label: "client::aok"
+    billing_email: "rechnungen@aok.de"
+    approver:
+      name: "Maria Weber"
+      title: "IT-Leiterin"
+    consultants:
+      ian:
+        rate: 85
 
   oxy:
     name: "Occidental Petroleum Corporation"
@@ -53,35 +110,11 @@ clients:
     contract_number: "OXY-2026-001"
     template: "invoice-en-us"
     currency: "USD"
-    gitlab_label: "client:oxy"
-    billing_email: "ap@oxy.com"  # For invoice emails
-    rates:
-      remote: 150
-      onsite: 175
+    gitlab_label: "client::oxy"
+    billing_email: "ap@oxy.com"
     approver:
       name: "John Smith"
       title: "Project Manager"
     consultants:
-      - wolfram
-
-  # Template for new clients
-  _template:
-    name: "Client Name"
-    short: "CLT"
-    address:
-      street: "Street Address"
-      city: "City, ZIP"
-    reg_id: ""
-    vat_id: ""
-    contract_number: ""
-    template: "rechnung-de"
-    currency: "EUR"
-    gitlab_label: "client:xxx"
-    billing_email: ""  # For invoice emails
-    rates:
-      remote: 100
-      onsite: 120
-    approver:
-      name: "Approver Name"
-      title: "Title"
-    consultants: []
+      wolfram:
+        rate: 150
