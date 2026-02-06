@@ -15,7 +15,7 @@ docker-build:
     name: gcr.io/kaniko-project/executor:v1.19.2-debug
     entrypoint: [""]
   tags:
-    - gitlab-org-docker
+    - docker-any
   needs: []  # Start immediately, no dependencies
   variables:
     APP_IMAGE: ${CI_REGISTRY_IMAGE}/app
@@ -44,7 +44,7 @@ docker-test:
   stage: test
   image: ${CI_REGISTRY_IMAGE}/app:${CI_COMMIT_SHORT_SHA}
   tags:
-    - gitlab-org-docker
+    - docker-any
   needs:
     - docker-build
   script:
