@@ -1,116 +1,92 @@
-# HANDOVER: NSAI v0.3.0 — MAB Alignment & Experiment Framework
+# HANDOVER: NSAI v0.3.0 — Alignment, TestSuite, ADR
 
-**Datum:** 2026-02-06
-**Session:** NSAI v0.3.0 Release
-**Vorherige Session:** NSAI Interface Implementation (2026-02-05)
+**Date:** 2026-02-06
+**Session:** NSAI v0.3.0 Development (Abend-Session)
+**Author:** Wolfram Laube + Claude
 
----
+## Was wurde gemacht
 
-## 🎯 Executive Summary
+### 1. NSAI v0.3.0 — Ontology-MAB Alignment (MR !17, merged)
 
-**Ziel:** NSAI-Ontologie mit MAB Service alignen, Integration testen, Experiment-Framework aufbauen.
+**Problem:** NSAI-Ontologie hatte Placeholder-Runner (mac-local, linux-local), MAB Service hatte echte Namen (Mac Docker Runner, etc.). Sync war kaputt.
 
-**Ergebnis:** v0.3.0 released als MR !17 mit:
-- ✅ Ontologie: 4 Runner aligned mit MAB Service + `mab_tag` Mapping
-- ✅ 25 neue Integration-Tests (A/B, Live MAB, Convergence, Regret)
-- ✅ Experiment-Notebook mit reproduzierbaren 300-Round A/B-Vergleichen
-- ✅ 85/85 Tests grün (inkl. Live-MAB-Tests)
-- 🔧 Cloud Run GCS-Redeploy: Pipeline getriggert, wartet auf Runner
+**Loesung:**
+- runner_ontology.py: 4 Production-Runner mit mab_tag Mapping
+- interface.py: sync_from_mab_service() mit Tag-Resolution, from_live_service() Factory
+- Version 0.2.0 -> 0.3.0
 
----
+**Runner-Mapping:**
 
-## 📊 Experiment-Ergebnisse (300 Rounds, docker-any)
+| Ontology Name | MAB Tag | GitLab Tags |
+|--------------|---------|-------------|
+| gitlab-runner-nordic | nordic | docker-any, nordic |
+| Mac Docker Runner | mac-docker | docker-any, mac-docker |
+| Mac2 Docker Runner | mac2-docker | docker-any, mac2-docker |
+| Linux Yoga Docker Runner | linux-docker | docker-any, linux-docker |
 
-| Strategie | Cum. Reward | Cum. Regret | Konvergenz |
-|-----------|-------------|-------------|------------|
-| Pure MAB | 820.6 | ~15 | Round 17 |
-| **NSAI** | 787.6 | ~27 | Round 77 |
-| Rule-Based | 721.3 | ~93 | nie |
+### 2. Experiment Notebook mit TestSuite (JKU-Style)
 
-**Interpretation:** Für docker-any Jobs (alle 4 Runner feasible) hat Pure MAB leichten Vorteil,
-weil CSP-Layer keinen Runner filtert. NSAI-Vorteil zeigt sich bei constraint-intensiven Jobs
-(GCP, Shell) wo CSP den Action Space reduziert → schnellere Konvergenz.
+services/nsai/notebooks/nsai_experiment.ipynb — 13 TestSuite-Cells, jede Section validiert sich selbst via assert.
 
----
+| Section | Prueft |
+|---------|--------|
+| Setup | Version >= 0.3.0, 4 Runner, Tag-Roundtrip |
+| Ground Truth | Ontologie-Alignment, Reward-Monotonie, Determinismus |
+| Strategies | Rule-Based statisch, MAB exploriert alle, NSAI valide |
+| Experiment | 300 Rounds, monotone Rewards, Determinismus |
+| Reward | NSAI > Rule-Based, NSAI/MAB >= 80%, Regret-Vergleich |
+| Distribution | Learner favorisieren Linux Yoga, vermeiden Mac2 |
+| Convergence | MAB+NSAI < 200 Rounds, Regret sublinear |
+| GCP Constraint | NSAI nur nordic, weniger Failures als MAB |
+| Live MAB | UCB1, 4 Runner, Stats-Ranges, Sync-Konsistenz |
+| Explanations | Feasible counts, Impossible->None, Serialisierung |
+| Performance | Select < 5ms, Update < 1ms |
+| Final Gate | 10 Kern-Invarianten zusammengefasst |
 
-## 📁 Geänderte Dateien (Commit `05371978`)
+Fix: PureMABStrategy.select() Test brauchte interleaved select+update (fb36288c).
 
-| Datei | Aktion | Beschreibung |
-|-------|--------|-------------|
-| `services/nsai/ontology/runner_ontology.py` | UPDATE | 4 Prod-Runner, mab_tag, Tag-Mapping |
-| `services/nsai/interface.py` | UPDATE | sync mit Tag-Resolution, from_live_service() |
-| `services/nsai/__init__.py` | UPDATE | Version 0.2.0 → 0.3.0 |
-| `services/nsai/tests/test_ontology.py` | UPDATE | Tests für neue Runner-Names |
-| `services/nsai/tests/test_nsai_integration.py` | NEW | 25 Integration-Tests |
-| `services/nsai/notebooks/nsai_experiment.ipynb` | NEW | A/B Experiment-Notebook |
+### 3. Integration Tests
 
----
+services/nsai/tests/test_nsai_integration.py — 25 Tests in 6 Klassen.
+Gesamt: 85 Tests, alle gruen.
 
-## 🔀 Offene MRs
+### 4. ADR-027 NSAI Architecture
 
-| MR | Title | Branch | Status |
-|----|-------|--------|--------|
-| !17 | feat(nsai): v0.3.0 | feature/nsai-v0.3.0-alignment | ⏳ Pipeline |
+docs/adr/ADR-027-nsai-architecture.html — Promoted von nsai-overview.html.
+Dialektische Struktur = natuerliches ADR-Format. Visuelles Design unverändert.
 
----
+### 5. ADR Index
 
-## 🔧 Infrastructure Status
+docs/adr/README.md — Uebersicht aller ADRs (ADR-027, ADR-030, OPS-001).
 
-### MAB Service (Cloud Run)
-- **URL:** https://runner-bandit-m5cziijwqa-lz.a.run.app
-- **Observations:** 13 (nur nordic, lokale Runner noch 0 pulls)
-- **GCS Persistence:** Noch nicht aktiv (Redeploy nötig)
-- **Deploy Pipeline:** #2311202976 (`cloud-run:build` + `cloud-run:deploy` warten auf Runner)
+### 6. Issue #47 (CI Quota Failures)
 
-### Webhooks
-| Repo | Webhook | Status |
-|------|---------|--------|
-| Backoffice | 69840788 | ✅ aktiv (liefert Daten) |
-| Portal | 69912322 | ✅ erstellt |
-| CLARISSA | 69912323 | ✅ erstellt |
+Aufgemacht, untersucht, dokumentiert, geschlossen. Problem nur auf Feature Branch.
 
----
+## Commits
 
-## 📋 Nächste Schritte
+| Commit | Beschreibung |
+|--------|-------------|
+| 05371978 | feat(nsai): v0.3.0 — MAB alignment, integration tests, experiment notebook |
+| fb36288c | fix(nsai): notebook strategy test — interleave select+update |
+| 316bf6e6 | docs(adr): ADR-027 NSAI Architecture |
+| 1e041542 | docs(adr): add ADR index README |
+| f37c2953 | Merge commit MR !17 |
 
-1. **MR !17 mergen** nach Pipeline-Success
-2. **Cloud Run Redeploy** manuell falls Pipeline blockiert:
-   ```bash
-   gcloud run deploy runner-bandit \
-     --image=europe-north1-docker.pkg.dev/myk8sproject-207017/backoffice/runner-bandit:latest \
-     --region=europe-north1 \
-     --set-env-vars=BANDIT_ALGORITHM=ucb1,BANDIT_GCS_BUCKET=blauweiss-mab-state
-   ```
-3. **Lokale Runner aktivieren** (Mac, Linux Yoga) → MAB bekommt Daten für alle 4 Runner
-4. **Issue #26: JKU Paper Draft** — Experiment-Ergebnisse als Basis
-5. **Constraint-intensive A/B Tests** — GCP-only / Shell-only Jobs testen wo NSAI-Vorteil größer
-6. **Notebook → Colab** — auf GitHub Mirror pushen für JKU-Dozenten
+## MAB Service
 
----
+- URL: https://runner-bandit-m5cziijwqa-lz.a.run.app
+- Observations: 83 (nur nordic), Webhooks aktiv
+- GCS Persistence: Noch nicht deployed
 
-## 💬 Prompt für nächsten Chat
+## Naechste Schritte
 
-```
-Kontext: NSAI v0.3.0 ist als MR !17 offen. Ontologie aligned mit MAB Service,
-85 Tests grün, Experiment-Notebook zeigt A/B-Vergleich.
-
-Handover: docs/handover/HANDOVER_NSAI_V030_06_02_2026.md
-
-Offene Tasks:
-1. MR !17 reviewen/mergen
-2. Cloud Run Redeploy mit GCS (Pipeline #2311202976 oder manuell)
-3. Issue #26: JKU Paper Draft (Experiment-Ergebnisse als Basis)
-4. Constraint-intensive A/B Tests erweitern
-5. NSAI Overview HTML aktualisieren (v0.3.0 Status)
-
-Credentials:
-- GitLab PAT: glpat--wmS4xEWjjWdOgaOd7oDWG86MQp1OnN4Y3gK.01.101dpjjbj
-- MAB: https://runner-bandit-m5cziijwqa-lz.a.run.app
-- GCS: gs://blauweiss-mab-state/bandit_state.json
-```
-
----
+1. Issue #26: JKU Bachelor Paper Draft
+2. Cloud Run Redeploy mit GCS Backend
+3. Lokale Runner aktivieren (Mac, Linux Yoga)
+4. GitHub Mirror (#29) fuer Colab/JKU
+5. Bug Cleanup: #41, #42, #34, #43
 
 ## Keywords
 
-nsai, v0.3.0, mab, alignment, ontology, mab-tag, integration-test, a/b, experiment, notebook, convergence, regret, ucb1
+nsai, v0.3.0, mab, alignment, ontology, mab-tag, integration-test, experiment, notebook, testsuite, convergence, regret, ucb1, adr, adr-027, runner-mapping, live-sync, jku

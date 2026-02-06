@@ -4,6 +4,7 @@ Durchsuchbarer Index aller Claude-Sessions. Keywords für schnelles `grep`.
 
 | Date | Topic | Keywords | Issues | Handover |
 |------|-------|----------|--------|----------|
+| 2026-02-06 | NSAI v0.3.0: Alignment, TestSuite, ADR-027 | nsai, v0.3.0, mab, alignment, experiment, testsuite, adr-027, notebook | #27 #47 | [HANDOVER_NSAI_V030](./HANDOVER_NSAI_V030_06_02_2026.md) |
 | 2026-02-06 | MAB Full: Availability + Auto-Start/Stop | mab, ucb1, runner, availability, auto-start, auto-stop, gcs, k8s, vm-lifecycle | #28 | [HANDOVER_MAB_FULL](./HANDOVER_MAB_FULL_06_02_2026.md) |
 | 2026-02-04 | CI Runner Migration + MAB | ci, runner, mab, ucb1, thompson, nsai, bandit, gcp, docker-any | #27 #28 | [HANDOVER_PROFILES_CI](./HANDOVER_PROFILES_CI_04_02_2026.md) |
 | 2026-02-04 | Billing Tests + Schedule Migration | billing, tests, pytest, schedule, clarissa | | [HANDOVER_BILLING_TESTS](./HANDOVER_BILLING_TESTS_04_02_2026.md) |
