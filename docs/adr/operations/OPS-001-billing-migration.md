@@ -2,4 +2,4 @@
 
 > **Status:** Placeholder — original document moved/archived.
 
-See [Billing runbook](../runbook/billing.md) for current documentation.
+See [Billing runbook](../../runbook/billing.md) for current documentation.
