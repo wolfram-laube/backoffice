@@ -63,7 +63,7 @@ pages:
     - if: '$CI_PIPELINE_SOURCE == "schedule"'
   environment:
     name: production
-    url: https://wolfram_laube.gitlab.io/blauweiss_llc/ops/backoffice/
+    url: https://bewerbung-tool-372f49.gitlab.io/wolfram_laube/blauweiss_llc/ops/backoffice/
 
 # -----------------------------------------------------------------------------
 # REBUILD: Manual trigger for docs rebuild
@@ -86,7 +86,7 @@ rebuild_docs:
       when: manual
   environment:
     name: production
-    url: https://wolfram_laube.gitlab.io/blauweiss_llc/ops/backoffice/
+    url: https://bewerbung-tool-372f49.gitlab.io/wolfram_laube/blauweiss_llc/ops/backoffice/
 
 # -----------------------------------------------------------------------------
 # PREVIEW: MR preview deployment
@@ -111,5 +111,5 @@ docs_preview:
         - docs/**/*
   environment:
     name: preview/$CI_MERGE_REQUEST_IID
-    url: https://wolfram_laube.gitlab.io/blauweiss_llc/ops/backoffice/
+    url: https://bewerbung-tool-372f49.gitlab.io/wolfram_laube/blauweiss_llc/ops/backoffice/
     auto_stop_in: 1 week
