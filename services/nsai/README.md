@@ -3,7 +3,7 @@
 > Intelligent CI/CD runner selection combining symbolic reasoning with adaptive learning.
 
 [![Pipeline](https://gitlab.com/blauweiss_llc/ops/backoffice/badges/main/pipeline.svg)](https://gitlab.com/blauweiss_llc/ops/backoffice/-/pipelines)
-[![Version](https://img.shields.io/badge/version-0.2.0-blue.svg)](./pyproject.toml)
+[![Version](https://img.shields.io/badge/version-0.4.0-blue.svg)](./pyproject.toml)
 
 ## Overview
 
@@ -239,11 +239,59 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) for full testing requirements.
 | ID | Title | Status |
 |----|-------|--------|
 | [AI-001](../../../corporate/docs/adr/ai/AI-001-neurosymbolic-runner-selection.md) | Neurosymbolic Runner Selection | ✅ Accepted |
+| [INF-002](../../docs/adr/infrastructure/INF-002-runner-intelligence.md) | Runner Intelligence Architecture | ✅ Accepted |
+
+## Shadow Mode (v0.4.0)
+
+NSAI runs in **shadow mode** in production — comparing three selection strategies
+without affecting actual job routing:
+
+```
+Every pipeline (.post stage):
+  mab:report
+    ├─ MAB outcome reporting (feeds UCB1 service)
+    └─ NSAI shadow comparison:
+         For each completed job:
+           actual_runner  ← what GitLab randomly picked
+           mab_runner     ← what pure UCB1 would pick
+           nsai_runner    ← what CSP+UCB1 would pick
+         → BigQuery: ci_metrics.runner_decisions
+         → Artifact: nsai-shadow.json
+```
+
+This produces the A/B evaluation dataset for the research paper without
+any risk to CI pipeline reliability.
+
+**Query example** (BigQuery):
+```sql
+SELECT
+  nsai_runner,
+  COUNT(*) as picks,
+  AVG(CASE WHEN job_status = 'success' THEN 1 ELSE 0 END) as success_rate,
+  AVG(job_duration) as avg_duration
+FROM `myk8sproject-207017.ci_metrics.runner_decisions`
+GROUP BY nsai_runner
+ORDER BY success_rate DESC
+```
+
+## Runner Fleet (v0.4.0)
+
+The ontology covers 11 runners across 4 machines and 3 executor types:
+
+| Tag | Runners | Executor |
+|-----|---------|----------|
+| `docker-any` | Nordic, Mac, Mac2, Linux Yoga | Docker (4) |
+| `shell-any` | Nordic, Mac, Mac2, Linux Yoga | Shell (4) |
+| `k8s-any` | Mac, Mac2, Linux Yoga, Nordic* | K8s (4) |
+
+\* Nordic K8s currently offline
 
 ## Related
 
 - **Epic:** [#27 Neurosymbolic AI Runner Selection](../../issues/27)
 - **MAB Service:** [runner_bandit/](../runner_bandit/) | [Cloud Run](https://runner-bandit-m5cziijwqa-lz.a.run.app)
+- **Shadow Comparator:** [scripts/nsai_shadow.py](../../scripts/nsai_shadow.py)
+- **BigQuery Table:** `myk8sproject-207017.ci_metrics.runner_decisions`
 - **Paper:** [#26 JKU Bachelor Paper Draft](../../issues/26)
 - **Demo:** [notebooks/demo.ipynb](./notebooks/demo.ipynb)
 
