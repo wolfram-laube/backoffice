@@ -37,13 +37,15 @@ variables:
 # -----------------------------------------------------------------------------
 mab:report:
   stage: .post
-  image: alpine:latest
+  image: python:3.11-slim
   tags:
     - docker-any
   variables:
-    GIT_STRATEGY: none
+    GIT_STRATEGY: clone
   before_script:
-    - apk add --no-cache curl jq > /dev/null 2>&1
+    - apt-get update -qq && apt-get install -y -qq curl jq > /dev/null 2>&1
+    - pip install --quiet requests PyYAML google-cloud-bigquery google-auth
+    - pip install -e services/nsai/ --quiet 2>/dev/null || pip install PyYAML --quiet
   script:
     - |
       echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -126,6 +128,25 @@ mab:report:
           avg_duration: (.value.avg_duration | floor)
         }]
       }' 2>/dev/null || echo "  (MAB service unreachable)"
+
+    # ── NSAI Shadow Comparison ──────────────────────────────────
+    - |
+      echo ""
+      echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      echo "  NSAI Shadow Comparator"
+      echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      python scripts/nsai_shadow.py \
+        --pipeline-id "${CI_PIPELINE_ID}" \
+        --project-id "${CI_PROJECT_ID}" \
+        --project-name "${CI_PROJECT_NAME}" \
+        --token "${GITLAB_API_TOKEN}" \
+        --mab-url "${MAB_SERVICE_URL}" \
+        || echo "⚠️  NSAI shadow comparison failed (non-fatal)"
+  artifacts:
+    paths:
+      - nsai-shadow.json
+    expire_in: 90 days
+    when: always
   rules:
     - if: $CI_COMMIT_MESSAGE =~ /\[skip ci\]/
       when: never
