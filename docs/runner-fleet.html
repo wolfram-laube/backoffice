@@ -468,6 +468,12 @@
             Token merken (localStorage)
         </label>
         <button class="auth-submit" onclick="authenticate()">Verbinden</button>
+        <div style="margin-top:14px; padding-top:14px; border-top:1px solid var(--border);">
+            <button class="auth-submit" onclick="startDemo()"
+                    style="background:var(--surface2); border:1px solid var(--border); font-size:12px; padding:10px;">
+                👁️ Demo-Modus (Mock-Daten)
+            </button>
+        </div>
         <div class="auth-hint">Gespeicherter Token bleibt lokal in deinem Browser.</div>
     </div>
 </div>
@@ -654,6 +660,58 @@ function forgetToken() {
         }
     } catch(e) {}
 })();
+
+// ── Demo Mode ────────────────────────────────────────────────
+const DEMO_RUNNERS = [
+    { description: 'Mac Shell Runner',         status: 'online',  runner_type: 'project_type', tag_list: [] },
+    { description: 'Mac Docker Runner',        status: 'online',  runner_type: 'project_type', tag_list: [] },
+    { description: 'Mac K8s Runner',           status: 'online',  runner_type: 'project_type', tag_list: [] },
+    { description: 'Mac2 Shell Runner',        status: 'online',  runner_type: 'project_type', tag_list: [] },
+    { description: 'Mac2 Docker Runner',       status: 'online',  runner_type: 'project_type', tag_list: [] },
+    { description: 'Mac2 K8s Runner',          status: 'online',  runner_type: 'project_type', tag_list: [] },
+    { description: 'Linux Yoga Shell Runner',  status: 'online',  runner_type: 'project_type', tag_list: [] },
+    { description: 'Linux Yoga Docker Runner', status: 'online',  runner_type: 'project_type', tag_list: [] },
+    { description: 'Linux Yoga K8s Runner',    status: 'online',  runner_type: 'project_type', tag_list: [] },
+    { description: 'gitlab-runner-nordic',     status: 'online',  runner_type: 'project_type', tag_list: [] },
+    { description: 'Nordic K8s Runner',        status: 'offline', runner_type: 'project_type', tag_list: [] },
+];
+
+const DEMO_MAB = {
+    algorithm: 'UCB1Bandit',
+    total_observations: 342,
+    runners: ['gitlab-runner-nordic','Mac Docker Runner','Mac2 Docker Runner','Linux Yoga Docker Runner','Mac K8s Runner','Mac2 K8s Runner'],
+    stats: {
+        'gitlab-runner-nordic':     { pulls: 87,  mean_reward: 0.82, success_rate: 0.94, avg_duration: 42.3 },
+        'Mac Docker Runner':        { pulls: 71,  mean_reward: 0.76, success_rate: 0.89, avg_duration: 55.1 },
+        'Mac2 Docker Runner':       { pulls: 63,  mean_reward: 0.71, success_rate: 0.86, avg_duration: 58.7 },
+        'Linux Yoga Docker Runner': { pulls: 52,  mean_reward: 0.68, success_rate: 0.85, avg_duration: 63.2 },
+        'Mac K8s Runner':           { pulls: 38,  mean_reward: 0.58, success_rate: 0.79, avg_duration: 71.4 },
+        'Mac2 K8s Runner':          { pulls: 31,  mean_reward: 0.52, success_rate: 0.74, avg_duration: 78.9 },
+    }
+};
+
+let isDemo = false;
+
+function startDemo() {
+    isDemo = true;
+    document.getElementById('authOverlay').style.display = 'none';
+    document.getElementById('logoutBtn').style.display = 'flex';
+    document.getElementById('logoutBtn').textContent = '👁️ Demo-Modus';
+    document.getElementById('logoutBtn').onclick = exitDemo;
+
+    renderRunners(DEMO_RUNNERS);
+    renderMAB(DEMO_MAB);
+    document.getElementById('lastUpdate').textContent = 'DEMO';
+    showToast('👁️ Demo-Modus — Mock-Daten', 'accent2');
+}
+
+function exitDemo() {
+    isDemo = false;
+    document.getElementById('authOverlay').style.display = 'flex';
+    document.getElementById('logoutBtn').style.display = 'none';
+    document.getElementById('logoutBtn').textContent = '🔓 Token vergessen';
+    document.getElementById('logoutBtn').onclick = forgetToken;
+}
 
 // Allow Enter key
 document.getElementById('tokenInput').addEventListener('keydown', e => {
