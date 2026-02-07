@@ -953,10 +953,16 @@ async function refresh() {
         if (runnerData.status === 'fulfilled') {
             renderRunners(runnerData.value);
         } else {
-            showToast('❌ Runner-Daten: ' + runnerData.reason.message, 'red');
+            // API failed (CORS, network) — auto-fallback to demo
+            if (!isDemo) {
+                isDemo = true;
+                renderRunners(DEMO_RUNNERS);
+                document.getElementById('lastUpdate').textContent = 'DEMO (API nicht erreichbar)';
+                showToast('⚡ Demo-Modus — API nicht erreichbar (CORS/Netzwerk)', 'yellow');
+            }
         }
 
-        renderMAB(mab.status === 'fulfilled' ? mab.value : null);
+        renderMAB(mab.status === 'fulfilled' ? mab.value : (isDemo ? DEMO_MAB : null));
 
         document.getElementById('lastUpdate').textContent =
             new Date().toLocaleTimeString('de-AT', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
