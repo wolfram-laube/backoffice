@@ -1,0 +1,900 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>INF-002: Runner Intelligence Architecture</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Outfit:wght@300;400;600;700;900&display=swap');
+
+  :root {
+    --bg: #0a0e17;
+    --surface: #111827;
+    --surface2: #1a2332;
+    --border: #2a3a4d;
+    --text: #e2e8f0;
+    --text-dim: #64748b;
+    --avail: #ef4444;       /* Availability = red/coral */
+    --learn: #3b82f6;       /* Learning/MAB = blue */
+    --reason: #f59e0b;      /* Reasoning/NSAI = amber */
+    --shadow: #8b5cf6;      /* Shadow comparator = purple */
+    --done: #10b981;
+    --progress: #3b82f6;
+    --planned: #64748b;
+    --danger: #ef4444;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Outfit', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  .grain {
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 100;
+  }
+
+  header {
+    padding: 3rem 2rem 2rem;
+    text-align: center;
+    position: relative;
+  }
+
+  header::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 80%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--border), transparent);
+  }
+
+  .title {
+    font-size: clamp(2rem, 5vw, 3.5rem);
+    font-weight: 900;
+    letter-spacing: -0.03em;
+    background: linear-gradient(135deg, var(--avail), var(--learn), var(--reason));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 0.5rem;
+  }
+
+  .subtitle {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    letter-spacing: 0.05em;
+  }
+
+  .container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2rem;
+  }
+
+  /* === ADR METADATA === */
+  .adr-meta {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--learn);
+    border-radius: 0 10px 10px 0;
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 2.5rem;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 0.75rem 2rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.72rem;
+  }
+
+  .adr-field { display: flex; gap: 0.5rem; }
+  .adr-key { color: var(--text-dim); white-space: nowrap; }
+  .adr-val { color: var(--text); font-weight: 500; }
+  .adr-val.accepted { color: var(--done); }
+
+  /* === METRICS BAR === */
+  .metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 1rem;
+    margin: 2rem 0 2.5rem;
+  }
+
+  .metric {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.25rem;
+    text-align: center;
+    transition: all 0.3s ease;
+  }
+
+  .metric:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 24px rgba(0,0,0,0.3);
+  }
+
+  .metric-value {
+    font-size: 2rem;
+    font-weight: 900;
+    margin-bottom: 0.25rem;
+  }
+
+  .metric-value.avail { color: var(--avail); }
+  .metric-value.learn { color: var(--learn); }
+  .metric-value.reason { color: var(--reason); }
+  .metric-value.shadow { color: var(--shadow); }
+  .metric-value.done { color: var(--done); }
+
+  .metric-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6rem;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  /* === SECTION TITLE === */
+  .arch-section { margin: 2.5rem 0; }
+
+  .section-title {
+    font-size: 1.3rem;
+    font-weight: 700;
+    margin-bottom: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .section-title .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+
+  /* === THREE PILLARS === */
+  .pillars {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr auto 1fr;
+    gap: 0;
+    align-items: stretch;
+    margin: 2rem 0 3rem;
+  }
+
+  .pillar {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    transition: all 0.3s ease;
+  }
+
+  .pillar:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+  }
+
+  .pillar.avail { border-top: 3px solid var(--avail); }
+  .pillar.learn { border-top: 3px solid var(--learn); }
+  .pillar.reason { border-top: 3px solid var(--reason); }
+
+  .pillar-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6rem;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    margin-bottom: 0.75rem;
+  }
+
+  .pillar.avail .pillar-label { color: var(--avail); }
+  .pillar.learn .pillar-label { color: var(--learn); }
+  .pillar.reason .pillar-label { color: var(--reason); }
+
+  .pillar-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+  }
+
+  .pillar-desc {
+    font-size: 0.82rem;
+    color: var(--text-dim);
+    line-height: 1.6;
+  }
+
+  .pillar-file {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.68rem;
+    color: var(--text-dim);
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--border);
+  }
+
+  .pillar-arrow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 0.5rem;
+    color: var(--text-dim);
+    font-size: 1.5rem;
+  }
+
+  /* === ARCHITECTURE STACK === */
+  .arch-grid {
+    display: grid;
+    grid-template-rows: auto auto auto auto;
+    gap: 0;
+    position: relative;
+  }
+
+  .layer {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    position: relative;
+    background: var(--surface);
+  }
+
+  .layer + .layer {
+    margin-top: -1px;
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+  }
+
+  .layer:first-child {
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+
+  .layer:nth-child(2), .layer:nth-child(3) { border-radius: 0; }
+  .layer:last-child { border-top-left-radius: 0; border-top-right-radius: 0; }
+
+  .layer-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6rem;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+  }
+
+  .layer-tag {
+    font-weight: 300;
+    font-size: 0.55rem;
+    letter-spacing: 0.05em;
+    color: var(--text-dim);
+  }
+
+  .layer.shadow .layer-label { color: var(--shadow); }
+  .layer.reasoning .layer-label { color: var(--reason); }
+  .layer.learning .layer-label { color: var(--learn); }
+  .layer.availability .layer-label { color: var(--avail); }
+
+  .data-flow {
+    text-align: center;
+    padding: 0.5rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 0;
+    margin-top: -1px;
+  }
+
+  /* === FLEET GRID === */
+  .fleet-grid {
+    display: grid;
+    grid-template-columns: 200px repeat(3, 1fr);
+    gap: 2px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+  }
+
+  .fleet-header {
+    background: var(--surface2);
+    padding: 0.6rem 0.8rem;
+    font-weight: 700;
+    text-align: center;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-size: 0.6rem;
+  }
+
+  .fleet-header.docker { border-top: 2px solid var(--learn); }
+  .fleet-header.shell { border-top: 2px solid var(--reason); }
+  .fleet-header.k8s { border-top: 2px solid var(--shadow); }
+
+  .fleet-machine {
+    background: var(--surface);
+    padding: 0.6rem 0.8rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .fleet-cell {
+    background: var(--surface);
+    padding: 0.6rem 0.8rem;
+    text-align: center;
+    transition: all 0.2s ease;
+  }
+
+  .fleet-cell:hover { background: var(--surface2); }
+  .fleet-cell.online { color: var(--done); }
+  .fleet-cell.offline { color: var(--danger); opacity: 0.5; }
+
+  .machine-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--done);
+    flex-shrink: 0;
+  }
+
+  .machine-dot.gcp { background: var(--learn); }
+  .machine-dot.mac { background: var(--reason); }
+  .machine-dot.linux { background: var(--shadow); }
+
+  /* === SHADOW COMPARATOR === */
+  .shadow-flow {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr auto 1fr;
+    gap: 0;
+    align-items: center;
+    margin: 1.5rem 0;
+  }
+
+  .shadow-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.25rem;
+    text-align: center;
+    transition: all 0.3s ease;
+  }
+
+  .shadow-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 24px rgba(0,0,0,0.3);
+  }
+
+  .shadow-card.random { border-top: 3px solid var(--text-dim); }
+  .shadow-card.mab { border-top: 3px solid var(--learn); }
+  .shadow-card.nsai { border-top: 3px solid var(--reason); }
+
+  .shadow-strat {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.55rem;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    margin-bottom: 0.5rem;
+  }
+
+  .shadow-card.random .shadow-strat { color: var(--text-dim); }
+  .shadow-card.mab .shadow-strat { color: var(--learn); }
+  .shadow-card.nsai .shadow-strat { color: var(--reason); }
+
+  .shadow-name {
+    font-weight: 700;
+    font-size: 1rem;
+    margin-bottom: 0.4rem;
+  }
+
+  .shadow-desc {
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    line-height: 1.5;
+  }
+
+  .shadow-arrow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 0.3rem;
+    color: var(--text-dim);
+    font-size: 1rem;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* === BIGQUERY SCHEMA === */
+  .schema-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.72rem;
+    margin: 1rem 0;
+  }
+
+  .schema-table th {
+    background: var(--surface2);
+    padding: 0.6rem 0.8rem;
+    text-align: left;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-size: 0.6rem;
+    font-weight: 600;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .schema-table td {
+    padding: 0.5rem 0.8rem;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+
+  .schema-table tr:hover td { background: var(--surface2); }
+
+  .col-name { color: var(--shadow); font-weight: 500; }
+  .col-type { color: var(--text-dim); }
+
+  /* === TAG TAXONOMY === */
+  .tag-tree {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.78rem;
+    line-height: 2;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem 2rem;
+  }
+
+  .tag { 
+    display: inline-block;
+    padding: 0.1rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 500;
+  }
+  .tag.broad { background: rgba(139,92,246,0.15); color: var(--shadow); border: 1px solid rgba(139,92,246,0.3); }
+  .tag.exec { background: rgba(59,130,246,0.15); color: var(--learn); border: 1px solid rgba(59,130,246,0.3); }
+  .tag.pin { background: rgba(245,158,11,0.15); color: var(--reason); border: 1px solid rgba(245,158,11,0.3); }
+
+  /* === FORMULA === */
+  .formula-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 2rem;
+    text-align: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.9rem;
+    line-height: 2.4;
+  }
+
+  /* === CHANGES TABLE === */
+  .changes-grid {
+    display: grid;
+    grid-template-columns: minmax(280px, 1fr) 2fr;
+    gap: 1px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.72rem;
+    background: var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  .changes-grid > div {
+    padding: 0.6rem 0.8rem;
+    background: var(--surface);
+  }
+
+  .changes-grid > div:nth-child(4n+1),
+  .changes-grid > div:nth-child(4n+2) {
+    background: var(--surface2);
+  }
+
+  .file-path { color: var(--learn); font-weight: 500; }
+
+  /* === STATUS DOTS === */
+  .status-dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    margin-right: 0.3rem;
+    vertical-align: middle;
+  }
+
+  .status-done .status-dot { background: var(--done); }
+  .status-progress .status-dot { background: var(--progress); }
+  .status-planned .status-dot { background: var(--planned); }
+
+  /* === RESPONSIVE === */
+  @media (max-width: 768px) {
+    .pillars { grid-template-columns: 1fr; gap: 0.5rem; }
+    .pillar-arrow { transform: rotate(90deg); padding: 0.25rem 0; }
+    .shadow-flow { grid-template-columns: 1fr; gap: 0.5rem; }
+    .shadow-arrow { transform: rotate(90deg); padding: 0.25rem 0; }
+    .fleet-grid { grid-template-columns: 120px repeat(3, 1fr); font-size: 0.6rem; }
+  }
+
+  /* === ANIMATION === */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .arch-section, .metrics, .adr-meta {
+    animation: fadeUp 0.5s ease both;
+  }
+
+  .arch-section:nth-child(2) { animation-delay: 0.1s; }
+  .arch-section:nth-child(3) { animation-delay: 0.2s; }
+  .arch-section:nth-child(4) { animation-delay: 0.3s; }
+  .arch-section:nth-child(5) { animation-delay: 0.4s; }
+  .arch-section:nth-child(6) { animation-delay: 0.5s; }
+
+</style>
+</head>
+<body>
+<div class="grain"></div>
+
+<header>
+  <div class="title">Runner Intelligence</div>
+  <div class="subtitle">INF-002 · Availability · Learning · Reasoning · Shadow Mode</div>
+</header>
+
+<div class="container">
+
+  <!-- ADR METADATA -->
+  <div class="adr-meta">
+    <div class="adr-field">
+      <span class="adr-key">ADR:</span>
+      <span class="adr-val">INF-002 — Runner Intelligence Architecture</span>
+    </div>
+    <div class="adr-field">
+      <span class="adr-key">Status:</span>
+      <span class="adr-val accepted">✓ Accepted</span>
+    </div>
+    <div class="adr-field">
+      <span class="adr-key">Supersedes:</span>
+      <span class="adr-val">runner-fallback v1–v3, mab-integration v1</span>
+    </div>
+    <div class="adr-field">
+      <span class="adr-key">Context:</span>
+      <span class="adr-val">11-runner fleet across 4 machines, 3 executor types</span>
+    </div>
+    <div class="adr-field">
+      <span class="adr-key">Decision:</span>
+      <span class="adr-val">Three-layer separation: Availability → Learning → Reasoning</span>
+    </div>
+    <div class="adr-field">
+      <span class="adr-key">Version:</span>
+      <span class="adr-val">NSAI v0.4.0 · 60 tests · 11 runners · Shadow Mode</span>
+    </div>
+    <div class="adr-field">
+      <span class="adr-key">Related:</span>
+      <span class="adr-val">ADR-027 (NSAI Architecture), Epic #27, #28</span>
+    </div>
+    <div class="adr-field">
+      <span class="adr-key">Date:</span>
+      <span class="adr-val">2026-02-07</span>
+    </div>
+  </div>
+
+  <!-- KEY METRICS -->
+  <div class="metrics">
+    <div class="metric">
+      <div class="metric-value avail">11</div>
+      <div class="metric-label">Runners registriert</div>
+    </div>
+    <div class="metric">
+      <div class="metric-value learn">20</div>
+      <div class="metric-label">MAB Observations</div>
+    </div>
+    <div class="metric">
+      <div class="metric-value reason">36</div>
+      <div class="metric-label">Tag Mappings</div>
+    </div>
+    <div class="metric">
+      <div class="metric-value done">60</div>
+      <div class="metric-label">Tests ✓</div>
+    </div>
+    <div class="metric">
+      <div class="metric-value shadow">3</div>
+      <div class="metric-label">Shadow Strategien</div>
+    </div>
+  </div>
+
+
+  <!-- THREE PILLARS -->
+  <section class="arch-section">
+    <div class="section-title">
+      <span class="dot" style="background: var(--learn)"></span>
+      Drei Schichten — Separation of Concerns
+    </div>
+
+    <div class="pillars">
+      <div class="pillar avail">
+        <div class="pillar-label">Availability</div>
+        <div class="pillar-title">"Ist jemand da?"</div>
+        <div class="pillar-desc">Fleet Health Check. Prüft ob docker-any / shell-any / k8s-any Runner online sind. Gibt Status: healthy / degraded / down. Startet GCP VM falls nötig.</div>
+        <div class="pillar-file">📁 runner-fallback.yml v4</div>
+      </div>
+      <div class="pillar-arrow">→</div>
+      <div class="pillar learn">
+        <div class="pillar-label">Learning</div>
+        <div class="pillar-title">"Wer performt am besten?"</div>
+        <div class="pillar-desc">UCB1 Multi-Armed Bandit. Lernt aus jedem Pipeline-Outcome. Balanciert Exploration vs. Exploitation. 20 Observations, wachsend.</div>
+        <div class="pillar-file">📁 mab-integration.yml v3<br>☁️ Cloud Run Service</div>
+      </div>
+      <div class="pillar-arrow">→</div>
+      <div class="pillar reason">
+        <div class="pillar-label">Reasoning</div>
+        <div class="pillar-title">"Warum genau der?"</div>
+        <div class="pillar-desc">CSP filtert Feasible Set nach Capabilities. MAB optimiert innerhalb. Erklärbar: "Runner X weil docker + gcp + beste Success Rate".</div>
+        <div class="pillar-file">📁 services/nsai/ v0.4.0</div>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ARCHITECTURE STACK -->
+  <section class="arch-section">
+    <div class="section-title">
+      <span class="dot" style="background: var(--shadow)"></span>
+      Pipeline-Architektur — Wie es zusammenspielt
+    </div>
+
+    <div class="arch-grid">
+      <div class="layer shadow">
+        <div class="layer-label">
+          ◆ Shadow Comparator
+          <span class="layer-tag">.post Stage · Evaluation · BigQuery</span>
+        </div>
+        <div style="font-size: 0.82rem; color: var(--text-dim); line-height: 1.8;">
+          Vergleicht für jeden abgeschlossenen Job: Was hat <span style="color: var(--text);">GitLab</span> gewählt (random) vs. was hätte <span style="color: var(--learn);">MAB</span> empfohlen (UCB1) vs. was hätte <span style="color: var(--reason);">NSAI</span> empfohlen (CSP+UCB1). Schreibt nach BigQuery. Erzeugt Artifact.
+        </div>
+      </div>
+
+      <div class="data-flow">↑ nsai-shadow.json + BigQuery Insert ↑</div>
+
+      <div class="layer reasoning">
+        <div class="layer-label">
+          ◆ NSAI Reasoning Layer
+          <span class="layer-tag">CSP Filter → UCB1 Select → Explanation</span>
+        </div>
+        <div style="font-size: 0.82rem; color: var(--text-dim); line-height: 1.8;">
+          Ontologie (11 Runner, Capabilities, Implikationen) → Parser (36 Tag-Mappings) → Constraint Satisfaction → Feasible Set → MAB-gewichtete Auswahl. Aktuell im Shadow Mode.
+        </div>
+      </div>
+
+      <div class="data-flow">↑ sync_from_mab_service() ↑</div>
+
+      <div class="layer learning">
+        <div class="layer-label">
+          ◆ MAB Learning Layer
+          <span class="layer-tag">UCB1 · Cloud Run · Passive Reporting</span>
+        </div>
+        <div style="font-size: 0.82rem; color: var(--text-dim); line-height: 1.8;">
+          <code>mab:report</code> in .post Stage fragt GitLab API nach allen Jobs. Reportet Runner + success/fail + Duration an Cloud Run Service. MAB aktualisiert UCB1-Scores. Kein Eingriff in Jobs nötig.
+        </div>
+      </div>
+
+      <div class="data-flow">↑ GitLab API: "Was ist passiert?" ↑</div>
+
+      <div class="layer availability">
+        <div class="layer-label">
+          ◆ Availability Layer
+          <span class="layer-tag">Fleet Health · Tag Routing · GCP Auto-Start</span>
+        </div>
+        <div style="font-size: 0.82rem; color: var(--text-dim); line-height: 1.8;">
+          <code>runner-check</code> prüft docker-any / shell-any / k8s-any Online-Counts. Gibt FLEET_STATUS aus. <code>gcp-auto-start</code> startet VM falls Fleet degraded. GitLab routet Jobs an passende Runner via Tags.
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- SHADOW COMPARATOR -->
+  <section class="arch-section">
+    <div class="section-title">
+      <span class="dot" style="background: var(--shadow)"></span>
+      Shadow Comparator — A/B Evaluation für Paper
+    </div>
+
+    <div class="shadow-flow">
+      <div class="shadow-card random">
+        <div class="shadow-strat">Baseline · Random</div>
+        <div class="shadow-name">GitLab</div>
+        <div class="shadow-desc">Wählt zufällig unter Runnern mit passendem Tag. Kein Lernen, kein Kontext.</div>
+      </div>
+      <div class="shadow-arrow">vs</div>
+      <div class="shadow-card mab">
+        <div class="shadow-strat">Subsymbolisch · UCB1</div>
+        <div class="shadow-name">MAB</div>
+        <div class="shadow-desc">Exploration/Exploitation Balance. Lernt aus Outcomes. Kein Constraint-Wissen.</div>
+      </div>
+      <div class="shadow-arrow">vs</div>
+      <div class="shadow-card nsai">
+        <div class="shadow-strat">Neurosymbolisch · CSP+UCB1</div>
+        <div class="shadow-name">NSAI</div>
+        <div class="shadow-desc">CSP filtert nach Capabilities, dann UCB1 im Feasible Set. Erklärbar + adaptiv.</div>
+      </div>
+    </div>
+
+    <p style="font-size: 0.82rem; color: var(--text-dim); line-height: 1.8; margin: 1rem 0;">
+      Jede Pipeline produziert einen Datensatz pro Job: <span style="color: var(--text);">actual_runner</span>,
+      <span style="color: var(--learn);">mab_runner</span>,
+      <span style="color: var(--reason);">nsai_runner</span> + Outcome.
+      Nach ~50 Pipelines reicht das für Regret-Analyse, Convergence-Vergleich und statistische Signifikanz im Paper.
+    </p>
+  </section>
+
+
+  <!-- BIGQUERY SCHEMA -->
+  <section class="arch-section">
+    <div class="section-title">
+      <span class="dot" style="background: var(--shadow)"></span>
+      BigQuery Schema — ci_metrics.runner_decisions
+    </div>
+
+    <table class="schema-table">
+      <thead>
+        <tr><th>Column</th><th>Type</th><th>Beschreibung</th></tr>
+      </thead>
+      <tbody>
+        <tr><td class="col-name">actual_runner</td><td class="col-type">STRING</td><td>Was GitLab zufällig gewählt hat</td></tr>
+        <tr><td class="col-name">mab_runner</td><td class="col-type">STRING</td><td>Was reines UCB1 empfohlen hätte</td></tr>
+        <tr><td class="col-name">nsai_runner</td><td class="col-type">STRING</td><td>Was CSP+UCB1 empfohlen hätte</td></tr>
+        <tr><td class="col-name">nsai_feasible_count</td><td class="col-type">INTEGER</td><td>Runners die den CSP-Filter passiert haben</td></tr>
+        <tr><td class="col-name">nsai_confidence</td><td class="col-type">FLOAT</td><td>UCB1 Confidence Score</td></tr>
+        <tr><td class="col-name">mab_would_match</td><td class="col-type">BOOLEAN</td><td>MAB-Empfehlung = GitLab-Wahl?</td></tr>
+        <tr><td class="col-name">nsai_would_match</td><td class="col-type">BOOLEAN</td><td>NSAI-Empfehlung = GitLab-Wahl?</td></tr>
+        <tr><td class="col-name">job_status</td><td class="col-type">STRING</td><td>success / failed</td></tr>
+        <tr><td class="col-name">job_duration</td><td class="col-type">FLOAT</td><td>Sekunden</td></tr>
+        <tr><td class="col-name">pipeline_id</td><td class="col-type">INTEGER</td><td>GitLab Pipeline ID</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+
+  <!-- FLEET MATRIX -->
+  <section class="arch-section">
+    <div class="section-title">
+      <span class="dot" style="background: var(--avail)"></span>
+      Runner Fleet — 11 Runner · 4 Maschinen · 3 Executors
+    </div>
+
+    <div class="fleet-grid">
+      <div class="fleet-header"></div>
+      <div class="fleet-header docker">🐳 Docker</div>
+      <div class="fleet-header shell">⚡ Shell</div>
+      <div class="fleet-header k8s">☸️ K8s</div>
+
+      <div class="fleet-machine"><span class="machine-dot gcp"></span> GCP Nordic</div>
+      <div class="fleet-cell online">✓ nordic</div>
+      <div class="fleet-cell online">✓ nordic</div>
+      <div class="fleet-cell offline">✗ offline</div>
+
+      <div class="fleet-machine"><span class="machine-dot mac"></span> Mac Mini</div>
+      <div class="fleet-cell online">✓ mac-docker</div>
+      <div class="fleet-cell online">✓ mac-shell</div>
+      <div class="fleet-cell online">✓ mac-k8s</div>
+
+      <div class="fleet-machine"><span class="machine-dot mac"></span> Mac Mini 2</div>
+      <div class="fleet-cell online">✓ mac2-docker</div>
+      <div class="fleet-cell online">✓ mac2-shell</div>
+      <div class="fleet-cell online">✓ mac2-k8s</div>
+
+      <div class="fleet-machine"><span class="machine-dot linux"></span> Linux Yoga</div>
+      <div class="fleet-cell online">✓ linux-docker</div>
+      <div class="fleet-cell online">✓ linux-shell</div>
+      <div class="fleet-cell online">✓ linux-k8s</div>
+    </div>
+
+    <p style="font-size: 0.72rem; color: var(--text-dim); margin-top: 0.75rem; font-family: 'JetBrains Mono', monospace;">
+      10 online · 1 offline (Nordic K8s — k3s nicht aktiv) · Alle Runner → alle 5 Projekte
+    </p>
+  </section>
+
+
+  <!-- TAG TAXONOMY -->
+  <section class="arch-section">
+    <div class="section-title">
+      <span class="dot" style="background: var(--reason)"></span>
+      Tag-Taxonomie — Source of Truth
+    </div>
+
+    <div class="tag-tree">
+      <span class="tag broad">any-runner</span> ⊃ { <span class="tag exec">docker-any</span>, <span class="tag exec">shell-any</span>, <span class="tag exec">k8s-any</span> }<br>
+      <br>
+      <span class="tag exec">docker-any</span> ⊃ { <span class="tag pin">nordic</span>, <span class="tag pin">mac-docker</span>, <span class="tag pin">mac2-docker</span>, <span class="tag pin">linux-docker</span> }<br>
+      <span class="tag exec">shell-any</span> &ensp;⊃ { <span class="tag pin">nordic</span>, <span class="tag pin">mac-group-shell</span>, <span class="tag pin">mac2-shell</span>, <span class="tag pin">linux-shell</span> }<br>
+      <span class="tag exec">k8s-any</span> &ensp;&ensp;⊃ { <span class="tag pin">mac-k8s</span>, <span class="tag pin">mac2-k8s</span>, <span class="tag pin">linux-k8s</span>, <span style="opacity:0.4"><span class="tag pin">gcp-k8s</span></span> }<br>
+      <br>
+      <span style="color: var(--shadow);">Broad</span> → alle passenden Executors &ensp;|&ensp;
+      <span style="color: var(--learn);">Executor</span> → alle passenden Maschinen &ensp;|&ensp;
+      <span style="color: var(--reason);">Pin</span> → exakte Maschine
+    </div>
+  </section>
+
+
+  <!-- FORMULA -->
+  <section class="arch-section">
+    <div class="section-title">
+      <span class="dot" style="background: var(--reason)"></span>
+      Kernformel
+    </div>
+    <div class="formula-box">
+      <span style="color: var(--reason);">NSAI(job)</span> = <span style="color: var(--learn);">MAB.select</span>(<span style="color: var(--avail);">CSP.filter</span>(fleet, job.tags))<br>
+      <br>
+      <span style="color: var(--avail);">CSP.filter</span> = { r ∈ Fleet | ∀ cap ∈ required(job) : cap ∈ r.capabilities ∧ r.online }<br>
+      <span style="color: var(--learn);">UCB1(r)</span> = μ̂(r) + c · √(ln(t) / n<sub>r</sub>) <span style="color: var(--text-dim);">// über feasible set</span><br>
+      <span style="color: var(--shadow);">shadow(job)</span> = { actual: gitlab(job), mab: UCB1(job), nsai: NSAI(job), outcome: Δt + success }
+    </div>
+  </section>
+
+
+  <!-- CHANGES -->
+  <section class="arch-section">
+    <div class="section-title">
+      <span class="dot" style="background: var(--done)"></span>
+      Änderungen — 20 Dateien in 3 Commits
+    </div>
+
+    <div class="changes-grid">
+      <div><span class="file-path">runner-fallback.yml</span></div>
+      <div>v3→v4: reale Tags, Fleet Health Check, Separation</div>
+
+      <div><span class="file-path">mab-integration.yml</span></div>
+      <div>v1→v3: passive Reporting + NSAI Shadow Comparator</div>
+
+      <div><span class="file-path">ci-automation.yml</span></div>
+      <div><code style="color:var(--danger)">gcp-shell</code> → <code style="color:var(--done)">shell-any</code></div>
+
+      <div><span class="file-path">k3s-setup.yml</span></div>
+      <div><code style="color:var(--danger)">gcp-shell</code> → <code style="color:var(--done)">nordic</code></div>
+
+      <div><span class="file-path">fix-shell-runner.yml</span></div>
+      <div><code style="color:var(--danger)">gcp-docker</code> → <code style="color:var(--done)">nordic</code></div>
+
+      <div><span class="file-path">ci-metrics.yml</span></div>
+      <div>git checkout conflict fix in Dashboard Job</div>
+
+      <div><span class="file-path">nsai/ontology/runner_ontology.py</span></div>
+      <div>4 → 11 Runner, alle IDs, K8s + Shell</div>
+
+      <div><span class="file-path">nsai/parser/job_parser.py</span></div>
+      <div>16 → 36 Tag-Mappings (Full Fleet Taxonomy)</div>
+
+      <div><span class="file-path">nsai/__init__.py + pyproject.toml</span></div>
+      <div>v0.3.0 → v0.4.0</div>
+
+      <div><span class="file-path">scripts/nsai_shadow.py</span></div>
+      <div>NEU: Shadow Comparator für A/B Evaluation</div>
+
+      <div><span class="file-path">nsai/tests/*</span></div>
+      <div>60 Tests für 11-Runner Fleet (19 Ontology + 41 Integration)</div>
+
+      <div><span class="file-path">docs/adr/INF-002*</span></div>
+      <div>Architecture Decision Record (dieses Dokument)</div>
+    </div>
+  </section>
+
+  <footer style="text-align: center; padding: 3rem 0 2rem; color: var(--text-dim); font-size: 0.7rem; font-family: 'JetBrains Mono', monospace;">
+    NSAI v0.4.0 · INF-002 · Epic #27 #28 · Blauweiss LLC · Stand 2026-02-07
+  </footer>
+
+</div>
+</body>
+</html>
