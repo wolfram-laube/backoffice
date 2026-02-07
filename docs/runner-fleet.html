@@ -462,8 +462,13 @@
         <input type="password" class="auth-input" id="tokenInput"
                placeholder="glpat-..." autocomplete="off"
                spellcheck="false">
+        <label style="display:flex; align-items:center; gap:8px; margin-bottom:16px; cursor:pointer; font-size:13px; color:var(--subtext); justify-content:center;">
+            <input type="checkbox" id="rememberToken" checked
+                   style="accent-color:var(--accent); width:16px; height:16px; cursor:pointer;">
+            Token merken (localStorage)
+        </label>
         <button class="auth-submit" onclick="authenticate()">Verbinden</button>
-        <div class="auth-hint">Token wird nur im Browser-Tab gehalten — kein Storage.</div>
+        <div class="auth-hint">Gespeicherter Token bleibt lokal in deinem Browser.</div>
     </div>
 </div>
 
@@ -478,6 +483,9 @@
         <span class="last-update" id="lastUpdate">—</span>
         <button class="refresh-btn" onclick="refresh()">
             <span class="spin-icon">↻</span> Refresh
+        </button>
+        <button class="refresh-btn" id="logoutBtn" onclick="forgetToken()" style="display:none; color:var(--red); border-color:rgba(255,107,107,0.3);">
+            🔓 Token vergessen
         </button>
     </div>
 </div>
@@ -609,10 +617,43 @@ function authenticate() {
         return;
     }
     PAT = token;
-    document.getElementById('authOverlay').style.display = 'none';
-    refresh();
-    refreshInterval = setInterval(refresh, 30000); // Auto-refresh 30s
+
+    // Persist if checkbox checked
+    if (document.getElementById('rememberToken').checked) {
+        try { localStorage.setItem('blauweiss_runner_pat', token); } catch(e) {}
+    }
+
+    startSession();
 }
+
+function startSession() {
+    document.getElementById('authOverlay').style.display = 'none';
+    document.getElementById('logoutBtn').style.display = 'flex';
+    refresh();
+    if (refreshInterval) clearInterval(refreshInterval);
+    refreshInterval = setInterval(refresh, 30000);
+}
+
+function forgetToken() {
+    PAT = '';
+    try { localStorage.removeItem('blauweiss_runner_pat'); } catch(e) {}
+    if (refreshInterval) clearInterval(refreshInterval);
+    document.getElementById('authOverlay').style.display = 'flex';
+    document.getElementById('logoutBtn').style.display = 'none';
+    document.getElementById('tokenInput').value = '';
+    showToast('🔓 Token gelöscht', 'green');
+}
+
+// Auto-load saved token
+(function autoAuth() {
+    try {
+        const saved = localStorage.getItem('blauweiss_runner_pat');
+        if (saved && saved.startsWith('glpat-')) {
+            PAT = saved;
+            startSession();
+        }
+    } catch(e) {}
+})();
 
 // Allow Enter key
 document.getElementById('tokenInput').addEventListener('keydown', e => {
