@@ -3,7 +3,7 @@
 | ADR | Entscheidung | Status | Format | Epic |
 |-----|-------------|--------|--------|------|
 | [ADR-027](ADR-027-nsai-architecture.html) | NSAI — Neurosymbolic Runner Selection | ✅ Accepted | HTML | #27 |
-| [INF-002](infrastructure/INF-002-runner-intelligence.md) | Runner Intelligence Architecture (Fleet + MAB + NSAI Shadow) | ✅ Accepted | MD | — |
+| [INF-002](infrastructure/INF-002-runner-intelligence.html) | Runner Intelligence Architecture (Fleet + MAB + NSAI Shadow) | ✅ Accepted | HTML | #27 #28 |
 | [ADR-030](ADR-030-applications-migration.md) | Applications Pipeline Migration (CLARISSA → Backoffice) | ✅ Accepted | MD | #14 |
 | [OPS-001](operations/OPS-001-billing-migration.md) | Billing Migration → Runbook | 🔗 Redirect | MD | — |
 
