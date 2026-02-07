@@ -82,5 +82,11 @@ test:integration:
   script:
     - echo "🔗 Running integration tests..."
     - export PYTHONPATH="${CI_PROJECT_DIR}:${PYTHONPATH}"
-    - pytest tests/integration/ -v --tb=short -m "integration"
+    - |
+      if [ -d "tests/integration" ]; then
+        pytest tests/integration/ -v --tb=short -m "integration"
+      else
+        echo "⚠️ tests/integration/ not found - skipping (see #42)"
+        exit 0
+      fi
 

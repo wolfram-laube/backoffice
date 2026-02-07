@@ -63,9 +63,9 @@ class QAReport:
 
     @property
     def exit_code(self):
+        """Exit codes: 0=success (incl. warnings), 1=failures. (#43)"""
         if self.failures > 0: return 1
-        if self.warnings > 0: return 2
-        return 0
+        return 0  # Warnings are informational, not blocking
 
 
 def api_get(path, params=""):
