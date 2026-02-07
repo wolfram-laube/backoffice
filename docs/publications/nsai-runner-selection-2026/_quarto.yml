@@ -1,0 +1,35 @@
+project:
+  type: default
+  output-dir: _output
+  render:
+    - experiment.qmd    # Runs first → generates figures
+    - nsai_paper.qmd    # Paper picks up figures
+
+# ─── Shared Metadata ───────────────────────────────────────
+bibliography: references.bib
+#csl: ieee.csl            # Optional: default is Chicago
+
+# ─── PDF Output (LaTeX) ───────────────────────────────────
+format:
+  pdf:
+    documentclass: article
+    classoption: [11pt, a4paper]
+    geometry: margin=2.5cm
+    number-sections: true
+    colorlinks: true
+    linkcolor: "blue!70!black"
+    citecolor: "green!50!black"
+    urlcolor: "blue!50!black"
+    header-includes: |
+      \usepackage{algorithm}
+      \usepackage{algpseudocode}
+      \usepackage{booktabs}
+      \usepackage{caption}
+      \usepackage{subcaption}
+  html:
+    toc: true
+    toc-depth: 3
+    theme: darkly
+    code-fold: true
+    code-tools: true
+    self-contained: true
