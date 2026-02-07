@@ -250,7 +250,7 @@ gdrive-list:
 deploy-gdrive-proxy:
   stage: deploy
   tags:
-    - gcp-shell
+    - shell-any
   needs: []
   rules:
     - if: $DEPLOY_GDRIVE_PROXY == "true"

@@ -93,16 +93,41 @@ class JobRequirementParser:
     
     # Map common tags to capabilities
     DEFAULT_TAG_MAPPINGS = {
+        # ── Executor-level tags (broad selection) ─────────────────
+        "any-runner": [],              # No constraints → all online runners
         "docker-any": ["docker"],
         "docker": ["docker"],
         "shell": ["shell"],
+        "shell-any": ["shell"],
         "kubernetes": ["kubernetes"],
         "k8s": ["kubernetes"],
+        "k8s-any": ["kubernetes"],
+
+        # ── Machine-level tags (pin to hardware class) ────────────
+        "mac-any": ["macos"],          # Any Mac executor
+        "linux-any": ["linux"],        # Any Linux executor
+        "gcp-any": ["gcp"],            # Any GCP executor
+
+        # ── Specific runner tags (pin to exact runner) ────────────
+        "nordic": ["nordic", "gcp"],
+        "mac-docker": ["docker", "macos"],
+        "mac2-docker": ["docker", "macos"],
+        "linux-docker": ["docker", "linux"],
+        "mac-group-shell": ["shell", "macos"],
+        "mac2-shell": ["shell", "macos"],
+        "linux-shell": ["shell", "linux"],
+        "mac-k8s": ["kubernetes", "macos"],
+        "mac2-k8s": ["kubernetes", "macos"],
+        "linux-k8s": ["kubernetes", "linux"],
+        "gcp-k8s": ["kubernetes", "gcp"],
+
+        # ── Cloud/platform tags ───────────────────────────────────
         "gcp": ["gcp"],
         "aws": ["aws"],
         "azure": ["azure"],
+
+        # ── Hardware tags ─────────────────────────────────────────
         "gpu": ["gpu"],
-        "nordic": ["nordic", "gcp"],
         "macos": ["macos", "shell"],
         "windows": ["windows"],
         "linux": ["linux"],

@@ -5,7 +5,7 @@
 k3s:install:
   stage: .pre
   tags:
-    - gcp-shell
+    - nordic
   rules:
     - if: $K3S_INSTALL == "true"
       when: always
@@ -41,7 +41,7 @@ k3s:install:
 k3s:configure-runner:
   stage: .pre
   tags:
-    - gcp-shell
+    - nordic
   rules:
     - if: $K3S_CONFIGURE_RUNNER == "true"
       when: always
@@ -80,7 +80,7 @@ k3s:configure-runner:
 k3s:fix-runner-config:
   stage: .pre
   tags:
-    - gcp-shell
+    - nordic
   rules:
     - if: $K3S_FIX_RUNNER == "true"
       when: always
@@ -122,7 +122,7 @@ k3s:fix-runner-config:
 k3s:status:
   stage: .pre
   tags:
-    - gcp-shell
+    - nordic
   rules:
     - when: manual
       allow_failure: true
@@ -148,7 +148,7 @@ k3s:status:
 k3s:uninstall:
   stage: .pre
   tags:
-    - gcp-shell
+    - nordic
   rules:
     - if: $K3S_UNINSTALL == "true"
       when: always

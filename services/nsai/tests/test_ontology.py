@@ -188,15 +188,31 @@ class TestBlauweissOntology:
         onto = create_blauweiss_ontology()
         
         expected = {
+            # Docker (4)
             "gitlab-runner-nordic", "Mac Docker Runner",
-            "Mac2 Docker Runner", "Linux Yoga Docker Runner"
+            "Mac2 Docker Runner", "Linux Yoga Docker Runner",
+            # Shell (3)
+            "Mac Shell Runner", "Mac2 Shell Runner",
+            "Linux Yoga Shell Runner",
+            # K8s (4)
+            "Mac K8s Runner", "Mac2 K8s Runner",
+            "Linux Yoga K8s Runner", "Nordic K8s Runner",
         }
         assert set(onto.runners.keys()) == expected
     
     def test_mab_tag_mapping(self):
         onto = create_blauweiss_ontology()
         
+        # Docker runners
         assert onto.mab_tag_for_runner("gitlab-runner-nordic") == "nordic"
         assert onto.mab_tag_for_runner("Mac Docker Runner") == "mac-docker"
         assert onto.runner_name_for_mab_tag("nordic") == "gitlab-runner-nordic"
         assert onto.runner_name_for_mab_tag("linux-docker") == "Linux Yoga Docker Runner"
+        
+        # Shell runners
+        assert onto.mab_tag_for_runner("Mac Shell Runner") == "mac-shell"
+        assert onto.runner_name_for_mab_tag("linux-shell") == "Linux Yoga Shell Runner"
+        
+        # K8s runners
+        assert onto.mab_tag_for_runner("Mac K8s Runner") == "mac-k8s"
+        assert onto.runner_name_for_mab_tag("nordic-k8s") == "Nordic K8s Runner"

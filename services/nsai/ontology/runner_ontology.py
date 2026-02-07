@@ -215,23 +215,42 @@ class RunnerOntology:
 
 def create_blauweiss_ontology() -> RunnerOntology:
     """
-    Create the ontology with actual blauweiss_llc runners.
+    Create the ontology with the complete blauweiss_llc runner fleet.
 
-    Runner Mapping (2026-02):
-        Ontology Name              MAB Tag        GitLab Tags
-        ─────────────────────────  ─────────────  ──────────────────────
-        gitlab-runner-nordic       nordic         docker-any, nordic
-        Mac Docker Runner          mac-docker     docker-any, mac-docker
-        Mac2 Docker Runner         mac2-docker    docker-any, mac2-docker
-        Linux Yoga Docker Runner   linux-docker   docker-any, linux-docker
+    Runner Fleet (2026-02, aligned with INF-002):
+
+        Machine     Executor   Ontology Name              ID          MAB Tag        GitLab Tags
+        ──────────  ─────────  ─────────────────────────   ──────────  ─────────────  ───────────────────────────────────
+        GCP Nordic  Docker     gitlab-runner-nordic        51608579    nordic         docker-any, shell-any, nordic, gcp
+        Mac         Docker     Mac Docker Runner           51336735    mac-docker     docker-any, mac-docker, mac-any
+        Mac2        Docker     Mac2 Docker Runner          51337424    mac2-docker    docker-any, mac2-docker, mac-any
+        Linux Yoga  Docker     Linux Yoga Docker Runner    51337426    linux-docker   docker-any, linux-docker, linux-any
+        Mac         Shell      Mac Shell Runner            51336483    mac-shell      shell-any, mac-group-shell, mac-any
+        Mac2        Shell      Mac2 Shell Runner           51337423    mac2-shell     shell-any, mac2-shell, mac-any
+        Linux Yoga  Shell      Linux Yoga Shell Runner     51337425    linux-shell    shell-any, linux-shell, linux-any
+        Mac         K8s        Mac K8s Runner              51336736    mac-k8s        k8s-any, mac-k8s, mac-any
+        Mac2        K8s        Mac2 K8s Runner             51337457    mac2-k8s       k8s-any, mac2-k8s, mac-any
+        Linux Yoga  K8s        Linux Yoga K8s Runner       51337498    linux-k8s      k8s-any, linux-k8s, linux-any
+        GCP Nordic  K8s        Nordic K8s Runner           51408312    nordic-k8s     k8s-any, gcp-k8s, nordic
+
+    Tag Hierarchy:
+        any-runner ⊃ {docker-any, shell-any, k8s-any}
+        docker-any ⊃ {nordic, mac-docker, mac2-docker, linux-docker}
+        shell-any  ⊃ {nordic, mac-group-shell, mac2-shell, linux-shell}
+        k8s-any    ⊃ {mac-k8s, mac2-k8s, linux-k8s, gcp-k8s}
     """
     onto = RunnerOntology()
+
+    # ═══════════════════════════════════════════════════════════
+    # DOCKER EXECUTORS (4 runners, tag: docker-any)
+    # ═══════════════════════════════════════════════════════════
 
     # ── GCP Cloud Runner (Stockholm e2-small) ─────────────────
     onto.add_runner(
         name="gitlab-runner-nordic",
+        runner_id=51608579,
         capabilities=["docker", "shell", "gcp", "nordic", "linux", "x86_64"],
-        tags=["docker-any", "shell", "nordic", "gcp"],
+        tags=["docker-any", "shell-any", "nordic", "gcp", "gcp-any", "any-runner"],
         cost_per_minute=0.01,
         online=True,
         mab_tag="nordic"
@@ -240,8 +259,9 @@ def create_blauweiss_ontology() -> RunnerOntology:
     # ── Local Mac Docker Runner ───────────────────────────────
     onto.add_runner(
         name="Mac Docker Runner",
-        capabilities=["docker", "macos"],
-        tags=["docker-any", "mac-docker"],
+        runner_id=51336735,
+        capabilities=["docker", "macos", "arm64"],
+        tags=["docker-any", "mac-docker", "mac-any", "any-runner"],
         cost_per_minute=0.0,
         online=True,
         mab_tag="mac-docker"
@@ -250,8 +270,9 @@ def create_blauweiss_ontology() -> RunnerOntology:
     # ── Local Mac2 Docker Runner ──────────────────────────────
     onto.add_runner(
         name="Mac2 Docker Runner",
-        capabilities=["docker", "macos"],
-        tags=["docker-any", "mac2-docker"],
+        runner_id=51337424,
+        capabilities=["docker", "macos", "arm64"],
+        tags=["docker-any", "mac2-docker", "mac-any", "any-runner"],
         cost_per_minute=0.0,
         online=True,
         mab_tag="mac2-docker"
@@ -260,11 +281,98 @@ def create_blauweiss_ontology() -> RunnerOntology:
     # ── Local Linux Yoga Docker Runner ────────────────────────
     onto.add_runner(
         name="Linux Yoga Docker Runner",
+        runner_id=51337426,
         capabilities=["docker", "shell", "linux", "x86_64"],
-        tags=["docker-any", "linux-docker"],
+        tags=["docker-any", "linux-docker", "linux-any", "any-runner"],
         cost_per_minute=0.0,
         online=True,
         mab_tag="linux-docker"
+    )
+
+    # ═══════════════════════════════════════════════════════════
+    # SHELL EXECUTORS (3 runners, tag: shell-any)
+    # Note: Nordic also has shell-any (defined above)
+    # ═══════════════════════════════════════════════════════════
+
+    # ── Local Mac Shell Runner ────────────────────────────────
+    onto.add_runner(
+        name="Mac Shell Runner",
+        runner_id=51336483,
+        capabilities=["shell", "macos", "arm64"],
+        tags=["shell-any", "mac-group-shell", "mac-any", "any-runner"],
+        cost_per_minute=0.0,
+        online=True,
+        mab_tag="mac-shell"
+    )
+
+    # ── Local Mac2 Shell Runner ───────────────────────────────
+    onto.add_runner(
+        name="Mac2 Shell Runner",
+        runner_id=51337423,
+        capabilities=["shell", "macos", "arm64"],
+        tags=["shell-any", "mac2-shell", "mac-any", "any-runner"],
+        cost_per_minute=0.0,
+        online=True,
+        mab_tag="mac2-shell"
+    )
+
+    # ── Local Linux Yoga Shell Runner ─────────────────────────
+    onto.add_runner(
+        name="Linux Yoga Shell Runner",
+        runner_id=51337425,
+        capabilities=["shell", "linux", "x86_64"],
+        tags=["shell-any", "linux-shell", "linux-any", "any-runner"],
+        cost_per_minute=0.0,
+        online=True,
+        mab_tag="linux-shell"
+    )
+
+    # ═══════════════════════════════════════════════════════════
+    # KUBERNETES EXECUTORS (4 runners, tag: k8s-any)
+    # ═══════════════════════════════════════════════════════════
+
+    # ── Local Mac K8s Runner ──────────────────────────────────
+    onto.add_runner(
+        name="Mac K8s Runner",
+        runner_id=51336736,
+        capabilities=["kubernetes", "macos", "arm64"],
+        tags=["k8s-any", "mac-k8s", "mac-any", "any-runner"],
+        cost_per_minute=0.0,
+        online=True,
+        mab_tag="mac-k8s"
+    )
+
+    # ── Local Mac2 K8s Runner ─────────────────────────────────
+    onto.add_runner(
+        name="Mac2 K8s Runner",
+        runner_id=51337457,
+        capabilities=["kubernetes", "macos", "arm64"],
+        tags=["k8s-any", "mac2-k8s", "mac-any", "any-runner"],
+        cost_per_minute=0.0,
+        online=True,
+        mab_tag="mac2-k8s"
+    )
+
+    # ── Local Linux Yoga K8s Runner ───────────────────────────
+    onto.add_runner(
+        name="Linux Yoga K8s Runner",
+        runner_id=51337498,
+        capabilities=["kubernetes", "linux", "x86_64"],
+        tags=["k8s-any", "linux-k8s", "linux-any", "any-runner"],
+        cost_per_minute=0.0,
+        online=True,
+        mab_tag="linux-k8s"
+    )
+
+    # ── GCP Nordic K8s Runner (k3s, currently offline) ────────
+    onto.add_runner(
+        name="Nordic K8s Runner",
+        runner_id=51408312,
+        capabilities=["kubernetes", "gcp", "linux", "x86_64"],
+        tags=["k8s-any", "gcp-k8s", "gcp-any", "nordic", "any-runner"],
+        cost_per_minute=0.01,
+        online=False,   # k3s not running on Nordic VM
+        mab_tag="nordic-k8s"
     )
 
     return onto

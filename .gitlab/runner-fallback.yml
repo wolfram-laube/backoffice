@@ -1,36 +1,55 @@
 # =============================================================================
-# RUNNER FALLBACK SYSTEM v3
+# RUNNER AVAILABILITY & FALLBACK SYSTEM v4
 # =============================================================================
-# Smart runner selection with GCP auto-start capability.
+# Ensures at least one runner is available before jobs execute.
+# Does NOT select runners — that's MAB/NSAI's job.
 #
-# Priority:
-#   1. Local runners (mac#1, mac#2, yoga) - Tag: local-shell
-#   2. GCP runners (Nordic) - Tag: gcp-shell
-#   3. Any self-hosted docker runner - Tag: docker-any
+# Architecture:
+#   runner-fallback  → AVAILABILITY: "Is anyone alive?"
+#   mab-integration  → SELECTION:    "Who's best?"
+#   nsai/            → REASONING:    "Why that one?"
 #
-# All jobs use docker-any (self-hosted) to avoid GitLab SaaS CI quota limits.
-# The system checks runner availability and starts GCP if needed.
+# Runner Fleet (2026-02):
+#   Tag            Runners                          Executor
+#   ─────────────  ───────────────────────────────   ────────
+#   docker-any     Nordic, Mac, Mac2, Linux Yoga     Docker
+#   shell-any      Nordic, Mac, Mac2, Linux Yoga     Shell
+#   k8s-any        Nordic*, Mac, Mac2, Linux Yoga    K8s
+#   any-runner     All 11 runners                    Any
+#
+#   * Nordic K8s currently offline (k3s not running)
+#
+# Tag Hierarchy:
+#   any-runner ⊃ {docker-any, shell-any, k8s-any}
+#   docker-any ⊃ {mac-docker, mac2-docker, linux-docker, nordic}
+#   shell-any  ⊃ {mac-group-shell, mac2-shell, linux-shell, nordic}
+#   k8s-any    ⊃ {mac-k8s, mac2-k8s, linux-k8s, gcp-k8s}
+#
+# Fallback Flow:
+#   1. Are docker-any runners online? → Done
+#   2. No? → Is Nordic GCP VM running? → Start it
+#   3. Wait for runner to register
+#
 # =============================================================================
 
 variables:
-  # Runner tag priorities
-  LOCAL_RUNNER_TAG: "local-shell"
-  GCP_RUNNER_TAG: "gcp-shell"
-  FALLBACK_RUNNER_TAG: "docker-any"
-  
-  # GCP VM Configuration
+  # Runner tag for availability check (must match actual runner tags)
+  AVAILABILITY_TAG: "docker-any"
+
+  # GCP VM Configuration (last-resort fallback)
   GCP_PROJECT: "myk8sproject-207017"
   GCP_ZONE: "europe-north2-a"
   GCP_INSTANCE: "gitlab-runner-nordic"
   GCP_STARTUP_TIMEOUT: "180"
-  
-  # Default runner (used if no check runs)
-  RUNNER_TAG: "gcp-shell"
 
 # -----------------------------------------------------------------------------
-# RUNNER CHECK: Intelligent runner selection
+# AVAILABILITY CHECK: Are any runners online?
 # -----------------------------------------------------------------------------
-.runner-check-base:
+# This job itself runs on docker-any. If it can run, at least one runner
+# is alive — which may be sufficient. The deeper check validates that
+# MULTIPLE runners are available for MAB balancing.
+# -----------------------------------------------------------------------------
+runner-check:
   stage: .pre
   image: alpine:latest
   tags:
@@ -39,62 +58,66 @@ variables:
     GIT_STRATEGY: none
   before_script:
     - apk add --no-cache curl jq > /dev/null 2>&1
-
-runner-check:
-  extends: .runner-check-base
   script:
     - |
       echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-      echo "  RUNNER AVAILABILITY CHECK"
+      echo "  RUNNER FLEET AVAILABILITY"
       echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-      
-      API_URL="${CI_API_V4_URL}/groups/${CI_PROJECT_NAMESPACE_ID}/runners"
-      
-      # Check local runners first (preferred)
+
+      API_URL="${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/runners"
+
       echo ""
-      echo "1️⃣ Checking local runners (${LOCAL_RUNNER_TAG})..."
-      LOCAL_COUNT=$(curl -sf --header "PRIVATE-TOKEN: ${GITLAB_API_TOKEN}" \
-        "${API_URL}?tag_list=${LOCAL_RUNNER_TAG}&status=online" 2>/dev/null | jq 'length' 2>/dev/null || echo "0")
-      echo "   Found: ${LOCAL_COUNT} online"
-      
-      if [ "${LOCAL_COUNT}" -gt 0 ]; then
-        echo "   ✅ Using local runner"
-        echo "RUNNER_TAG=${LOCAL_RUNNER_TAG}" >> runner.env
-        echo "RUNNER_SOURCE=local" >> runner.env
+      echo "📊 Checking runner availability by executor type..."
+      echo ""
+
+      TOTAL_ONLINE=0
+      for TAG in docker-any shell-any k8s-any; do
+        COUNT=$(curl -sf --header "PRIVATE-TOKEN: ${GITLAB_API_TOKEN}" \
+          "${API_URL}?tag_list=${TAG}&status=online" 2>/dev/null | jq 'length' 2>/dev/null || echo "0")
+        TOTAL_ONLINE=$((TOTAL_ONLINE + COUNT))
+
+        if [ "${COUNT}" -gt 0 ]; then
+          echo "  ✅ ${TAG}: ${COUNT} online"
+          curl -sf --header "PRIVATE-TOKEN: ${GITLAB_API_TOKEN}" \
+            "${API_URL}?tag_list=${TAG}&status=online" 2>/dev/null | \
+            jq -r '.[] | "     🟢 \(.description)"' 2>/dev/null || true
+        else
+          echo "  ❌ ${TAG}: 0 online"
+        fi
+      done
+
+      echo ""
+      echo "═══════════════════════════════════════"
+
+      # Check specifically for docker-any (most jobs need this)
+      DOCKER_COUNT=$(curl -sf --header "PRIVATE-TOKEN: ${GITLAB_API_TOKEN}" \
+        "${API_URL}?tag_list=docker-any&status=online" 2>/dev/null | jq 'length' 2>/dev/null || echo "0")
+
+      if [ "${DOCKER_COUNT}" -ge 2 ]; then
+        echo "✅ Fleet healthy: ${DOCKER_COUNT} docker runners online (MAB can balance)"
+        echo "FLEET_STATUS=healthy" >> runner.env
+        echo "DOCKER_RUNNERS=${DOCKER_COUNT}" >> runner.env
         echo "GCP_START_NEEDED=false" >> runner.env
-        cat runner.env
-        exit 0
-      fi
-      
-      # Check GCP runners
-      echo ""
-      echo "2️⃣ Checking GCP runners (${GCP_RUNNER_TAG})..."
-      GCP_COUNT=$(curl -sf --header "PRIVATE-TOKEN: ${GITLAB_API_TOKEN}" \
-        "${API_URL}?tag_list=${GCP_RUNNER_TAG}&status=online" 2>/dev/null | jq 'length' 2>/dev/null || echo "0")
-      echo "   Found: ${GCP_COUNT} online"
-      
-      if [ "${GCP_COUNT}" -gt 0 ]; then
-        echo "   ✅ Using GCP runner (already online)"
-        echo "RUNNER_TAG=${GCP_RUNNER_TAG}" >> runner.env
-        echo "RUNNER_SOURCE=gcp-existing" >> runner.env
+      elif [ "${DOCKER_COUNT}" -eq 1 ]; then
+        echo "⚠️  Fleet degraded: only 1 docker runner (no balancing possible)"
+        echo "FLEET_STATUS=degraded" >> runner.env
+        echo "DOCKER_RUNNERS=1" >> runner.env
         echo "GCP_START_NEEDED=false" >> runner.env
-        cat runner.env
-        exit 0
+      else
+        echo "🚨 Fleet down: 0 docker runners!"
+        echo "FLEET_STATUS=down" >> runner.env
+        echo "DOCKER_RUNNERS=0" >> runner.env
+        echo "GCP_START_NEEDED=true" >> runner.env
       fi
-      
-      # No runners available - need to start GCP
-      echo ""
-      echo "3️⃣ No runners available!"
-      echo "   🚀 Will start GCP VM..."
-      echo "RUNNER_TAG=${GCP_RUNNER_TAG}" >> runner.env
-      echo "RUNNER_SOURCE=gcp-started" >> runner.env
-      echo "GCP_START_NEEDED=true" >> runner.env
+
       cat runner.env
   artifacts:
     reports:
       dotenv: runner.env
     expire_in: 1 hour
   rules:
+    - if: $CI_COMMIT_MESSAGE =~ /\[skip ci\]/
+      when: never
     - if: $SKIP_RUNNER_CHECK == "true"
       when: never
     - if: $CI_PIPELINE_SOURCE == "schedule"
@@ -105,7 +128,7 @@ runner-check:
       allow_failure: true
 
 # -----------------------------------------------------------------------------
-# GCP VM AUTO-START (if needed)
+# GCP VM AUTO-START (only when fleet is down)
 # -----------------------------------------------------------------------------
 gcp-auto-start:
   stage: .pre
@@ -120,34 +143,30 @@ gcp-auto-start:
   script:
     - |
       if [ "${GCP_START_NEEDED}" != "true" ]; then
-        echo "GCP start not needed (source: ${RUNNER_SOURCE})"
+        echo "Fleet status: ${FLEET_STATUS} — GCP start not needed"
         exit 0
       fi
-      
+
       echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
       echo "  STARTING GCP VM: ${GCP_INSTANCE}"
       echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-      
-      # Authenticate with service account
+
       if [ -z "${GCP_SERVICE_ACCOUNT_KEY}" ]; then
         echo "❌ GCP_SERVICE_ACCOUNT_KEY not set!"
         exit 1
       fi
-      
+
       echo "${GCP_SERVICE_ACCOUNT_KEY}" | base64 -d > /tmp/gcp-key.json
       gcloud auth activate-service-account --key-file=/tmp/gcp-key.json
       gcloud config set project ${GCP_PROJECT}
-      
-      # Check current VM status
-      echo ""
-      echo "Checking VM status..."
+
       STATUS=$(gcloud compute instances describe ${GCP_INSTANCE} \
         --zone=${GCP_ZONE} --format='value(status)' 2>/dev/null || echo "NOT_FOUND")
-      echo "Current status: ${STATUS}"
-      
+      echo "Current VM status: ${STATUS}"
+
       case "${STATUS}" in
         RUNNING)
-          echo "✅ VM already running, waiting for runner..."
+          echo "VM already running, waiting for runner to register..."
           ;;
         TERMINATED|STOPPED)
           echo "Starting VM..."
@@ -160,35 +179,35 @@ gcp-auto-start:
           exit 1
           ;;
       esac
-      
+
       # Wait for runner to come online
       echo ""
-      echo "Waiting for runner to register..."
+      echo "Waiting for Nordic runner to register..."
       TIMEOUT=${GCP_STARTUP_TIMEOUT}
-      API_URL="${CI_API_V4_URL}/groups/${CI_PROJECT_NAMESPACE_ID}/runners"
-      
+      API_URL="${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/runners"
+
       while [ ${TIMEOUT} -gt 0 ]; do
-        GCP_COUNT=$(curl -sf --header "PRIVATE-TOKEN: ${GITLAB_API_TOKEN}" \
-          "${API_URL}?tag_list=${GCP_RUNNER_TAG}&status=online" 2>/dev/null | jq 'length' 2>/dev/null || echo "0")
-        
-        if [ "${GCP_COUNT}" -gt 0 ]; then
-          echo "✅ GCP runner is online!"
+        COUNT=$(curl -sf --header "PRIVATE-TOKEN: ${GITLAB_API_TOKEN}" \
+          "${API_URL}?tag_list=nordic&status=online" 2>/dev/null | jq 'length' 2>/dev/null || echo "0")
+
+        if [ "${COUNT}" -gt 0 ]; then
+          echo "✅ Nordic runner is online!"
           exit 0
         fi
-        
+
         echo "  Waiting... (${TIMEOUT}s remaining)"
         sleep 15
         TIMEOUT=$((TIMEOUT - 15))
       done
-      
-      echo "❌ Timeout waiting for GCP runner!"
+
+      echo "❌ Timeout waiting for Nordic runner!"
       exit 1
   rules:
     - if: $GCP_START_NEEDED == "true"
     - when: never
 
 # -----------------------------------------------------------------------------
-# GCP VM AUTO-STOP (cleanup after pipeline)
+# GCP VM AUTO-STOP (cost savings)
 # -----------------------------------------------------------------------------
 gcp-auto-stop:
   stage: .post
@@ -199,29 +218,17 @@ gcp-auto-stop:
     GIT_STRATEGY: none
   script:
     - |
-      # Only stop if we started it
-      if [ "${RUNNER_SOURCE}" != "gcp-started" ]; then
-        echo "GCP was not started by this pipeline, keeping running"
-        exit 0
-      fi
-      
-      # Check if auto-stop is enabled
       if [ "${GCP_AUTO_STOP}" != "true" ]; then
-        echo "GCP_AUTO_STOP not enabled, keeping running"
-        echo "Set GCP_AUTO_STOP=true to auto-stop after pipeline"
+        echo "GCP_AUTO_STOP not enabled, keeping VM running"
         exit 0
       fi
-      
-      echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-      echo "  STOPPING GCP VM: ${GCP_INSTANCE}"
-      echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-      
+
+      echo "Stopping GCP VM: ${GCP_INSTANCE}..."
       echo "${GCP_SERVICE_ACCOUNT_KEY}" | base64 -d > /tmp/gcp-key.json
       gcloud auth activate-service-account --key-file=/tmp/gcp-key.json
       gcloud config set project ${GCP_PROJECT}
-      
       gcloud compute instances stop ${GCP_INSTANCE} --zone=${GCP_ZONE}
-      echo "✅ GCP VM stopped (saving costs)"
+      echo "✅ VM stopped (saving costs)"
   rules:
     - if: $GCP_AUTO_STOP == "true"
       when: always
@@ -282,38 +289,6 @@ gcp-vm-status:
     - gcloud config set project ${GCP_PROJECT}
     - echo "━━━ GCP VM Status ━━━"
     - gcloud compute instances describe ${GCP_INSTANCE} --zone=${GCP_ZONE} --format="table(name,status,machineType.basename(),networkInterfaces[0].accessConfigs[0].natIP)"
-  rules:
-    - when: manual
-  allow_failure: true
-
-# -----------------------------------------------------------------------------
-# RUNNER STATUS: Debug all runners
-# -----------------------------------------------------------------------------
-runner-status:
-  extends: .runner-check-base
-  script:
-    - |
-      echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-      echo "  ALL RUNNER STATUS"
-      echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-      
-      API_URL="${CI_API_V4_URL}/groups/${CI_PROJECT_NAMESPACE_ID}/runners"
-      
-      echo ""
-      echo "=== Own Runners (non-SaaS) ==="
-      curl -sf --header "PRIVATE-TOKEN: ${GITLAB_API_TOKEN}" \
-        "${API_URL}?per_page=100" 2>/dev/null | jq -r '
-        .[] | select(.description | test("saas|gitlab.com|runners-manager") | not) |
-        "\(if .online then "🟢" else "🔴" end) \(.description) [\(.tag_list | join(", "))]"
-      ' 2>/dev/null || echo "  (keine oder Fehler)"
-      
-      echo ""
-      echo "=== By Tag ==="
-      for TAG in local-shell gcp-shell gcp-docker shell docker; do
-        COUNT=$(curl -sf --header "PRIVATE-TOKEN: ${GITLAB_API_TOKEN}" \
-          "${API_URL}?tag_list=${TAG}&status=online" 2>/dev/null | jq 'length' 2>/dev/null || echo "?")
-        echo "  ${TAG}: ${COUNT} online"
-      done
   rules:
     - when: manual
   allow_failure: true

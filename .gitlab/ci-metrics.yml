@@ -245,6 +245,8 @@ ci-metrics:dashboard:
       git config user.name "CI Metrics Bot"
       git remote set-url origin "https://oauth2:${GITLAB_API_TOKEN}@gitlab.com/wolfram_laube/blauweiss_llc/ops/backoffice.git"
       git fetch origin main
-      git checkout main
+      cp docs/ci-dashboard.html /tmp/ci-dashboard.html
+      git checkout -f main
+      cp /tmp/ci-dashboard.html docs/ci-dashboard.html
       git add docs/ci-dashboard.html
       git diff --cached --quiet && echo "No changes" || (git commit -m "chore(ci-metrics): update dashboard [skip ci]" && git push origin main)

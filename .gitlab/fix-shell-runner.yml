@@ -3,7 +3,7 @@
 fix-gcp-shell-simple:
   stage: test
   tags:
-    - gcp-docker
+    - nordic
   image: alpine:latest
   when: manual
   allow_failure: true

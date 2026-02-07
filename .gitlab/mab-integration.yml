@@ -1,46 +1,156 @@
 # =============================================================================
-# MAB RUNNER INTEGRATION
+# MAB RUNNER INTELLIGENCE — v2
 # =============================================================================
-# Multi-Armed Bandit integration for intelligent CI runner selection.
+# Multi-Armed Bandit integration for learning optimal runner selection.
 #
-# Architecture:
-#   1. Webhook (passive):  GitLab → MAB webhook → learns from all jobs
-#   2. after_script (active): Each MAB-enabled job reports outcome directly
-#   3. recommend (optional): Parent job queries MAB → child uses recommended tag
+# Architecture (see INF-002):
+#   runner-fallback  → AVAILABILITY: "Is anyone alive?"
+#   mab-integration  → LEARNING:     "Who performs best?"
+#   nsai/            → REASONING:    "Why that one?"
 #
-# Usage:
-#   Minimal (just reporting):
-#     my-job:
-#       extends: .mab-enabled
-#       script: ...
+# How it works:
+#   1. mab:report (passive, .post stage):
+#      After every pipeline, queries ALL completed jobs and reports
+#      their outcomes (success, duration, runner) to the MAB service.
+#      Zero changes needed to existing jobs.
 #
-#   With recommendation (parent-child):
-#     See mab:recommend job below
+#   2. mab:recommend (active, .pre stage):
+#      Before a pipeline, queries MAB for the optimal runner.
+#      Currently informational — GitLab tags are static, so actual
+#      selection requires future child-pipeline integration.
+#
+#   3. mab:stats (manual):
+#      Dashboard of MAB learning state.
+#
+# MAB Service: Cloud Run (UCB1 algorithm)
 # =============================================================================
 
 variables:
   MAB_SERVICE_URL: "https://runner-bandit-m5cziijwqa-lz.a.run.app"
 
 # -----------------------------------------------------------------------------
-# TEMPLATE: Add MAB reporting to any job
+# REPORT: Passive pipeline-level outcome reporting
 # -----------------------------------------------------------------------------
-.mab-enabled:
-  after_script:
+# Runs in .post stage after ALL jobs complete. Queries GitLab API for
+# every job in this pipeline, extracts runner + outcome, and bulk-reports
+# to MAB service. No changes needed to any existing job.
+# -----------------------------------------------------------------------------
+mab:report:
+  stage: .post
+  image: alpine:latest
+  tags:
+    - docker-any
+  variables:
+    GIT_STRATEGY: none
+  before_script:
+    - apk add --no-cache curl jq > /dev/null 2>&1
+  script:
     - |
-      # MAB Reporter (inline for jobs that can't source scripts)
-      MAB_URL="${MAB_SERVICE_URL:-https://runner-bandit-m5cziijwqa-lz.a.run.app}"
-      if [[ "$CI_JOB_STATUS" == "success" || "$CI_JOB_STATUS" == "failed" ]]; then
-        SUCCESS="false"
-        [[ "$CI_JOB_STATUS" == "success" ]] && SUCCESS="true"
-        curl -sf -X POST "${MAB_URL}/update" \
-          -H "Content-Type: application/json" \
-          -d "{\"runner\":\"${CI_RUNNER_DESCRIPTION}\",\"success\":${SUCCESS},\"duration\":${CI_JOB_DURATION:-0},\"job_name\":\"${CI_JOB_NAME}\",\"project\":\"${CI_PROJECT_NAME}\"}" \
-          > /dev/null 2>&1 || true
-        echo "[MAB] Reported: ${CI_RUNNER_DESCRIPTION} | ${CI_JOB_STATUS} | ${CI_JOB_DURATION:-0}s"
+      echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      echo "  MAB Outcome Reporter"
+      echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+      MAB_URL="${MAB_SERVICE_URL}"
+      API_URL="${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/pipelines/${CI_PIPELINE_ID}/jobs"
+      REPORTED=0
+      SKIPPED=0
+      ERRORS=0
+
+      echo ""
+      echo "📡 Querying pipeline #${CI_PIPELINE_ID} jobs..."
+
+      # Get all jobs from this pipeline
+      JOBS=$(curl -sf --header "PRIVATE-TOKEN: ${GITLAB_API_TOKEN}" \
+        "${API_URL}?per_page=100" 2>/dev/null)
+
+      if [ -z "$JOBS" ]; then
+        echo "⚠️  Could not query pipeline jobs (token missing?)"
+        exit 0
       fi
 
+      echo "$JOBS" | jq -c '.[]' | while read -r JOB; do
+        JOB_NAME=$(echo "$JOB" | jq -r '.name')
+        JOB_STATUS=$(echo "$JOB" | jq -r '.status')
+        RUNNER_DESC=$(echo "$JOB" | jq -r '.runner.description // empty')
+        DURATION=$(echo "$JOB" | jq -r '.duration // 0')
+
+        # Skip: no runner (manual/skipped), still running, or this job itself
+        if [ -z "$RUNNER_DESC" ] || [ "$JOB_STATUS" = "running" ] || \
+           [ "$JOB_STATUS" = "pending" ] || [ "$JOB_STATUS" = "created" ] || \
+           [ "$JOB_STATUS" = "manual" ] || [ "$JOB_NAME" = "mab:report" ]; then
+          SKIPPED=$((SKIPPED + 1))
+          continue
+        fi
+
+        # Skip shared runners (only learn from our fleet)
+        case "$RUNNER_DESC" in
+          *saas*|*shared-gitlab*|*runners-manager*|*windows-shared*)
+            SKIPPED=$((SKIPPED + 1))
+            continue
+            ;;
+        esac
+
+        # Determine success
+        SUCCESS="false"
+        [ "$JOB_STATUS" = "success" ] && SUCCESS="true"
+
+        # Report to MAB
+        RESPONSE=$(curl -sf -X POST "${MAB_URL}/update" \
+          -H "Content-Type: application/json" \
+          -d "{\"runner\":\"${RUNNER_DESC}\",\"success\":${SUCCESS},\"duration\":${DURATION},\"job_name\":\"${JOB_NAME}\",\"project\":\"${CI_PROJECT_NAME}\"}" \
+          2>&1) || true
+
+        if [ -n "$RESPONSE" ]; then
+          echo "  📊 ${JOB_NAME} → ${RUNNER_DESC} | ${JOB_STATUS} | ${DURATION}s"
+          REPORTED=$((REPORTED + 1))
+        else
+          echo "  ⚠️  ${JOB_NAME} → report failed"
+          ERRORS=$((ERRORS + 1))
+        fi
+      done
+
+      echo ""
+      echo "═══════════════════════════════════════"
+      echo "  Reported: ${REPORTED} | Skipped: ${SKIPPED} | Errors: ${ERRORS}"
+
+      # Quick stats check
+      echo ""
+      echo "📈 Current MAB state:"
+      curl -sf "${MAB_URL}/stats" 2>/dev/null | jq '{
+        algorithm,
+        total_observations,
+        runners: [.runners | to_entries[] | {
+          name: .key,
+          pulls: .value.pulls,
+          success_rate: (.value.success_rate * 100 | floor / 100),
+          avg_duration: (.value.avg_duration | floor)
+        }]
+      }' 2>/dev/null || echo "  (MAB service unreachable)"
+  rules:
+    - if: $CI_COMMIT_MESSAGE =~ /\[skip ci\]/
+      when: never
+    - if: $MAB_DISABLED == "true"
+      when: never
+    - if: $CI_COMMIT_BRANCH == "main"
+      when: always
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: always
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: always
+    - if: $CI_PIPELINE_SOURCE == "api"
+      when: always
+  allow_failure: true
+
 # -----------------------------------------------------------------------------
-# JOB: Query MAB for runner recommendation (use in parent-child pipelines)
+# RECOMMEND: Query MAB for optimal runner (informational)
+# -----------------------------------------------------------------------------
+# Currently informational — GitLab tags are static, so we can't
+# dynamically route jobs. Future: child-pipeline integration.
+#
+# For now, this job:
+#   1. Queries MAB for recommendation
+#   2. Exports MAB_RUNNER_TAG as dotenv artifact
+#   3. Logs the recommendation for observability
 # -----------------------------------------------------------------------------
 mab:recommend:
   stage: .pre
@@ -49,60 +159,66 @@ mab:recommend:
     - docker-any
   variables:
     GIT_STRATEGY: none
-  rules:
-    - if: '$MAB_ENABLED == "true"'
-    - if: '$CI_PIPELINE_SOURCE == "web"'
-      when: manual
-      allow_failure: true
   before_script:
-    - apk add --no-cache curl python3 > /dev/null 2>&1
+    - apk add --no-cache curl jq > /dev/null 2>&1
   script:
     - |
       echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
       echo "  MAB Runner Recommendation"
       echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-      RESPONSE=$(curl -sf "${MAB_SERVICE_URL}/recommend" 2>&1)
+
+      RESPONSE=$(curl -sf --max-time 5 "${MAB_SERVICE_URL}/recommend" 2>&1)
+
       if [ -z "$RESPONSE" ]; then
-        echo "⚠️  MAB unreachable, defaulting to docker-any"
+        echo "⚠️  MAB unreachable, using default"
         echo "MAB_RUNNER_TAG=docker-any" > mab.env
+        echo "MAB_RUNNER_NAME=none" >> mab.env
+        echo "MAB_CONFIDENCE=0" >> mab.env
       else
-        echo "$RESPONSE" | python3 -m json.tool
-        TAG=$(echo "$RESPONSE" | python3 -c "import json,sys; print(json.load(sys.stdin).get('recommended_tag','docker-any'))")
-        echo "MAB_RUNNER_TAG=${TAG}" > mab.env
-        echo "MAB_RUNNER_NAME=$(echo "$RESPONSE" | python3 -c "import json,sys; print(json.load(sys.stdin)['recommended_runner'])")" >> mab.env
+        echo "$RESPONSE" | jq .
+        RUNNER=$(echo "$RESPONSE" | jq -r '.recommended_runner // "unknown"')
+        echo ""
+        echo "🎯 Recommendation: ${RUNNER}"
+        echo ""
+        echo "MAB_RUNNER_TAG=docker-any" > mab.env
+        echo "MAB_RUNNER_NAME=${RUNNER}" >> mab.env
       fi
+
       cat mab.env
   artifacts:
     reports:
       dotenv: mab.env
+    expire_in: 1 hour
+  rules:
+    - if: $MAB_ENABLED == "true"
+    - if: $CI_PIPELINE_SOURCE == "web"
+      when: manual
+      allow_failure: true
 
 # -----------------------------------------------------------------------------
-# JOB: MAB Dashboard / Stats
+# STATS: MAB Dashboard
 # -----------------------------------------------------------------------------
 mab:stats:
-  stage: notify
+  stage: deploy
   image: alpine:latest
   tags:
     - docker-any
   variables:
     GIT_STRATEGY: none
-  extends: .mab-enabled
-  rules:
-    - if: '$CI_PIPELINE_SOURCE == "schedule"'
-    - if: '$CI_PIPELINE_SOURCE == "web"'
-      when: manual
-      allow_failure: true
   before_script:
-    - apk add --no-cache curl python3 > /dev/null 2>&1
+    - apk add --no-cache curl jq > /dev/null 2>&1
   script:
     - |
       echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
       echo "  MAB Runner Statistics"
       echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-      curl -sf "${MAB_SERVICE_URL}/stats" | python3 -m json.tool
+      curl -sf "${MAB_SERVICE_URL}/stats" | jq .
 
       echo ""
       echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
       echo "  Current Recommendation"
       echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-      curl -sf "${MAB_SERVICE_URL}/recommend" | python3 -m json.tool
+      curl -sf "${MAB_SERVICE_URL}/recommend" | jq .
+  rules:
+    - when: manual
+  allow_failure: true
