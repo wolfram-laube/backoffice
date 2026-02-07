@@ -15,6 +15,12 @@ notification:
       recipients:
         - wolfram.laube@blauweiss-edv.at
       template: "match_summary"
+      # OAuth credentials — set via env vars, same as applications_drafts.py:
+      #   GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN
+      # These are already configured as masked CI/CD variables.
+      client_id: ""            # Set via GMAIL_CLIENT_ID env
+      client_secret: ""        # Set via GMAIL_CLIENT_SECRET env
+      refresh_token: ""        # Set via GMAIL_REFRESH_TOKEN env
 
     slack:
       enabled: false

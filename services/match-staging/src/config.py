@@ -20,6 +20,10 @@ class EmailConfig(BaseModel):
     enabled: bool = True
     recipients: list[str] = ["wolfram.laube@blauweiss-edv.at"]
     template: str = "match_summary"
+    # OAuth credentials — set via env vars, never commit secrets!
+    client_id: str = ""      # GMAIL_CLIENT_ID or CONFIG__NOTIFICATION__CHANNELS__EMAIL__CLIENT_ID
+    client_secret: str = ""  # GMAIL_CLIENT_SECRET
+    refresh_token: str = ""  # GMAIL_REFRESH_TOKEN
 
 
 class SlackConfig(BaseModel):
@@ -140,6 +144,17 @@ def load_config(
         config_dict["gitlab"]["private_token"] = os.getenv(
             "GITLAB_PRIVATE_TOKEN", ""
         )
+
+    # 4. Gmail OAuth from dedicated env vars (same as applications_drafts.py)
+    email_cfg = config_dict.setdefault("notification", {}).setdefault(
+        "channels", {}
+    ).setdefault("email", {})
+    if not email_cfg.get("client_id"):
+        email_cfg["client_id"] = os.getenv("GMAIL_CLIENT_ID", "")
+    if not email_cfg.get("client_secret"):
+        email_cfg["client_secret"] = os.getenv("GMAIL_CLIENT_SECRET", "")
+    if not email_cfg.get("refresh_token"):
+        email_cfg["refresh_token"] = os.getenv("GMAIL_REFRESH_TOKEN", "")
 
     return ServiceConfig(**config_dict)
 

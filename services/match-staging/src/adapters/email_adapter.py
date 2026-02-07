@@ -1,7 +1,10 @@
 """Email notification adapter using Gmail API.
 
-Uses existing credentials.json OAuth flow from backoffice infrastructure.
-Sends HTML-formatted match summaries.
+Uses lightweight OAuth refresh token flow (same as applications_drafts.py).
+No google-auth-oauthlib dependency needed — just requests.
+
+Environment variables:
+  GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN
 """
 
 import base64
@@ -10,6 +13,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
 
+import httpx
 from jinja2 import Environment, FileSystemLoader
 
 from src.config import EmailConfig
@@ -20,16 +24,19 @@ logger = logging.getLogger(__name__)
 # Template directory
 TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
 
+OAUTH_TOKEN_URL = "https://oauth2.googleapis.com/token"
+GMAIL_SEND_URL = "https://gmail.googleapis.com/gmail/v1/users/me/messages/send"
+GMAIL_PROFILE_URL = "https://gmail.googleapis.com/gmail/v1/users/me/profile"
+
 
 class EmailAdapter:
     """Gmail API adapter for email notifications."""
 
     channel_name = "email"
 
-    def __init__(self, config: EmailConfig, credentials_path: str = "credentials.json"):
+    def __init__(self, config: EmailConfig):
         self.config = config
-        self.credentials_path = credentials_path
-        self._service = None
+        self._access_token: str | None = None
         self._jinja = Environment(
             loader=FileSystemLoader(str(TEMPLATE_DIR)),
             autoescape=True,
@@ -37,63 +44,55 @@ class EmailAdapter:
 
     @property
     def is_enabled(self) -> bool:
-        return self.config.enabled and len(self.config.recipients) > 0
+        return (
+            self.config.enabled
+            and len(self.config.recipients) > 0
+            and bool(self.config.client_id)
+            and bool(self.config.refresh_token)
+        )
 
-    async def _get_service(self):
-        """Lazy-init Gmail API service."""
-        if self._service:
-            return self._service
+    async def _get_access_token(self) -> str:
+        """Get OAuth access token via refresh token."""
+        if self._access_token:
+            return self._access_token
 
-        try:
-            from google.auth.transport.requests import Request
-            from google.oauth2.credentials import Credentials
-            from google_auth_oauthlib.flow import InstalledAppFlow
-            from googleapiclient.discovery import build
-
-            SCOPES = ["https://www.googleapis.com/auth/gmail.send"]
-            creds = None
-            token_path = Path("token.json")
-
-            if token_path.exists():
-                creds = Credentials.from_authorized_user_file(
-                    str(token_path), SCOPES
-                )
-
-            if not creds or not creds.valid:
-                if creds and creds.expired and creds.refresh_token:
-                    creds.refresh(Request())
-                else:
-                    flow = InstalledAppFlow.from_client_secrets_file(
-                        self.credentials_path, SCOPES
-                    )
-                    creds = flow.run_local_server(port=0)
-                token_path.write_text(creds.to_json())
-
-            self._service = build("gmail", "v1", credentials=creds)
-            return self._service
-        except Exception as e:
-            logger.error(f"Gmail API init failed: {e}")
-            raise
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                OAUTH_TOKEN_URL,
+                data={
+                    "client_id": self.config.client_id,
+                    "client_secret": self.config.client_secret,
+                    "refresh_token": self.config.refresh_token,
+                    "grant_type": "refresh_token",
+                },
+            )
+            resp.raise_for_status()
+            self._access_token = resp.json()["access_token"]
+            return self._access_token
 
     async def send(self, payload: NotificationPayload) -> bool:
         """Send HTML email with match summary."""
         try:
-            service = await self._get_service()
-            template = self._jinja.get_template(f"{self.config.template}.html")
+            token = await self._get_access_token()
 
-            # Render HTML
-            html_content = template.render(
-                cycle_id=payload.cycle_id,
-                matches_count=payload.matches_count,
-                matches=sorted(
-                    payload.matches,
-                    key=lambda m: m.overall_score,
-                    reverse=True,
-                ),
-                summary=payload.summary,
-                review_url=payload.review_url,
-                timestamp=payload.timestamp.strftime("%d.%m.%Y %H:%M"),
-            )
+            # Try Jinja2 template, fallback to plain text
+            try:
+                template = self._jinja.get_template("match_summary.html")
+                html_content = template.render(
+                    cycle_id=payload.cycle_id,
+                    matches_count=payload.matches_count,
+                    matches=sorted(
+                        payload.matches,
+                        key=lambda m: m.overall_score,
+                        reverse=True,
+                    ),
+                    summary=payload.summary,
+                    review_url=payload.review_url,
+                    timestamp=payload.timestamp.strftime("%d.%m.%Y %H:%M"),
+                )
+            except Exception as e:
+                logger.warning(f"Template render failed, using plain: {e}")
+                html_content = None
 
             # Build subject
             top_match = max(payload.matches, key=lambda m: m.overall_score)
@@ -102,21 +101,29 @@ class EmailAdapter:
                 f"— Top: {top_match.overall_score}% {top_match.title}"
             )
 
-            # Send to all recipients
-            for recipient in self.config.recipients:
-                msg = MIMEMultipart("alternative")
-                msg["Subject"] = subject
-                msg["From"] = "me"
-                msg["To"] = recipient
-                msg.attach(MIMEText(payload.summary, "plain"))
-                msg.attach(MIMEText(html_content, "html"))
+            async with httpx.AsyncClient() as client:
+                for recipient in self.config.recipients:
+                    msg = MIMEMultipart("alternative")
+                    msg["Subject"] = subject
+                    msg["From"] = "me"
+                    msg["To"] = recipient
 
-                raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
-                service.users().messages().send(
-                    userId="me", body={"raw": raw}
-                ).execute()
+                    # Plain text fallback
+                    msg.attach(MIMEText(payload.summary, "plain", "utf-8"))
 
-                logger.info(f"Email sent to {recipient}")
+                    # HTML version
+                    if html_content:
+                        msg.attach(MIMEText(html_content, "html", "utf-8"))
+
+                    raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
+
+                    resp = await client.post(
+                        GMAIL_SEND_URL,
+                        headers={"Authorization": f"Bearer {token}"},
+                        json={"raw": raw},
+                    )
+                    resp.raise_for_status()
+                    logger.info(f"Email sent to {recipient}")
 
             return True
         except Exception as e:
@@ -125,8 +132,12 @@ class EmailAdapter:
 
     async def health_check(self) -> bool:
         try:
-            service = await self._get_service()
-            service.users().getProfile(userId="me").execute()
-            return True
+            token = await self._get_access_token()
+            async with httpx.AsyncClient() as client:
+                resp = await client.get(
+                    GMAIL_PROFILE_URL,
+                    headers={"Authorization": f"Bearer {token}"},
+                )
+                return resp.status_code == 200
         except Exception:
             return False
