@@ -46,6 +46,7 @@ include:
   # === QUALITY ASSURANCE ===
   - local: '.gitlab/tests.yml'
   - local: '.gitlab/nsai-tests.yml'       # NSAI Symbolic Layer tests            # Pytest unit/integration tests
+  - local: '.gitlab/publications.yml'      # Quarto publication builds (GOV-003)
   - local: '.gitlab/roundtrip-test.yml'      # Workflow integration test
 
 # -----------------------------------------------------------------------------

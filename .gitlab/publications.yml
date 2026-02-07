@@ -1,0 +1,82 @@
+# =============================================================================
+# PUBLICATIONS - Quarto Build Pipeline
+# =============================================================================
+# Builds academic publications from Quarto Markdown sources.
+# Reference: GOV-003 Publication Workflow
+#
+# Flow: experiment.qmd (Python) → figures/ → paper.qmd → PDF + HTML
+# =============================================================================
+
+.publication-base:
+  image: python:3.11-slim
+  tags:
+    - docker-any
+  variables:
+    QUARTO_VERSION: "1.6.42"
+    PUB_DIR: "docs/publications/nsai-runner-selection-2026"
+  before_script:
+    # Install Quarto
+    - apt-get update -qq && apt-get install -y -qq wget texlive-xetex texlive-fonts-recommended texlive-plain-generic lmodern librsvg2-bin > /dev/null 2>&1
+    - wget -q "https://github.com/quarto-dev/quarto-cli/releases/download/v${QUARTO_VERSION}/quarto-${QUARTO_VERSION}-linux-amd64.deb"
+    - dpkg -i "quarto-${QUARTO_VERSION}-linux-amd64.deb" > /dev/null 2>&1
+    - rm "quarto-${QUARTO_VERSION}-linux-amd64.deb"
+    # Install Python deps
+    - pip install --quiet jupyter matplotlib numpy
+    - echo "Quarto $(quarto --version) ready"
+
+# -----------------------------------------------------------------------------
+# BUILD: Full render (experiment + paper)
+# -----------------------------------------------------------------------------
+publication:build:
+  extends: .publication-base
+  stage: build
+  script:
+    - cd "$PUB_DIR"
+    - echo "🚀 Building publication..."
+    - quarto render 2>&1 | tail -20
+    - echo ""
+    - echo "=== Build Results ==="
+    - ls -lh _output/
+    - |
+      if [ -f _output/nsai_paper.pdf ]; then
+        PAGES=$(python3 -c "
+      import subprocess
+      r = subprocess.run(['pdfinfo', '_output/nsai_paper.pdf'], capture_output=True, text=True)
+      for l in r.stdout.split('\n'):
+        if 'Pages' in l: print(l.split(':')[1].strip())
+      " 2>/dev/null || echo "?")
+        echo "✅ Paper: nsai_paper.pdf ($(du -h _output/nsai_paper.pdf | cut -f1), ${PAGES} pages)"
+      else
+        echo "❌ Paper PDF not generated!"
+        exit 1
+      fi
+    - |
+      if [ -f _output/nsai_paper.html ]; then
+        echo "✅ HTML:  nsai_paper.html ($(du -h _output/nsai_paper.html | cut -f1))"
+      fi
+    - |
+      if [ -f _output/experiment.html ]; then
+        echo "✅ Notebook: experiment.html ($(du -h _output/experiment.html | cut -f1))"
+      fi
+    - echo ""
+    - echo "📊 Generated figures:"
+    - ls -lh figures/*.pdf 2>/dev/null || echo "  (no generated figures)"
+  artifacts:
+    paths:
+      - $PUB_DIR/_output/nsai_paper.pdf
+      - $PUB_DIR/_output/nsai_paper.html
+      - $PUB_DIR/_output/experiment.html
+      - $PUB_DIR/_output/experiment.pdf
+      - $PUB_DIR/figures/
+    expire_in: 30 days
+    name: "nsai-paper-${CI_COMMIT_SHORT_SHA}"
+  rules:
+    # On changes to publication files
+    - if: $CI_COMMIT_BRANCH == "main"
+      changes:
+        - docs/publications/nsai-runner-selection-2026/**
+    # Manual trigger anytime
+    - if: $CI_COMMIT_BRANCH == "main"
+      when: manual
+      allow_failure: true
+  needs: []
