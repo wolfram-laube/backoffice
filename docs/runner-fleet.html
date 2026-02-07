@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>⚡ Runner Fleet — Blauweiss Operations</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Outfit:wght@300;400;600;800&display=swap');
+
+        :root {
+            --bg: #0a0a14;
+            --surface: #12122a;
+            --surface2: #1c1c3a;
+            --surface3: #26264a;
+            --border: #2a2a4f;
+            --text: #e4e4f0;
+            --subtext: #7878a0;
+            --accent: #6c5ce7;
+            --accent2: #a29bfe;
+            --green: #00e6a0;
+            --green-dim: rgba(0,230,160,0.12);
+            --yellow: #ffd166;
+            --yellow-dim: rgba(255,209,102,0.12);
+            --red: #ff6b6b;
+            --red-dim: rgba(255,107,107,0.12);
+            --blue: #4ecdc4;
+            --orange: #ff9f43;
+            --cyan: #00d2ff;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+        }
+
+        /* ── Topbar ─────────────────────────────────────────── */
+        .topbar {
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            padding: 14px 32px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            backdrop-filter: blur(20px);
+        }
+        .topbar-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        .topbar-left a {
+            color: var(--subtext);
+            text-decoration: none;
+            font-size: 13px;
+            transition: color 0.2s;
+        }
+        .topbar-left a:hover { color: var(--text); }
+        .topbar h1 {
+            font-size: 18px;
+            font-weight: 600;
+            letter-spacing: -0.3px;
+        }
+        .topbar h1 span { color: var(--accent2); }
+        .topbar-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .refresh-btn {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 6px 14px;
+            border-radius: 8px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .refresh-btn:hover { background: var(--surface3); border-color: var(--accent); }
+        .refresh-btn.spinning .spin-icon { animation: spin 0.8s ease-in-out; }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        .pulse {
+            width: 8px; height: 8px; border-radius: 50%;
+            background: var(--green);
+            animation: pulse-glow 2s infinite;
+        }
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(0,230,160,0.4); }
+            50% { box-shadow: 0 0 0 6px rgba(0,230,160,0); }
+        }
+        .last-update { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--subtext); }
+
+        /* ── Main Layout ───────────────────────────────────── */
+        .main { padding: 24px 32px; max-width: 1600px; margin: 0 auto; }
+
+        /* ── Stats Row ─────────────────────────────────────── */
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 12px;
+            margin-bottom: 28px;
+        }
+        .stat-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px 20px;
+            position: relative;
+            overflow: hidden;
+        }
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 2px;
+        }
+        .stat-card.green::before { background: var(--green); }
+        .stat-card.yellow::before { background: var(--yellow); }
+        .stat-card.red::before { background: var(--red); }
+        .stat-card.blue::before { background: var(--blue); }
+        .stat-card.accent::before { background: var(--accent); }
+        .stat-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1.2px; color: var(--subtext); margin-bottom: 6px; }
+        .stat-value { font-family: 'JetBrains Mono', monospace; font-size: 28px; font-weight: 700; }
+        .stat-value.green { color: var(--green); }
+        .stat-value.yellow { color: var(--yellow); }
+        .stat-value.red { color: var(--red); }
+        .stat-value.blue { color: var(--blue); }
+        .stat-value.accent { color: var(--accent2); }
+
+        /* ── Two-Column Grid ───────────────────────────────── */
+        .two-col {
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            gap: 24px;
+            align-items: start;
+        }
+        @media (max-width: 1100px) {
+            .two-col { grid-template-columns: 1fr; }
+            .stats-row { grid-template-columns: repeat(3, 1fr); }
+        }
+
+        /* ── Panel ─────────────────────────────────────────── */
+        .panel {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            overflow: hidden;
+        }
+        .panel-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .panel-title {
+            font-size: 14px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .panel-badge {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            padding: 2px 8px;
+            border-radius: 10px;
+            background: var(--green-dim);
+            color: var(--green);
+        }
+
+        /* ── Runner Grid ───────────────────────────────────── */
+        .runner-grid { padding: 4px; }
+        .runner-row {
+            display: grid;
+            grid-template-columns: 10px 1fr 100px 80px 100px 44px;
+            gap: 12px;
+            align-items: center;
+            padding: 12px 16px;
+            border-bottom: 1px solid rgba(42,42,79,0.5);
+            transition: background 0.15s;
+        }
+        .runner-row:hover { background: rgba(108,92,231,0.04); }
+        .runner-row:last-child { border-bottom: none; }
+        .runner-dot {
+            width: 10px; height: 10px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        .runner-dot.online { background: var(--green); box-shadow: 0 0 8px rgba(0,230,160,0.4); }
+        .runner-dot.offline { background: var(--red); opacity: 0.6; }
+        .runner-dot.paused { background: var(--yellow); }
+        .runner-dot.stale { background: var(--subtext); opacity: 0.4; }
+        .runner-name {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .runner-type {
+            font-size: 10px;
+            padding: 2px 8px;
+            border-radius: 6px;
+            font-family: 'JetBrains Mono', monospace;
+            text-align: center;
+        }
+        .runner-type.docker { background: rgba(78,205,196,0.12); color: var(--blue); }
+        .runner-type.shell { background: rgba(255,209,102,0.12); color: var(--yellow); }
+        .runner-type.k8s { background: rgba(162,155,254,0.12); color: var(--accent2); }
+        .runner-type.gcp { background: rgba(255,159,67,0.12); color: var(--orange); }
+        .runner-status {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            text-align: center;
+        }
+        .runner-tags {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            color: var(--subtext);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .pin-btn {
+            width: 32px; height: 32px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: transparent;
+            color: var(--subtext);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+        .pin-btn:hover { border-color: var(--accent); color: var(--accent2); background: rgba(108,92,231,0.08); }
+        .pin-btn.pinned {
+            border-color: var(--orange);
+            color: var(--orange);
+            background: rgba(255,159,67,0.12);
+        }
+
+        /* ── MAB Panel ─────────────────────────────────────── */
+        .mab-card {
+            padding: 16px 20px;
+            border-bottom: 1px solid rgba(42,42,79,0.5);
+        }
+        .mab-card:last-child { border-bottom: none; }
+        .mab-runner-name {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            font-weight: 500;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+        }
+        .mab-bar-container {
+            height: 6px;
+            background: var(--surface3);
+            border-radius: 3px;
+            overflow: hidden;
+            margin-bottom: 6px;
+        }
+        .mab-bar {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.6s ease;
+        }
+        .mab-stats {
+            display: flex;
+            gap: 16px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            color: var(--subtext);
+        }
+        .mab-stats span em {
+            font-style: normal;
+            color: var(--text);
+        }
+
+        /* ── Override Section ──────────────────────────────── */
+        .override-section {
+            padding: 16px 20px;
+            border-top: 1px solid var(--border);
+        }
+        .override-header {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--orange);
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .override-select {
+            width: 100%;
+            padding: 10px 14px;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%237878a0'%3E%3Cpath d='M6 8.5L1.5 4h9z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+        }
+        .override-select:focus { outline: none; border-color: var(--accent); }
+        .override-actions {
+            display: flex;
+            gap: 8px;
+        }
+        .override-btn {
+            flex: 1;
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .override-btn.primary {
+            background: var(--orange);
+            color: #0a0a14;
+            border-color: var(--orange);
+        }
+        .override-btn.primary:hover { background: #ffb347; }
+        .override-btn.secondary {
+            background: transparent;
+            color: var(--subtext);
+        }
+        .override-btn.secondary:hover { border-color: var(--accent); color: var(--text); }
+        .override-status {
+            margin-top: 10px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            padding: 8px 12px;
+            border-radius: 6px;
+            display: none;
+        }
+        .override-status.active {
+            display: block;
+            background: rgba(255,159,67,0.1);
+            border: 1px solid rgba(255,159,67,0.3);
+            color: var(--orange);
+        }
+        .override-status.cleared {
+            display: block;
+            background: var(--green-dim);
+            border: 1px solid rgba(0,230,160,0.3);
+            color: var(--green);
+        }
+
+        /* ── Auth Dialog ───────────────────────────────────── */
+        .auth-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(10,10,20,0.92);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 999;
+            backdrop-filter: blur(8px);
+        }
+        .auth-box {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 32px;
+            width: 420px;
+            text-align: center;
+        }
+        .auth-box h2 { font-size: 20px; margin-bottom: 8px; }
+        .auth-box p { color: var(--subtext); font-size: 13px; margin-bottom: 20px; }
+        .auth-input {
+            width: 100%;
+            padding: 12px 16px;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            color: var(--text);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            margin-bottom: 16px;
+        }
+        .auth-input:focus { outline: none; border-color: var(--accent); }
+        .auth-submit {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, var(--accent), var(--accent2));
+            border: none;
+            border-radius: 10px;
+            color: white;
+            font-family: 'Outfit', sans-serif;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        .auth-submit:hover { opacity: 0.9; }
+        .auth-hint {
+            font-size: 11px;
+            color: var(--subtext);
+            margin-top: 12px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* ── Skeleton loading ──────────────────────────────── */
+        .skeleton {
+            background: linear-gradient(90deg, var(--surface2) 25%, var(--surface3) 50%, var(--surface2) 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+            border-radius: 4px;
+        }
+        @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+        /* ── Toast ─────────────────────────────────────────── */
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 12px 20px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            transform: translateY(100px);
+            opacity: 0;
+            transition: all 0.3s ease;
+            z-index: 200;
+        }
+        .toast.show { transform: translateY(0); opacity: 1; }
+    </style>
+</head>
+<body>
+
+<!-- Auth Overlay -->
+<div class="auth-overlay" id="authOverlay">
+    <div class="auth-box">
+        <h2>⚡ Runner Fleet</h2>
+        <p>GitLab Personal Access Token eingeben<br>für Live-Runner-Daten.</p>
+        <input type="password" class="auth-input" id="tokenInput"
+               placeholder="glpat-..." autocomplete="off"
+               spellcheck="false">
+        <button class="auth-submit" onclick="authenticate()">Verbinden</button>
+        <div class="auth-hint">Token wird nur im Browser-Tab gehalten — kein Storage.</div>
+    </div>
+</div>
+
+<!-- Topbar -->
+<div class="topbar">
+    <div class="topbar-left">
+        <a href="portal.html">← Portal</a>
+        <h1>⚡ Runner <span>Fleet</span></h1>
+    </div>
+    <div class="topbar-right">
+        <div class="pulse"></div>
+        <span class="last-update" id="lastUpdate">—</span>
+        <button class="refresh-btn" onclick="refresh()">
+            <span class="spin-icon">↻</span> Refresh
+        </button>
+    </div>
+</div>
+
+<!-- Main -->
+<div class="main">
+
+    <!-- Stats Row -->
+    <div class="stats-row">
+        <div class="stat-card green">
+            <div class="stat-label">Online</div>
+            <div class="stat-value green" id="statOnline">—</div>
+        </div>
+        <div class="stat-card red">
+            <div class="stat-label">Offline</div>
+            <div class="stat-value red" id="statOffline">—</div>
+        </div>
+        <div class="stat-card blue">
+            <div class="stat-label">Total Eigene</div>
+            <div class="stat-value blue" id="statTotal">—</div>
+        </div>
+        <div class="stat-card accent">
+            <div class="stat-label">MAB Pulls</div>
+            <div class="stat-value accent" id="statPulls">—</div>
+        </div>
+        <div class="stat-card yellow">
+            <div class="stat-label">Override</div>
+            <div class="stat-value yellow" id="statOverride">OFF</div>
+        </div>
+    </div>
+
+    <!-- Two Column Layout -->
+    <div class="two-col">
+
+        <!-- Left: Runner Table -->
+        <div class="panel">
+            <div class="panel-header">
+                <div class="panel-title">
+                    🖥️ Runner Fleet
+                    <span class="panel-badge" id="runnerBadge">loading...</span>
+                </div>
+                <div style="font-size:11px; color:var(--subtext); font-family:'JetBrains Mono',monospace;">
+                    📌 = Override (nächster Job auf diesem Runner)
+                </div>
+            </div>
+            <div class="runner-grid" id="runnerGrid">
+                <!-- Populated by JS -->
+                <div class="runner-row" style="justify-content:center; padding:40px; color:var(--subtext);">
+                    Authentifizierung erforderlich...
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: MAB Panel + Override -->
+        <div>
+            <!-- MAB Stats -->
+            <div class="panel" style="margin-bottom:16px;">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        🎰 MAB Intelligence
+                        <span class="panel-badge" id="mabBadge" style="background:rgba(162,155,254,0.12);color:var(--accent2);">UCB1</span>
+                    </div>
+                </div>
+                <div id="mabStats">
+                    <div class="mab-card" style="text-align:center; color:var(--subtext); padding:24px;">
+                        Lade MAB-Daten...
+                    </div>
+                </div>
+            </div>
+
+            <!-- Override Control -->
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">🎯 Manual Override</div>
+                </div>
+                <div class="override-section">
+                    <div class="override-header">
+                        ⚠️ Nächsten Job auf bestimmtem Runner erzwingen
+                    </div>
+                    <select class="override-select" id="overrideRunner">
+                        <option value="">— KI entscheidet (Standard) —</option>
+                    </select>
+                    <div class="override-actions">
+                        <button class="override-btn primary" onclick="setOverride()">📌 Override setzen</button>
+                        <button class="override-btn secondary" onclick="clearOverride()">✖ Aufheben</button>
+                    </div>
+                    <div class="override-status" id="overrideStatus"></div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ── State ────────────────────────────────────────────────────
+let PAT = '';
+const PROJECT_ID = '77555895';
+const GITLAB_API = 'https://gitlab.com/api/v4';
+const MAB_URL = 'https://runner-bandit-m5cziijwqa-lz.a.run.app';
+let runners = [];
+let mabData = null;
+let overrideRunner = null;
+let refreshInterval = null;
+
+// ── Known runner metadata ────────────────────────────────────
+const RUNNER_META = {
+    'Mac Shell Runner':           { type: 'shell',  loc: '🏠 Mac1',       color: 'shell' },
+    'Mac Docker Runner':          { type: 'docker', loc: '🏠 Mac1',       color: 'docker' },
+    'Mac K8s Runner':             { type: 'k8s',    loc: '🏠 Mac1',       color: 'k8s' },
+    'Mac2 Shell Runner':          { type: 'shell',  loc: '🏠 Mac2',       color: 'shell' },
+    'Mac2 Docker Runner':         { type: 'docker', loc: '🏠 Mac2',       color: 'docker' },
+    'Mac2 K8s Runner':            { type: 'k8s',    loc: '🏠 Mac2',       color: 'k8s' },
+    'Linux Yoga Shell Runner':    { type: 'shell',  loc: '💻 Yoga',       color: 'shell' },
+    'Linux Yoga Docker Runner':   { type: 'docker', loc: '💻 Yoga',       color: 'docker' },
+    'Linux Yoga K8s Runner':      { type: 'k8s',    loc: '💻 Yoga',       color: 'k8s' },
+    'gitlab-runner-nordic':       { type: 'docker', loc: '☁️ GCP Nordic', color: 'gcp' },
+    'Nordic K8s Runner':          { type: 'k8s',    loc: '☁️ GCP Nordic', color: 'gcp' },
+};
+
+// ── Auth ─────────────────────────────────────────────────────
+function authenticate() {
+    const token = document.getElementById('tokenInput').value.trim();
+    if (!token.startsWith('glpat-')) {
+        showToast('❌ Token muss mit glpat- beginnen', 'red');
+        return;
+    }
+    PAT = token;
+    document.getElementById('authOverlay').style.display = 'none';
+    refresh();
+    refreshInterval = setInterval(refresh, 30000); // Auto-refresh 30s
+}
+
+// Allow Enter key
+document.getElementById('tokenInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') authenticate();
+});
+
+// ── Fetch Runners ────────────────────────────────────────────
+async function fetchRunners() {
+    const resp = await fetch(
+        `${GITLAB_API}/projects/${PROJECT_ID}/runners?type=project_type&per_page=50`,
+        { headers: { 'PRIVATE-TOKEN': PAT } }
+    );
+    if (!resp.ok) throw new Error(`GitLab API: ${resp.status}`);
+    return await resp.json();
+}
+
+// ── Fetch MAB ────────────────────────────────────────────────
+async function fetchMAB() {
+    try {
+        const resp = await fetch(`${MAB_URL}/stats`, { signal: AbortSignal.timeout(5000) });
+        if (resp.ok) return await resp.json();
+    } catch (e) {
+        // Service might be sleeping, try root endpoint
+        try {
+            const resp2 = await fetch(`${MAB_URL}/`, { signal: AbortSignal.timeout(5000) });
+            if (resp2.ok) return await resp2.json();
+        } catch (e2) { /* MAB offline */ }
+    }
+    return null;
+}
+
+// ── Render ───────────────────────────────────────────────────
+function renderRunners(data) {
+    runners = data.sort((a, b) => {
+        const order = { online: 0, paused: 1, offline: 2, stale: 3 };
+        return (order[a.status] || 9) - (order[b.status] || 9);
+    });
+
+    const grid = document.getElementById('runnerGrid');
+    const online = runners.filter(r => r.status === 'online').length;
+    const offline = runners.filter(r => r.status !== 'online').length;
+
+    document.getElementById('statOnline').textContent = online;
+    document.getElementById('statOffline').textContent = offline;
+    document.getElementById('statTotal').textContent = runners.length;
+    document.getElementById('runnerBadge').textContent = `${online}/${runners.length} online`;
+
+    // Populate override dropdown
+    const select = document.getElementById('overrideRunner');
+    const prevVal = select.value;
+    select.innerHTML = '<option value="">— KI entscheidet (Standard) —</option>';
+    runners.filter(r => r.status === 'online').forEach(r => {
+        const meta = RUNNER_META[r.description] || {};
+        const opt = document.createElement('option');
+        opt.value = r.description;
+        opt.textContent = `${meta.loc || ''} ${r.description}`.trim();
+        select.appendChild(opt);
+    });
+    if (prevVal) select.value = prevVal;
+
+    grid.innerHTML = runners.map(r => {
+        const meta = RUNNER_META[r.description] || { type: '?', loc: '?', color: 'shell' };
+        const tags = (r.tag_list || []).join(', ') || '—';
+        const isPinned = overrideRunner === r.description;
+        return `
+            <div class="runner-row">
+                <div class="runner-dot ${r.status}"></div>
+                <div>
+                    <div class="runner-name">${r.description}</div>
+                    <div style="font-size:10px; color:var(--subtext); margin-top:2px;">${meta.loc}</div>
+                </div>
+                <span class="runner-type ${meta.color}">${meta.type.toUpperCase()}</span>
+                <span class="runner-status" style="color:var(--${r.status === 'online' ? 'green' : r.status === 'offline' ? 'red' : 'yellow'})">${r.status}</span>
+                <span class="runner-tags" title="${tags}">${tags}</span>
+                <button class="pin-btn ${isPinned ? 'pinned' : ''}"
+                        onclick="togglePin('${r.description}')"
+                        title="${isPinned ? 'Override aufheben' : 'Override: nächster Job hier'}"
+                        ${r.status !== 'online' ? 'disabled style="opacity:0.3;cursor:not-allowed;"' : ''}>
+                    ${isPinned ? '📌' : '○'}
+                </button>
+            </div>`;
+    }).join('');
+}
+
+function renderMAB(data) {
+    const container = document.getElementById('mabStats');
+
+    if (!data) {
+        container.innerHTML = `
+            <div class="mab-card" style="text-align:center; color:var(--subtext); padding:20px;">
+                <div style="font-size:24px; margin-bottom:8px;">💤</div>
+                MAB Service offline oder nicht erreichbar
+                <div style="font-size:10px; margin-top:6px; font-family:'JetBrains Mono',monospace;">
+                    ${MAB_URL}
+                </div>
+            </div>`;
+        document.getElementById('statPulls').textContent = '—';
+        return;
+    }
+
+    // Data from /stats or / endpoint
+    const stats = data.runners || data.stats || {};
+    const totalPulls = data.total_observations || data.total_pulls || 0;
+    const algorithm = data.algorithm || 'UCB1';
+
+    document.getElementById('statPulls').textContent = totalPulls;
+    document.getElementById('mabBadge').textContent = algorithm;
+
+    if (typeof stats === 'object' && Object.keys(stats).length > 0) {
+        // Full stats available
+        const entries = Object.entries(stats).sort((a, b) => {
+            const aReward = a[1].mean_reward || a[1].avg_reward || 0;
+            const bReward = b[1].mean_reward || b[1].avg_reward || 0;
+            return bReward - aReward;
+        });
+
+        const maxReward = Math.max(...entries.map(([, s]) => s.mean_reward || s.avg_reward || 0), 0.01);
+
+        container.innerHTML = entries.map(([name, s]) => {
+            const pulls = s.pulls || s.count || 0;
+            const reward = s.mean_reward || s.avg_reward || 0;
+            const successRate = s.success_rate || (s.successes / Math.max(s.pulls, 1)) || 0;
+            const avgDuration = s.avg_duration || 0;
+            const barWidth = (reward / maxReward) * 100;
+            const barColor = reward > 0.7 ? 'var(--green)' : reward > 0.4 ? 'var(--yellow)' : 'var(--red)';
+
+            return `
+                <div class="mab-card">
+                    <div class="mab-runner-name">
+                        <span>${name}</span>
+                        <span style="color:var(--subtext); font-size:11px;">${pulls} pulls</span>
+                    </div>
+                    <div class="mab-bar-container">
+                        <div class="mab-bar" style="width:${barWidth}%; background:${barColor};"></div>
+                    </div>
+                    <div class="mab-stats">
+                        <span>reward: <em>${reward.toFixed(3)}</em></span>
+                        <span>success: <em>${(successRate * 100).toFixed(0)}%</em></span>
+                        <span>avg: <em>${avgDuration.toFixed(1)}s</em></span>
+                    </div>
+                </div>`;
+        }).join('');
+    } else {
+        // Basic info from / endpoint
+        const runnerList = data.runners || [];
+        container.innerHTML = `
+            <div class="mab-card">
+                <div style="color:var(--subtext); font-size:12px;">
+                    Service active · ${runnerList.length || '?'} arms configured<br>
+                    <span style="font-family:'JetBrains Mono',monospace; font-size:10px; margin-top:4px; display:inline-block;">
+                        ${(Array.isArray(runnerList) ? runnerList : []).join(', ')}
+                    </span>
+                </div>
+            </div>`;
+    }
+}
+
+// ── Override ─────────────────────────────────────────────────
+function togglePin(runnerName) {
+    if (overrideRunner === runnerName) {
+        clearOverride();
+    } else {
+        overrideRunner = runnerName;
+        document.getElementById('overrideRunner').value = runnerName;
+        updateOverrideUI();
+        showToast(`📌 Override: ${runnerName}`, 'orange');
+    }
+    renderRunners(runners); // Re-render to update pins
+}
+
+function setOverride() {
+    const selected = document.getElementById('overrideRunner').value;
+    if (!selected) {
+        showToast('Kein Runner ausgewählt', 'yellow');
+        return;
+    }
+    overrideRunner = selected;
+    updateOverrideUI();
+    renderRunners(runners);
+    showToast(`📌 Override gesetzt: ${selected}`, 'orange');
+
+    // If MAB service is reachable, POST override
+    fetch(`${MAB_URL}/override`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ runner: selected, reason: 'manual_portal_override' })
+    }).catch(() => { /* Service might not have this endpoint yet */ });
+}
+
+function clearOverride() {
+    overrideRunner = null;
+    document.getElementById('overrideRunner').value = '';
+    updateOverrideUI();
+    renderRunners(runners);
+    showToast('✅ Override aufgehoben — KI übernimmt', 'green');
+
+    fetch(`${MAB_URL}/override`, {
+        method: 'DELETE'
+    }).catch(() => {});
+}
+
+function updateOverrideUI() {
+    const status = document.getElementById('overrideStatus');
+    const stat = document.getElementById('statOverride');
+
+    if (overrideRunner) {
+        status.className = 'override-status active';
+        status.innerHTML = `📌 Nächster Job → <strong>${overrideRunner}</strong><br>
+            <span style="font-size:10px; opacity:0.8;">KI-Empfehlung wird ignoriert bis Override aufgehoben</span>`;
+        stat.textContent = 'ON';
+        stat.style.color = 'var(--orange)';
+    } else {
+        status.className = 'override-status cleared';
+        status.textContent = '✅ Kein Override — KI entscheidet autonom';
+        stat.textContent = 'OFF';
+        stat.style.color = 'var(--yellow)';
+        setTimeout(() => { status.style.display = 'none'; }, 2000);
+    }
+}
+
+// ── Refresh ──────────────────────────────────────────────────
+async function refresh() {
+    const btn = document.querySelector('.refresh-btn');
+    btn.classList.add('spinning');
+
+    try {
+        const [runnerData, mab] = await Promise.allSettled([
+            fetchRunners(),
+            fetchMAB()
+        ]);
+
+        if (runnerData.status === 'fulfilled') {
+            renderRunners(runnerData.value);
+        } else {
+            showToast('❌ Runner-Daten: ' + runnerData.reason.message, 'red');
+        }
+
+        renderMAB(mab.status === 'fulfilled' ? mab.value : null);
+
+        document.getElementById('lastUpdate').textContent =
+            new Date().toLocaleTimeString('de-AT', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+    } catch (e) {
+        showToast('❌ ' + e.message, 'red');
+    }
+
+    setTimeout(() => btn.classList.remove('spinning'), 600);
+}
+
+// ── Toast ────────────────────────────────────────────────────
+function showToast(msg, color = 'text') {
+    const toast = document.getElementById('toast');
+    toast.innerHTML = msg;
+    toast.style.borderColor = `var(--${color})`;
+    toast.style.color = `var(--${color})`;
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 3000);
+}
+</script>
+</body>
+</html>
