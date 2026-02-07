@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; margin: 0; padding: 20px; }
+    .container { max-width: 600px; margin: 0 auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+    .header { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); color: white; padding: 24px; }
+    .header h1 { margin: 0; font-size: 20px; font-weight: 600; }
+    .header .subtitle { color: #a0a0c0; font-size: 13px; margin-top: 4px; }
+    .body { padding: 24px; }
+    .match-card { border: 1px solid #e0e0e0; border-radius: 6px; padding: 16px; margin-bottom: 12px; }
+    .match-card.high { border-left: 4px solid #f59e0b; }
+    .match-card.medium { border-left: 4px solid #3b82f6; }
+    .score { font-size: 24px; font-weight: 700; float: right; }
+    .score.high { color: #f59e0b; }
+    .score.medium { color: #3b82f6; }
+    .title { font-size: 16px; font-weight: 600; color: #1a1a1a; margin: 0 0 4px 0; }
+    .provider { color: #666; font-size: 13px; }
+    .details { color: #888; font-size: 12px; margin-top: 8px; }
+    .details span { margin-right: 12px; }
+    .cta { text-align: center; padding: 20px; }
+    .cta a { background: #1a1a2e; color: white; text-decoration: none; padding: 12px 32px; border-radius: 6px; font-weight: 600; display: inline-block; }
+    .footer { text-align: center; padding: 16px; color: #aaa; font-size: 11px; border-top: 1px solid #eee; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🎯 {{ matches_count }} neue Job-Matches</h1>
+      <div class="subtitle">Match Cycle: {{ cycle_id }} · {{ timestamp }}</div>
+    </div>
+    <div class="body">
+      {% for match in matches %}
+      <div class="match-card {{ 'high' if match.overall_score >= 90 else 'medium' }}">
+        <div class="score {{ 'high' if match.overall_score >= 90 else 'medium' }}">{{ match.overall_score }}%</div>
+        <p class="title">{{ match.title }}</p>
+        <p class="provider">{{ match.provider }}{% if match.contact_name %} · {{ match.contact_name }}{% endif %}</p>
+        <div class="details">
+          <span>📍 {{ match.location }}{% if match.remote_percentage %} ({{ match.remote_percentage }}% Remote){% endif %}</span><br>
+          <span>🗓 Start: {{ match.start_date }}</span>
+          <span>⏱ {{ match.duration }}</span>
+          <span>💶 {{ match.rate_eur }} EUR/h</span>
+        </div>
+        {% if match.strengths %}
+        <div class="details" style="margin-top: 6px; color: #16a34a;">
+          {% for s in match.strengths[:3] %}✅ {{ s }}<br>{% endfor %}
+        </div>
+        {% endif %}
+        {% if match.gaps %}
+        <div class="details" style="color: #dc2626;">
+          {% for g in match.gaps[:2] %}⚠️ {{ g }}<br>{% endfor %}
+        </div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    <div class="cta">
+      <a href="{{ review_url }}">👉 Review in GitLab</a>
+    </div>
+    <div class="footer">
+      Blauweiss EDV e.U. · Match Staging Service v0.1<br>
+      Konfiguration: POST /api/v1/config
+    </div>
+  </div>
+</body>
+</html>

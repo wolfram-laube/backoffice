@@ -1,0 +1,43 @@
+# Match Staging Service — Notification Channel Configuration
+# ============================================================
+#
+# Override any value via environment variables:
+#   CONFIG__NOTIFICATION__CHANNELS__SLACK__ENABLED=true
+#   CONFIG__NOTIFICATION__PREFERENCES__THRESHOLD=80
+#
+# Channel-specific credentials should be set via env vars or
+# GCP Secret Manager, not committed to this file.
+
+notification:
+  channels:
+    email:
+      enabled: true
+      recipients:
+        - wolfram.laube@blauweiss-edv.at
+      template: "match_summary"
+
+    slack:
+      enabled: false
+      webhook_url: ""          # Set via SLACK_WEBHOOK_URL env or Secret Manager
+      channel: "#job-matches"
+
+    whatsapp:
+      enabled: false
+      provider: "twilio"
+      account_sid: ""          # Set via TWILIO_ACCOUNT_SID env
+      auth_token: ""           # Set via TWILIO_AUTH_TOKEN env
+      from_number: ""          # Twilio WhatsApp sandbox or Business number
+      to_number: "+436644011521"
+
+    gitlab_todo:
+      enabled: true
+      assignee_id: 1349601     # wolfram.laube
+
+  preferences:
+    threshold: 70              # Minimum match score (%) to stage
+    quiet_hours:
+      start: "22:00"
+      end: "07:00"
+      timezone: "Europe/Vienna"
+    batch_mode: true           # Aggregate matches per cycle
+    batch_summary: true        # Single summary notification
