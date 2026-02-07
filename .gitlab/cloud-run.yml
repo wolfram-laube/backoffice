@@ -1,5 +1,9 @@
+# =============================================================================
 # Cloud Run Deployment Pipeline for Runner Bandit Service
-# Builds and deploys the MAB service to GCP Cloud Run
+# =============================================================================
+# Builds, copies, and deploys the MAB service to GCP Cloud Run.
+#
+# Pipeline: GitLab Registry → skopeo copy → GCP Artifact Registry → Cloud Run
 #
 # Required CI Variables (Group Level):
 #   - GCP_SERVICE_ACCOUNT_KEY: Base64-encoded service account JSON
@@ -7,14 +11,17 @@
 # Triggers:
 #   - Manual via web UI or CLOUD_RUN_DEPLOY=true
 #   - Tag push (v*)
+#   - Changes to services/runner_bandit/**
+# =============================================================================
 
 variables:
   GCP_PROJECT: myk8sproject-207017
   GCP_REGION: europe-north1
   SERVICE_NAME: runner-bandit
-  IMAGE_NAME: europe-north1-docker.pkg.dev/${GCP_PROJECT}/backoffice/${SERVICE_NAME}
+  GITLAB_IMAGE: ${CI_REGISTRY_IMAGE}/runner-bandit
+  GCP_IMAGE: europe-north1-docker.pkg.dev/${GCP_PROJECT}/blauweiss/${SERVICE_NAME}
 
-# ============== Build & Push to Artifact Registry ==============
+# ============== Build & Push to GitLab Registry ==============
 cloud-run:build:
   stage: build
   image:
@@ -25,14 +32,53 @@ cloud-run:build:
   rules:
     - if: '$CLOUD_RUN_DEPLOY == "true"'
     - if: '$CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/'
+    - changes:
+        - services/runner_bandit/**
+      when: manual
+      allow_failure: true
   script:
-    - echo "=== Setting up GCP Auth for Kaniko ==="
     - mkdir -p /kaniko/.docker
-    - echo "$GCP_SERVICE_ACCOUNT_KEY" | base64 -d > /kaniko/gcp-key.json
-    - export GOOGLE_APPLICATION_CREDENTIALS=/kaniko/gcp-key.json
-    - echo "=== Building with Kaniko ==="
-    - /kaniko/executor --context="${CI_PROJECT_DIR}/services/runner_bandit" --dockerfile="${CI_PROJECT_DIR}/services/runner_bandit/Dockerfile" --destination="${IMAGE_NAME}:${CI_COMMIT_SHORT_SHA}" --destination="${IMAGE_NAME}:latest" --cache=false
-    - echo "Build complete! Image pushed to ${IMAGE_NAME}"
+    - AUTH=$(printf "%s:%s" "${CI_REGISTRY_USER}" "${CI_REGISTRY_PASSWORD}" | base64 | tr -d '\n')
+    - printf '{"auths":{"%s":{"auth":"%s"}}}' "${CI_REGISTRY}" "$AUTH" > /kaniko/.docker/config.json
+    - echo "Building ${GITLAB_IMAGE}:${CI_COMMIT_SHORT_SHA}..."
+    - /kaniko/executor
+        --context="${CI_PROJECT_DIR}/services/runner_bandit"
+        --dockerfile="${CI_PROJECT_DIR}/services/runner_bandit/Dockerfile"
+        --destination="${GITLAB_IMAGE}:${CI_COMMIT_SHORT_SHA}"
+        --destination="${GITLAB_IMAGE}:latest"
+        --cache=false
+    - echo "✅ Built and pushed to GitLab Registry"
+
+# ============== Copy Image to GCP Artifact Registry ==============
+cloud-run:copy:
+  stage: build
+  image: google/cloud-sdk:slim
+  tags:
+    - docker-any
+  needs:
+    - cloud-run:build
+  rules:
+    - if: '$CLOUD_RUN_DEPLOY == "true"'
+    - if: '$CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/'
+    - changes:
+        - services/runner_bandit/**
+      when: manual
+      allow_failure: true
+  script:
+    - echo "$GCP_SERVICE_ACCOUNT_KEY" | base64 -d > /tmp/gcp-key.json
+    - gcloud auth activate-service-account --key-file=/tmp/gcp-key.json
+    - gcloud auth configure-docker europe-north1-docker.pkg.dev --quiet
+    - apt-get update && apt-get install -y skopeo
+    - echo "Copying ${GITLAB_IMAGE}:${CI_COMMIT_SHORT_SHA} → ${GCP_IMAGE}:${CI_COMMIT_SHORT_SHA}"
+    - skopeo copy
+        --src-creds="${CI_REGISTRY_USER}:${CI_REGISTRY_PASSWORD}"
+        docker://${GITLAB_IMAGE}:${CI_COMMIT_SHORT_SHA}
+        docker://${GCP_IMAGE}:${CI_COMMIT_SHORT_SHA}
+    - skopeo copy
+        --src-creds="${CI_REGISTRY_USER}:${CI_REGISTRY_PASSWORD}"
+        docker://${GITLAB_IMAGE}:latest
+        docker://${GCP_IMAGE}:latest
+    - echo "✅ Copied to GCP Artifact Registry"
 
 # ============== Deploy to Cloud Run ==============
 cloud-run:deploy:
@@ -40,15 +86,31 @@ cloud-run:deploy:
   image: google/cloud-sdk:slim
   tags:
     - docker-any
+  needs:
+    - cloud-run:copy
   rules:
     - if: '$CLOUD_RUN_DEPLOY == "true"'
     - if: '$CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/'
+    - changes:
+        - services/runner_bandit/**
+      when: manual
+      allow_failure: true
   script:
-    - echo "=== Authenticating with GCP ==="
     - echo "$GCP_SERVICE_ACCOUNT_KEY" | base64 -d > /tmp/gcp-key.json
     - gcloud auth activate-service-account --key-file=/tmp/gcp-key.json
     - gcloud config set project $GCP_PROJECT
-    - echo "=== Deploying to Cloud Run ==="
-    - gcloud run deploy $SERVICE_NAME --image=${IMAGE_NAME}:${CI_COMMIT_SHORT_SHA} --region=$GCP_REGION --platform=managed --allow-unauthenticated --memory=256Mi --cpu=1 --min-instances=0 --max-instances=2 --port=8080 --set-env-vars=BANDIT_ALGORITHM=ucb1,BANDIT_GCS_BUCKET=blauweiss-mab-state,GCP_PROJECT=myk8sproject-207017,GCP_ZONE=europe-north2-a,GCP_INSTANCE=gitlab-runner-nordic,GITLAB_API_TOKEN=${GITLAB_API_TOKEN}
-    - echo "=== Getting Service URL ==="
+    - echo "Deploying ${GCP_IMAGE}:${CI_COMMIT_SHORT_SHA} to Cloud Run..."
+    - gcloud run deploy $SERVICE_NAME
+        --image=${GCP_IMAGE}:${CI_COMMIT_SHORT_SHA}
+        --region=$GCP_REGION
+        --platform=managed
+        --allow-unauthenticated
+        --memory=256Mi
+        --cpu=1
+        --min-instances=0
+        --max-instances=2
+        --port=8080
+        --set-env-vars=BANDIT_ALGORITHM=ucb1,BANDIT_STATE_FILE=/tmp/bandit_state.json
+    - echo "✅ Deployed to Cloud Run"
+    - echo "=== SERVICE URL ==="
     - gcloud run services describe $SERVICE_NAME --region=$GCP_REGION --format='value(status.url)'
