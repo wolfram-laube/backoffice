@@ -112,6 +112,45 @@ applications:qa:
     exit_codes:
       - 2  # Warnings don't block, only failures (exit 1)
 
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  STAGE 3.5: VORHÖLLE — Match Staging
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+#  Stages qualified matches (≥70%) as GitLab Issues for review.
+#  Two modes:
+#    - SERVICE: POST to Vorhölle Cloud Run service (if STAGING_SERVICE_URL set)
+#    - DIRECT:  Create GitLab Issues via API (default)
+#
+#  Review workflow: pending → approved → drafts
+# ═══════════════════════════════════════════════════════════════════════════════
+
+applications:stage:
+  extends: .applications-base
+  stage: test
+  needs:
+    - job: applications:match
+      artifacts: true
+    - job: applications:qa
+      artifacts: true
+      optional: true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $APPLICATIONS_PIPELINE == "true"
+    - if: $APPLICATIONS_STAGE == "true"
+    - when: manual
+      allow_failure: true
+  variables:
+    STAGING_MIN_SCORE: "70"
+    STAGING_PROFILE: "wolfram"
+    STAGING_ASSIGNEE_ID: "1349601"
+    # STAGING_SERVICE_URL: "https://match-staging-....run.app"  # Enable when deployed
+  script:
+    - python3 scripts/ci/applications_stage.py
+  artifacts:
+    paths:
+      - output/staged.json
+    expire_in: 7 days
+
 # ═══════════════════════════════════════════════════════════════════════════════
 #  STAGE 4: CREATE GMAIL DRAFTS
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -124,6 +163,9 @@ applications:drafts:
       artifacts: true
     - job: applications:qa
       artifacts: true
+    - job: applications:stage
+      artifacts: true
+      optional: true
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule" && $APPLICATIONS_PIPELINE == "true"
     - if: $APPLICATIONS_DRAFTS == "true"
