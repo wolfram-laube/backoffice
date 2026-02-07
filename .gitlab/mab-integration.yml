@@ -36,27 +36,10 @@ variables:
 # to MAB service. No changes needed to any existing job.
 # -----------------------------------------------------------------------------
 mab:report:
-  stage: deploy
+  stage: .post
   image: python:3.11-slim
   tags:
     - docker-any
-  needs:
-    # Run after key jobs complete (optional = still runs if they're skipped)
-    - job: test:unit
-      optional: true
-      artifacts: false
-    - job: pages
-      optional: true
-      artifacts: false
-    - job: docker-build
-      optional: true
-      artifacts: false
-    - job: docker-test
-      optional: true
-      artifacts: false
-    - job: ci-metrics:collect
-      optional: true
-      artifacts: false
   variables:
     GIT_STRATEGY: clone
   before_script:
