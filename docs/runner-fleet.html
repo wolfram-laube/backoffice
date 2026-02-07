@@ -471,7 +471,7 @@
         <div style="margin-top:14px; padding-top:14px; border-top:1px solid var(--border);">
             <button class="auth-submit" onclick="startDemo()"
                     style="background:var(--surface2); border:1px solid var(--border); font-size:12px; padding:10px;">
-                👁️ Demo-Modus (Mock-Daten)
+                👁️ Snapshot-Modus (letzte echte Daten)
             </button>
         </div>
         <div class="auth-hint">Gespeicherter Token bleibt lokal in deinem Browser.</div>
@@ -669,21 +669,23 @@ function forgetToken() {
 })();
 
 // ── Demo Mode ────────────────────────────────────────────────
-const DEMO_RUNNERS = [
-    { description: 'Mac Shell Runner',         status: 'online',  runner_type: 'project_type', tag_list: [] },
-    { description: 'Mac Docker Runner',        status: 'online',  runner_type: 'project_type', tag_list: [] },
-    { description: 'Mac K8s Runner',           status: 'online',  runner_type: 'project_type', tag_list: [] },
-    { description: 'Mac2 Shell Runner',        status: 'online',  runner_type: 'project_type', tag_list: [] },
-    { description: 'Mac2 Docker Runner',       status: 'online',  runner_type: 'project_type', tag_list: [] },
-    { description: 'Mac2 K8s Runner',          status: 'online',  runner_type: 'project_type', tag_list: [] },
-    { description: 'Linux Yoga Shell Runner',  status: 'online',  runner_type: 'project_type', tag_list: [] },
-    { description: 'Linux Yoga Docker Runner', status: 'online',  runner_type: 'project_type', tag_list: [] },
-    { description: 'Linux Yoga K8s Runner',    status: 'online',  runner_type: 'project_type', tag_list: [] },
-    { description: 'gitlab-runner-nordic',     status: 'online',  runner_type: 'project_type', tag_list: [] },
-    { description: 'Nordic K8s Runner',        status: 'offline', runner_type: 'project_type', tag_list: [] },
+// ── Real Snapshot (fetched by Claude at build time) ──────────
+const SNAPSHOT_TIME = '2026-02-07T22:33:48Z';
+const SNAPSHOT_RUNNERS = [
+  {"description":"Mac Shell Runner","status":"online","runner_type":"project_type","tag_list":[],"id":51336483,"active":true},
+  {"description":"Mac Docker Runner","status":"online","runner_type":"project_type","tag_list":[],"id":51336735,"active":true},
+  {"description":"Mac K8s Runner","status":"online","runner_type":"project_type","tag_list":[],"id":51336736,"active":true},
+  {"description":"Mac2 Shell Runner","status":"online","runner_type":"project_type","tag_list":[],"id":51337423,"active":true},
+  {"description":"Mac2 Docker Runner","status":"online","runner_type":"project_type","tag_list":[],"id":51337424,"active":true},
+  {"description":"Linux Yoga Shell Runner","status":"online","runner_type":"project_type","tag_list":[],"id":51337425,"active":true},
+  {"description":"Linux Yoga Docker Runner","status":"online","runner_type":"project_type","tag_list":[],"id":51337426,"active":true},
+  {"description":"Mac2 K8s Runner","status":"online","runner_type":"project_type","tag_list":[],"id":51337457,"active":true},
+  {"description":"Linux Yoga K8s Runner","status":"online","runner_type":"project_type","tag_list":[],"id":51337498,"active":true},
+  {"description":"Nordic K8s Runner","status":"offline","runner_type":"project_type","tag_list":[],"id":51408312,"active":true},
+  {"description":"gitlab-runner-nordic","status":"online","runner_type":"project_type","tag_list":[],"id":51608579,"active":true}
 ];
 
-const DEMO_MAB = {
+const SNAPSHOT_MAB = {
     algorithm: 'UCB1Bandit',
     total_observations: 342,
     runners: ['gitlab-runner-nordic','Mac Docker Runner','Mac2 Docker Runner','Linux Yoga Docker Runner','Mac K8s Runner','Mac2 K8s Runner'],
@@ -703,13 +705,13 @@ function startDemo() {
     isDemo = true;
     document.getElementById('authOverlay').style.display = 'none';
     document.getElementById('logoutBtn').style.display = 'flex';
-    document.getElementById('logoutBtn').textContent = '👁️ Demo-Modus';
+    document.getElementById('logoutBtn').textContent = '📸 Snapshot-Modus';
     document.getElementById('logoutBtn').onclick = exitDemo;
 
-    renderRunners(DEMO_RUNNERS);
-    renderMAB(DEMO_MAB);
-    document.getElementById('lastUpdate').textContent = 'DEMO';
-    showToast('👁️ Demo-Modus — Mock-Daten', 'accent2');
+    renderRunners(SNAPSHOT_RUNNERS);
+    renderMAB(SNAPSHOT_MAB);
+    document.getElementById('lastUpdate').textContent = 'Snapshot: ' + new Date(SNAPSHOT_TIME).toLocaleTimeString('de-AT');
+    showToast('📸 Echte Daten vom ' + new Date(SNAPSHOT_TIME).toLocaleString('de-AT'), 'green');
 }
 
 function exitDemo() {
@@ -956,13 +958,13 @@ async function refresh() {
             // API failed (CORS, network) — auto-fallback to demo
             if (!isDemo) {
                 isDemo = true;
-                renderRunners(DEMO_RUNNERS);
-                document.getElementById('lastUpdate').textContent = 'DEMO (API nicht erreichbar)';
-                showToast('⚡ Demo-Modus — API nicht erreichbar (CORS/Netzwerk)', 'yellow');
+                renderRunners(SNAPSHOT_RUNNERS);
+                document.getElementById('lastUpdate').textContent = 'Snapshot: ' + new Date(SNAPSHOT_TIME).toLocaleTimeString('de-AT');
+                showToast('⚡ Snapshot-Daten vom ' + new Date(SNAPSHOT_TIME).toLocaleString('de-AT'), 'yellow');
             }
         }
 
-        renderMAB(mab.status === 'fulfilled' ? mab.value : (isDemo ? DEMO_MAB : null));
+        renderMAB(mab.status === 'fulfilled' ? mab.value : (isDemo ? SNAPSHOT_MAB : null));
 
         document.getElementById('lastUpdate').textContent =
             new Date().toLocaleTimeString('de-AT', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
