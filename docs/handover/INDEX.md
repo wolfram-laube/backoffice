@@ -4,6 +4,8 @@ Durchsuchbarer Index aller Claude-Sessions. Keywords für schnelles `grep`.
 
 | Date | Topic | Keywords | Issues | Handover |
 |------|-------|----------|--------|----------|
+| 2026-02-07 | Match Staging "Vorhölle" v0.2: Scaffolding + DB + Tests | vorhölle, match-staging, notifications, email, slack, whatsapp, gitlab-todo, staging, OPS-004 | #48 | [HANDOVER_VORHOELLE_V02](./HANDOVER_VORHOELLE_V02_07_02_2026.md) |
+| 2026-02-07 | Housekeeping: CI Fixes + Issue Triage + GitHub Mirror | housekeeping, ci, issues, github-mirror, quarto | #29 #26 #27 | [HANDOVER_HOUSEKEEPING](./HANDOVER_HOUSEKEEPING_08_02_2026.md) |
 | 2026-02-07 | Runner Intelligence: Fleet + MAB + NSAI Shadow | runners, mab, nsai, shadow, bigquery, ontology, tags, fleet, INF-002 | #27 #28 | [HANDOVER_RUNNER_INTELLIGENCE](./HANDOVER_RUNNER_INTELLIGENCE_07_02_2026.md) |
 | 2026-02-06 | NSAI v0.3.0: Alignment, TestSuite, ADR-027 | nsai, v0.3.0, mab, alignment, experiment, testsuite, adr-027, notebook | #27 #47 | [HANDOVER_NSAI_V030](./HANDOVER_NSAI_V030_06_02_2026.md) |
 | 2026-02-06 | MAB Full: Availability + Auto-Start/Stop | mab, ucb1, runner, availability, auto-start, auto-stop, gcs, k8s, vm-lifecycle | #28 | [HANDOVER_MAB_FULL](./HANDOVER_MAB_FULL_06_02_2026.md) |
