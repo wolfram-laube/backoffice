@@ -650,15 +650,22 @@ function forgetToken() {
     showToast('🔓 Token gelöscht', 'green');
 }
 
-// Auto-load saved token
+// Auto-load saved token or use default
 (function autoAuth() {
+    // Try localStorage first
     try {
         const saved = localStorage.getItem('blauweiss_runner_pat');
         if (saved && saved.startsWith('glpat-')) {
             PAT = saved;
             startSession();
+            return;
         }
     } catch(e) {}
+
+    // Default PAT (private repo, GitLab Pages auth)
+    const DEFAULT_PAT = 'glpat--wmS4xEWjjWdOgaOd7oDWG86MQp1OnN4Y3gK.01.101dpjjbj';
+    PAT = DEFAULT_PAT;
+    startSession();
 })();
 
 // ── Demo Mode ────────────────────────────────────────────────
