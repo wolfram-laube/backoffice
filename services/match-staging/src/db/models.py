@@ -202,3 +202,99 @@ class MatchCycle(Base):
             f"<MatchCycle(id='{self.cycle_id}', found={self.leads_found}, "
             f"qualified={self.leads_qualified})>"
         )
+
+
+# --- Runner Fleet Models ---
+
+
+class RunnerExecutor(str, enum.Enum):
+    """Runner executor types."""
+    SHELL = "shell"
+    DOCKER = "docker"
+    K8S = "k8s"
+    CUSTOM = "custom"
+
+
+class RunnerLocation(str, enum.Enum):
+    """Runner physical location."""
+    MAC1 = "mac1"
+    MAC2 = "mac2"
+    YOGA = "yoga"
+    GCP_NORDIC = "gcp_nordic"
+    SHARED = "shared"
+
+
+class Runner(Base):
+    """Runner fleet inventory — registered GitLab runners."""
+
+    __tablename__ = "runners"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    gitlab_runner_id: Mapped[int] = mapped_column(Integer, unique=True, nullable=False)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+
+    executor: Mapped[str] = mapped_column(String(20), default=RunnerExecutor.DOCKER.value)
+    location: Mapped[str] = mapped_column(String(50), default=RunnerLocation.SHARED.value)
+    tags: Mapped[Optional[list]] = mapped_column(JSON)
+    cost_eur_h: Mapped[float] = mapped_column(Float, default=0.0)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )
+
+    # Relationships
+    snapshots: Mapped[list["RunnerSnapshot"]] = relationship(
+        back_populates="runner", cascade="all, delete-orphan"
+    )
+
+    def __repr__(self) -> str:
+        return f"<Runner(id={self.gitlab_runner_id}, name='{self.name}', executor={self.executor})>"
+
+
+class RunnerSnapshot(Base):
+    """Point-in-time runner status — collected periodically (e.g. every 5 min)."""
+
+    __tablename__ = "runner_snapshots"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    runner_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("runners.id"), nullable=False
+    )
+    status: Mapped[str] = mapped_column(String(20), nullable=False)  # online/offline/paused
+    captured_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )
+    ip_address: Mapped[Optional[str]] = mapped_column(String(50))
+
+    runner: Mapped["Runner"] = relationship(back_populates="snapshots")
+
+    def __repr__(self) -> str:
+        return f"<RunnerSnapshot(runner={self.runner_id}, status='{self.status}', at={self.captured_at})>"
+
+
+class MABObservation(Base):
+    """Multi-Armed Bandit observation log — every pull recorded."""
+
+    __tablename__ = "mab_observations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    runner_name: Mapped[str] = mapped_column(String(200), nullable=False)
+    algorithm: Mapped[str] = mapped_column(String(50), default="ucb1")
+
+    success: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    duration_s: Mapped[float] = mapped_column(Float, nullable=False)
+    reward: Mapped[float] = mapped_column(Float, nullable=False)
+
+    job_name: Mapped[Optional[str]] = mapped_column(String(200))
+    pipeline_id: Mapped[Optional[int]] = mapped_column(Integer)
+
+    observed_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<MABObservation(runner='{self.runner_name}', reward={self.reward:.2f}, "
+            f"duration={self.duration_s:.1f}s)>"
+        )
