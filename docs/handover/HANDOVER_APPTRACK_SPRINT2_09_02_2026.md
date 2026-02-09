@@ -29,7 +29,7 @@
 
 ---
 
-## ✅ Sprint 2 — Crawl Integration (on MR !19)
+## ✅ Sprint 2 — Crawl Integration (MR !19 merged)
 
 ### Commits (2 on `feature/53-apptrack-sprint2-crawl`)
 
@@ -43,7 +43,8 @@
 | Item | Link |
 |------|------|
 | Issue #53 | `ops/backoffice/-/issues/53` |
-| MR !19 | https://gitlab.com/wolfram_laube/blauweiss_llc/ops/backoffice/-/merge_requests/19 |
+| MR !19 (merged) | https://gitlab.com/wolfram_laube/blauweiss_llc/ops/backoffice/-/merge_requests/19 |
+| Merge commit | `6dbfd151` on main |
 | Branch | `feature/53-apptrack-sprint2-crawl` |
 
 ### Files Created/Modified
@@ -122,8 +123,8 @@ All jobs run automatically when `APPLICATIONS_PIPELINE=true` (schedule) or manua
 
 ## 🔲 Next Steps
 
-### To Merge MR !19
-- [ ] Review MR !19 and merge to main
+### MR !19 Merged (2026-02-09)
+- [x] MR !19 merged → `6dbfd151` on main
 - [ ] Trigger `applications:test` + `apptrack:test` on main to verify
 
 ### Sprint 2 Remaining (manual verification)
