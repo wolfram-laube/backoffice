@@ -294,3 +294,79 @@ applications:dry-run:
     - echo "To run for real:"
     - echo "  → Set APPLICATIONS_PIPELINE=true in schedule"
     - echo "  → Or trigger individual jobs manually"
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  APPTRACK: CSV → SQLite IMPORT (one-time + on CSV updates)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+applications:import-csv:
+  extends: .applications-base
+  needs: []
+  stage: build
+  rules:
+    - if: ($CI_PIPELINE_SOURCE == "web" || $CI_PIPELINE_SOURCE == "api") && $APPLICATIONS_IMPORT_CSV == "true"
+    - when: manual
+      allow_failure: true
+  variables:
+    APPTRACK_DB_PATH: "/tmp/applications.db"
+  before_script:
+    - pip install sqlalchemy google-cloud-storage --quiet
+  script:
+    - python3 scripts/ci/applications_import_csv.py --csv data/bewerbungen_komplett_SORTED_Jan_31_2026.csv --db $APPTRACK_DB_PATH -v
+    - |
+      python3 -c "
+      import os, sys
+      sys.path.insert(0, '.')
+      from modules.applications.database import upload_db
+      from pathlib import Path
+      ok = upload_db(Path(os.environ['APPTRACK_DB_PATH']))
+      sys.exit(0 if ok else 1)
+      "
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  APPTRACK: EXPORT (JSON for Pages + CSV fallback)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+applications:export:
+  extends: .applications-base
+  needs: []
+  stage: deploy
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $APPLICATIONS_EXPORT == "true"
+    - if: ($CI_PIPELINE_SOURCE == "web" || $CI_PIPELINE_SOURCE == "api") && $APPLICATIONS_EXPORT == "true"
+    - when: manual
+      allow_failure: true
+  before_script:
+    - pip install sqlalchemy google-cloud-storage --quiet
+  script:
+    - python3 scripts/ci/applications_export_json.py --gcs --json-dir public --csv-dir output -v
+  artifacts:
+    paths:
+      - public/dashboard.json
+      - output/bewerbungen_export.csv
+    expire_in: 30 days
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  APPTRACK: TESTS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+applications:test:
+  extends: .applications-base
+  needs: []
+  stage: test
+  rules:
+    - if: ($CI_PIPELINE_SOURCE == "web" || $CI_PIPELINE_SOURCE == "api") && $APPLICATIONS_TEST == "true"
+    - changes:
+        - modules/applications/**/*
+        - scripts/ci/applications_import_csv.py
+        - scripts/ci/applications_export_json.py
+        - tests/unit/test_applications.py
+    - when: manual
+      allow_failure: true
+  before_script:
+    - pip install sqlalchemy pytest --quiet
+  script:
+    - python3 -m pytest tests/unit/test_applications.py -v --tb=short
