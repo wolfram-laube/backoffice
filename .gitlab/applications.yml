@@ -475,13 +475,14 @@ apptrack:test:
         - scripts/ci/apptrack_*.py
         - tests/unit/test_crawl_service.py
         - tests/unit/test_review_service.py
+        - tests/unit/test_single_draft.py
         - modules/applications/review_service.py
     - when: manual
       allow_failure: true
   before_script:
-    - pip install sqlalchemy pytest --quiet
+    - pip install sqlalchemy pytest requests --quiet
   script:
-    - python3 -m pytest tests/unit/test_crawl_service.py tests/unit/test_review_service.py -v --tb=short
+    - python3 -m pytest tests/unit/test_crawl_service.py tests/unit/test_review_service.py tests/unit/test_single_draft.py -v --tb=short
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
