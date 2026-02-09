@@ -454,3 +454,25 @@ apptrack:test:
     - pip install sqlalchemy pytest --quiet
   script:
     - python3 -m pytest tests/unit/test_crawl_service.py -v --tb=short
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  APPTRACK: DASHBOARD DATA TESTS (Sprint 3)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+apptrack:dashboard-test:
+  extends: .applications-base
+  needs: []
+  stage: test
+  rules:
+    - if: ($CI_PIPELINE_SOURCE == "web" || $CI_PIPELINE_SOURCE == "api") && $APPLICATIONS_TEST == "true"
+    - changes:
+        - docs/apptrack-dashboard.html
+        - tests/unit/test_dashboard_data.py
+        - scripts/ci/applications_export_json.py
+    - when: manual
+      allow_failure: true
+  before_script:
+    - pip install sqlalchemy pytest --quiet
+  script:
+    - python3 -m pytest tests/unit/test_dashboard_data.py -v --tb=short

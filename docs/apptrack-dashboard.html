@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📊 AppTrack Dashboard — Blauweiss Operations</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+    <style>
+        :root {
+            --bg: #0f0f1a;
+            --surface: #1a1a2e;
+            --surface2: #252542;
+            --surface3: #2f2f52;
+            --text: #e4e4f0;
+            --subtext: #9090a8;
+            --accent: #6c5ce7;
+            --green: #00cec9;
+            --yellow: #fdcb6e;
+            --red: #ff7675;
+            --blue: #74b9ff;
+            --purple: #a29bfe;
+            --orange: #e17055;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container { max-width: 1400px; margin: 0 auto; }
+
+        /* ── Header ──────────────────────────────────────── */
+        header {
+            text-align: center;
+            padding: 30px 0 20px;
+            border-bottom: 1px solid var(--surface2);
+            margin-bottom: 24px;
+        }
+        header h1 {
+            font-size: 2.2rem;
+            background: linear-gradient(135deg, var(--accent), var(--purple));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        header .subtitle { color: var(--subtext); margin-top: 6px; font-size: 0.95rem; }
+        .meta-row {
+            display: flex; justify-content: center; align-items: center;
+            gap: 20px; margin-top: 12px; flex-wrap: wrap;
+        }
+        .meta-badge {
+            background: var(--surface2); color: var(--subtext);
+            padding: 4px 12px; border-radius: 20px; font-size: 0.8rem;
+        }
+        .meta-badge.live { color: var(--green); }
+
+        /* ── Controls Bar ────────────────────────────────── */
+        .controls {
+            display: flex; gap: 12px; margin-bottom: 20px;
+            flex-wrap: wrap; align-items: center;
+        }
+        .search-box {
+            flex: 1; min-width: 220px;
+            background: var(--surface); border: 1px solid var(--surface2);
+            border-radius: 10px; padding: 10px 14px;
+            color: var(--text); font-size: 0.9rem;
+            outline: none; transition: border-color 0.2s;
+        }
+        .search-box:focus { border-color: var(--accent); }
+        .search-box::placeholder { color: var(--subtext); }
+        select.filter {
+            background: var(--surface); border: 1px solid var(--surface2);
+            border-radius: 10px; padding: 10px 14px;
+            color: var(--text); font-size: 0.9rem;
+            cursor: pointer; outline: none;
+        }
+        select.filter:focus { border-color: var(--accent); }
+        .btn {
+            background: var(--accent); color: white; border: none;
+            border-radius: 10px; padding: 10px 18px;
+            font-size: 0.9rem; cursor: pointer;
+            display: flex; align-items: center; gap: 6px;
+            transition: background 0.2s, transform 0.15s;
+        }
+        .btn:hover { background: #5b4bd5; transform: translateY(-1px); }
+        .btn:active { transform: translateY(0); }
+        .btn.secondary {
+            background: var(--surface2); color: var(--text);
+        }
+        .btn.secondary:hover { background: var(--surface3); }
+
+        /* ── Stats Cards ─────────────────────────────────── */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 14px; margin-bottom: 24px;
+        }
+        .stat-card {
+            background: var(--surface); border: 1px solid var(--surface2);
+            border-radius: 14px; padding: 18px;
+            text-align: center;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .stat-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 30px rgba(108, 92, 231, 0.12);
+        }
+        .stat-card .value {
+            font-size: 2rem; font-weight: 700;
+            margin-bottom: 4px;
+        }
+        .stat-card .label {
+            color: var(--subtext); font-size: 0.82rem;
+            text-transform: uppercase; letter-spacing: 0.5px;
+        }
+        .stat-card.accent .value { color: var(--accent); }
+        .stat-card.green .value { color: var(--green); }
+        .stat-card.yellow .value { color: var(--yellow); }
+        .stat-card.red .value { color: var(--red); }
+        .stat-card.blue .value { color: var(--blue); }
+        .stat-card.purple .value { color: var(--purple); }
+
+        /* ── Charts ──────────────────────────────────────── */
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+            gap: 20px; margin-bottom: 24px;
+        }
+        .chart-card {
+            background: var(--surface); border: 1px solid var(--surface2);
+            border-radius: 14px; padding: 20px;
+        }
+        .chart-card h3 {
+            font-size: 1rem; margin-bottom: 14px;
+            color: var(--text); display: flex; align-items: center; gap: 8px;
+        }
+        .chart-wrap { position: relative; width: 100%; }
+        .chart-wrap.pie { max-width: 300px; margin: 0 auto; }
+
+        /* ── Table ────────────────────────────────────────── */
+        .table-card {
+            background: var(--surface); border: 1px solid var(--surface2);
+            border-radius: 14px; overflow: hidden;
+        }
+        .table-card h3 {
+            padding: 16px 20px 12px; font-size: 1rem;
+            display: flex; align-items: center; justify-content: space-between;
+        }
+        .table-card h3 .count { color: var(--subtext); font-weight: 400; font-size: 0.85rem; }
+        .table-wrap { overflow-x: auto; }
+        table {
+            width: 100%; border-collapse: collapse; font-size: 0.85rem;
+        }
+        thead th {
+            background: var(--surface2); color: var(--subtext);
+            padding: 10px 14px; text-align: left; white-space: nowrap;
+            cursor: pointer; user-select: none;
+            text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.5px;
+        }
+        thead th:hover { color: var(--text); }
+        thead th .sort-arrow { margin-left: 4px; opacity: 0.4; }
+        thead th.sorted .sort-arrow { opacity: 1; color: var(--accent); }
+        tbody tr {
+            border-bottom: 1px solid var(--surface2);
+            transition: background 0.15s;
+        }
+        tbody tr:hover { background: rgba(108, 92, 231, 0.06); }
+        tbody td { padding: 10px 14px; white-space: nowrap; }
+        tbody td.wrap { white-space: normal; max-width: 300px; }
+
+        /* Status badges */
+        .status {
+            display: inline-block; padding: 3px 10px;
+            border-radius: 20px; font-size: 0.78rem; font-weight: 500;
+        }
+        .status.versendet { background: rgba(116, 185, 255, 0.15); color: var(--blue); }
+        .status.abgelehnt { background: rgba(255, 118, 117, 0.15); color: var(--red); }
+        .status.in_kontakt { background: rgba(0, 206, 201, 0.15); color: var(--green); }
+        .status.verhandlung { background: rgba(253, 203, 110, 0.15); color: var(--yellow); }
+        .status.nicht_beworben { background: rgba(144, 144, 168, 0.15); color: var(--subtext); }
+        .status.sonstige { background: rgba(162, 155, 254, 0.15); color: var(--purple); }
+
+        /* ── Footer ──────────────────────────────────────── */
+        footer {
+            text-align: center; padding: 24px 0 12px;
+            color: var(--subtext); font-size: 0.8rem;
+            border-top: 1px solid var(--surface2); margin-top: 30px;
+        }
+        footer a { color: var(--accent); text-decoration: none; }
+        footer a:hover { text-decoration: underline; }
+
+        /* ── Loading / Error ─────────────────────────────── */
+        .loading {
+            text-align: center; padding: 60px 20px;
+            color: var(--subtext); font-size: 1.1rem;
+        }
+        .loading .spinner {
+            width: 40px; height: 40px; margin: 0 auto 16px;
+            border: 3px solid var(--surface2); border-top: 3px solid var(--accent);
+            border-radius: 50%; animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .error-msg {
+            background: rgba(255, 118, 117, 0.1); border: 1px solid rgba(255, 118, 117, 0.3);
+            border-radius: 12px; padding: 20px; color: var(--red);
+            text-align: center; margin: 20px 0;
+        }
+
+        /* ── Pagination ──────────────────────────────────── */
+        .pagination {
+            display: flex; justify-content: center; align-items: center;
+            gap: 8px; padding: 16px; color: var(--subtext); font-size: 0.85rem;
+        }
+        .pagination button {
+            background: var(--surface2); border: none; color: var(--text);
+            padding: 6px 12px; border-radius: 6px; cursor: pointer;
+            font-size: 0.85rem;
+        }
+        .pagination button:hover { background: var(--surface3); }
+        .pagination button:disabled { opacity: 0.3; cursor: default; }
+
+        /* ── Pipeline Modal ──────────────────────────────── */
+        .modal-overlay {
+            display: none; position: fixed; top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.6); z-index: 100;
+            justify-content: center; align-items: center;
+        }
+        .modal-overlay.active { display: flex; }
+        .modal {
+            background: var(--surface); border: 1px solid var(--surface2);
+            border-radius: 16px; padding: 28px; max-width: 480px; width: 90%;
+        }
+        .modal h3 { margin-bottom: 12px; }
+        .modal p { color: var(--subtext); margin-bottom: 16px; font-size: 0.9rem; line-height: 1.5; }
+        .modal .btn-row { display: flex; gap: 10px; justify-content: flex-end; }
+        .modal input {
+            width: 100%; background: var(--bg); border: 1px solid var(--surface2);
+            border-radius: 8px; padding: 10px 14px; color: var(--text);
+            font-size: 0.9rem; margin-bottom: 12px; outline: none;
+        }
+        .modal input:focus { border-color: var(--accent); }
+        .modal .result {
+            margin-top: 12px; padding: 10px; border-radius: 8px;
+            font-size: 0.85rem; display: none;
+        }
+        .modal .result.ok { background: rgba(0, 206, 201, 0.1); color: var(--green); display: block; }
+        .modal .result.err { background: rgba(255, 118, 117, 0.1); color: var(--red); display: block; }
+
+        /* ── Responsive ──────────────────────────────────── */
+        @media (max-width: 768px) {
+            header h1 { font-size: 1.6rem; }
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+            .charts-grid { grid-template-columns: 1fr; }
+            .controls { flex-direction: column; }
+            .search-box { min-width: unset; }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+
+    <!-- Header -->
+    <header>
+        <h1>📊 AppTrack Dashboard</h1>
+        <div class="subtitle">Bewerbungs-Tracking — Blauweiss Operations</div>
+        <div class="meta-row">
+            <span class="meta-badge" id="metaGenerated">⏳ Lade...</span>
+            <span class="meta-badge" id="metaTotal">—</span>
+            <span class="meta-badge" id="metaCrawl">—</span>
+        </div>
+    </header>
+
+    <!-- Loading state -->
+    <div class="loading" id="loadingState">
+        <div class="spinner"></div>
+        <div>Dashboard-Daten werden geladen…</div>
+    </div>
+
+    <!-- Main content (hidden until loaded) -->
+    <div id="mainContent" style="display: none;">
+
+        <!-- Stats Cards -->
+        <div class="stats-grid" id="statsGrid"></div>
+
+        <!-- Controls -->
+        <div class="controls">
+            <input type="text" class="search-box" id="searchInput"
+                   placeholder="🔍 Suche nach Projekt, Provider, Ort…">
+            <select class="filter" id="statusFilter">
+                <option value="">Alle Status</option>
+                <option value="versendet">📤 Versendet</option>
+                <option value="abgelehnt">❌ Abgelehnt</option>
+                <option value="in_kontakt">🤝 In Kontakt</option>
+                <option value="verhandlung">💰 Verhandlung</option>
+                <option value="nicht_beworben">⏸️ Nicht beworben</option>
+                <option value="sonstige">📋 Sonstige</option>
+            </select>
+            <select class="filter" id="monthFilter">
+                <option value="">Alle Monate</option>
+            </select>
+            <button class="btn secondary" onclick="resetFilters()">↻ Reset</button>
+            <button class="btn" onclick="openPipelineModal()">🚀 Pipeline</button>
+        </div>
+
+        <!-- Charts -->
+        <div class="charts-grid">
+            <div class="chart-card">
+                <h3>📊 Status-Verteilung</h3>
+                <div class="chart-wrap pie">
+                    <canvas id="statusChart"></canvas>
+                </div>
+            </div>
+            <div class="chart-card">
+                <h3>📈 Bewerbungen pro Monat</h3>
+                <div class="chart-wrap">
+                    <canvas id="monthlyChart"></canvas>
+                </div>
+            </div>
+            <div class="chart-card">
+                <h3>🏢 Top Provider</h3>
+                <div class="chart-wrap">
+                    <canvas id="providerChart"></canvas>
+                </div>
+            </div>
+            <div class="chart-card">
+                <h3>💶 Stundensatz-Verteilung</h3>
+                <div class="chart-wrap">
+                    <canvas id="rateChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Applications Table -->
+        <div class="table-card">
+            <h3>
+                📋 Bewerbungen
+                <span class="count" id="tableCount"></span>
+            </h3>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th data-sort="date_recorded" class="sorted">Datum <span class="sort-arrow">▼</span></th>
+                            <th data-sort="project_title">Projekt <span class="sort-arrow">▼</span></th>
+                            <th data-sort="provider">Provider <span class="sort-arrow">▼</span></th>
+                            <th data-sort="location">Ort <span class="sort-arrow">▼</span></th>
+                            <th data-sort="rate_eur_h">€/h <span class="sort-arrow">▼</span></th>
+                            <th data-sort="match_score">Match <span class="sort-arrow">▼</span></th>
+                            <th data-sort="status">Status <span class="sort-arrow">▼</span></th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody"></tbody>
+                </table>
+            </div>
+            <div class="pagination" id="pagination"></div>
+        </div>
+    </div>
+
+    <!-- Pipeline Trigger Modal -->
+    <div class="modal-overlay" id="pipelineModal">
+        <div class="modal">
+            <h3>🚀 Pipeline triggern</h3>
+            <p>Startet die Applications-Pipeline: Crawl → Match → Ingest → Stage.
+               Benötigt einen GitLab Personal Access Token mit <code>api</code> Scope.</p>
+            <input type="password" id="pipelineToken" placeholder="GitLab PAT (glpat-…)">
+            <div class="btn-row">
+                <button class="btn secondary" onclick="closePipelineModal()">Abbrechen</button>
+                <button class="btn" onclick="triggerPipeline()" id="triggerBtn">🚀 Starten</button>
+            </div>
+            <div class="result" id="pipelineResult"></div>
+        </div>
+    </div>
+
+    <footer>
+        <a href="portal.html">← Portal</a> · AppTrack Sprint 3 ·
+        <a href="https://gitlab.com/wolfram_laube/blauweiss_llc/ops/backoffice/-/issues/52" target="_blank">Epic #52</a>
+    </footer>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════════════
+   AppTrack Dashboard — Frontend Logic
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+const PROJECT_ID = 77555895;
+const PAGE_SIZE = 25;
+let dashboardData = null;
+let filteredApps = [];
+let currentPage = 0;
+let sortColumn = 'date_recorded';
+let sortAsc = false;
+let charts = {};
+
+/* ── Status classification (mirrors export script) ───────────────────── */
+function classifyStatus(raw) {
+    if (!raw) return 'sonstige';
+    const s = raw.toLowerCase();
+    if (s.includes('versendet')) return 'versendet';
+    if (s.includes('abgelehnt') || s.includes('absage')) return 'abgelehnt';
+    if (s.includes('interview') || s.includes('telefonat') || s.includes('vorgestellt')) return 'in_kontakt';
+    if (s.includes('verhandlung') || s.includes('vertrag')) return 'verhandlung';
+    if (s.includes('nicht beworben')) return 'nicht_beworben';
+    return 'sonstige';
+}
+
+const STATUS_LABELS = {
+    versendet: '📤 Versendet',
+    abgelehnt: '❌ Abgelehnt',
+    in_kontakt: '🤝 In Kontakt',
+    verhandlung: '💰 Verhandlung',
+    nicht_beworben: '⏸️ Nicht beworben',
+    sonstige: '📋 Sonstige',
+};
+
+const STATUS_COLORS = {
+    versendet: '#74b9ff',
+    abgelehnt: '#ff7675',
+    in_kontakt: '#00cec9',
+    verhandlung: '#fdcb6e',
+    nicht_beworben: '#9090a8',
+    sonstige: '#a29bfe',
+};
+
+/* ── Load Data ───────────────────────────────────────────────────────── */
+async function loadDashboard() {
+    try {
+        /* Try relative path first (GitLab Pages), then fallback */
+        let resp;
+        const paths = ['dashboard.json', '../dashboard.json', '/dashboard.json'];
+        for (const path of paths) {
+            try {
+                resp = await fetch(path);
+                if (resp.ok) break;
+            } catch (e) { /* try next */ }
+        }
+        if (!resp || !resp.ok) throw new Error('dashboard.json nicht gefunden');
+
+        dashboardData = await resp.json();
+        document.getElementById('loadingState').style.display = 'none';
+        document.getElementById('mainContent').style.display = 'block';
+
+        renderMeta();
+        renderStats();
+        populateMonthFilter();
+        applyFilters();
+        renderCharts();
+    } catch (err) {
+        document.getElementById('loadingState').innerHTML =
+            `<div class="error-msg">❌ Fehler: ${err.message}<br>
+             <small>Stelle sicher, dass <code>applications:export</code> gelaufen ist.</small></div>`;
+    }
+}
+
+/* ── Meta badges ─────────────────────────────────────────────────────── */
+function renderMeta() {
+    const d = dashboardData;
+    const gen = d.generated_at ? new Date(d.generated_at) : null;
+    document.getElementById('metaGenerated').textContent =
+        gen ? `Stand: ${gen.toLocaleDateString('de-DE')} ${gen.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'})}` : '—';
+    document.getElementById('metaGenerated').classList.add('live');
+    document.getElementById('metaTotal').textContent = `${d.statistics?.total || 0} Bewerbungen`;
+    document.getElementById('metaCrawl').textContent =
+        `🕷️ ${d.crawl_summary?.total || 0} gecrawlt (${d.crawl_summary?.new || 0} neu)`;
+}
+
+/* ── Stats Cards ─────────────────────────────────────────────────────── */
+function renderStats() {
+    const s = dashboardData.statistics;
+    const grid = document.getElementById('statsGrid');
+    const cards = [
+        { value: s.total, label: 'Gesamt', cls: 'accent' },
+        { value: s.status_distribution?.versendet || 0, label: 'Versendet', cls: 'blue' },
+        { value: s.status_distribution?.in_kontakt || 0, label: 'In Kontakt', cls: 'green' },
+        { value: s.status_distribution?.abgelehnt || 0, label: 'Abgelehnt', cls: 'red' },
+        { value: s.rate_avg ? `${s.rate_avg}€` : '—', label: 'Ø Stundensatz', cls: 'yellow' },
+        { value: s.match_score_avg ? `${s.match_score_avg}%` : '—', label: 'Ø Match Score', cls: 'purple' },
+    ];
+    grid.innerHTML = cards.map(c =>
+        `<div class="stat-card ${c.cls}">
+            <div class="value">${c.value}</div>
+            <div class="label">${c.label}</div>
+        </div>`
+    ).join('');
+}
+
+/* ── Filters ─────────────────────────────────────────────────────────── */
+function populateMonthFilter() {
+    const months = dashboardData.statistics?.monthly_distribution || {};
+    const sel = document.getElementById('monthFilter');
+    Object.keys(months).sort().reverse().forEach(m => {
+        const opt = document.createElement('option');
+        opt.value = m;
+        opt.textContent = m;
+        sel.appendChild(opt);
+    });
+}
+
+function applyFilters() {
+    const search = document.getElementById('searchInput').value.toLowerCase();
+    const statusFilter = document.getElementById('statusFilter').value;
+    const monthFilter = document.getElementById('monthFilter').value;
+
+    filteredApps = (dashboardData.applications || []).filter(app => {
+        if (search) {
+            const hay = [app.project_title, app.provider, app.location, app.notes, app.status]
+                .filter(Boolean).join(' ').toLowerCase();
+            if (!hay.includes(search)) return false;
+        }
+        if (statusFilter && classifyStatus(app.status) !== statusFilter) return false;
+        if (monthFilter && !(app.date_recorded || '').startsWith(monthFilter)) return false;
+        return true;
+    });
+
+    sortApps();
+    currentPage = 0;
+    renderTable();
+}
+
+document.getElementById('searchInput').addEventListener('input', applyFilters);
+document.getElementById('statusFilter').addEventListener('change', applyFilters);
+document.getElementById('monthFilter').addEventListener('change', applyFilters);
+
+function resetFilters() {
+    document.getElementById('searchInput').value = '';
+    document.getElementById('statusFilter').value = '';
+    document.getElementById('monthFilter').value = '';
+    applyFilters();
+}
+
+/* ── Sorting ─────────────────────────────────────────────────────────── */
+function sortApps() {
+    filteredApps.sort((a, b) => {
+        let va = a[sortColumn], vb = b[sortColumn];
+        if (va == null) va = '';
+        if (vb == null) vb = '';
+        if (typeof va === 'number' && typeof vb === 'number') {
+            return sortAsc ? va - vb : vb - va;
+        }
+        va = String(va).toLowerCase();
+        vb = String(vb).toLowerCase();
+        return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
+    });
+}
+
+document.querySelectorAll('thead th[data-sort]').forEach(th => {
+    th.addEventListener('click', () => {
+        const col = th.dataset.sort;
+        if (sortColumn === col) { sortAsc = !sortAsc; }
+        else { sortColumn = col; sortAsc = col === 'project_title'; }
+        document.querySelectorAll('thead th').forEach(h => h.classList.remove('sorted'));
+        th.classList.add('sorted');
+        th.querySelector('.sort-arrow').textContent = sortAsc ? '▲' : '▼';
+        applyFilters();
+    });
+});
+
+/* ── Table ────────────────────────────────────────────────────────────── */
+function renderTable() {
+    const tbody = document.getElementById('tableBody');
+    const start = currentPage * PAGE_SIZE;
+    const page = filteredApps.slice(start, start + PAGE_SIZE);
+
+    document.getElementById('tableCount').textContent =
+        `${filteredApps.length} von ${dashboardData.applications.length}`;
+
+    tbody.innerHTML = page.map(app => {
+        const cls = classifyStatus(app.status);
+        const statusLabel = (app.status || '—').replace(/^Bewerbung\s*/i, '');
+        const dateStr = app.date_recorded ? new Date(app.date_recorded).toLocaleDateString('de-DE') : '—';
+        const rateStr = app.rate_eur_h ? `${app.rate_eur_h}€` : '—';
+        const matchStr = app.match_score ? `${app.match_score}%` : '—';
+        const titleHtml = app.source_url
+            ? `<a href="${app.source_url}" target="_blank" style="color:var(--blue);text-decoration:none">${esc(app.project_title || '—')}</a>`
+            : esc(app.project_title || '—');
+        return `<tr>
+            <td>${dateStr}</td>
+            <td class="wrap">${titleHtml}</td>
+            <td>${esc(app.provider || '—')}</td>
+            <td>${esc(app.location || '—')}</td>
+            <td>${rateStr}</td>
+            <td>${matchStr}</td>
+            <td><span class="status ${cls}">${esc(statusLabel)}</span></td>
+        </tr>`;
+    }).join('');
+
+    renderPagination();
+}
+
+function esc(s) {
+    const el = document.createElement('span');
+    el.textContent = s;
+    return el.innerHTML;
+}
+
+function renderPagination() {
+    const total = Math.ceil(filteredApps.length / PAGE_SIZE);
+    const pag = document.getElementById('pagination');
+    if (total <= 1) { pag.innerHTML = ''; return; }
+    pag.innerHTML = `
+        <button onclick="goPage(0)" ${currentPage === 0 ? 'disabled' : ''}>«</button>
+        <button onclick="goPage(${currentPage - 1})" ${currentPage === 0 ? 'disabled' : ''}>‹</button>
+        <span>Seite ${currentPage + 1} / ${total}</span>
+        <button onclick="goPage(${currentPage + 1})" ${currentPage >= total - 1 ? 'disabled' : ''}>›</button>
+        <button onclick="goPage(${total - 1})" ${currentPage >= total - 1 ? 'disabled' : ''}>»</button>
+    `;
+}
+
+function goPage(n) {
+    currentPage = Math.max(0, Math.min(n, Math.ceil(filteredApps.length / PAGE_SIZE) - 1));
+    renderTable();
+    document.querySelector('.table-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+/* ── Charts ───────────────────────────────────────────────────────────── */
+function renderCharts() {
+    const s = dashboardData.statistics;
+    const chartDefaults = {
+        color: '#e4e4f0',
+        borderColor: '#252542',
+        font: { family: "-apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif" },
+    };
+    Chart.defaults.color = chartDefaults.color;
+
+    /* Status Pie */
+    const statusDist = s.status_distribution || {};
+    charts.status = new Chart(document.getElementById('statusChart'), {
+        type: 'doughnut',
+        data: {
+            labels: Object.keys(statusDist).map(k => STATUS_LABELS[k] || k),
+            datasets: [{
+                data: Object.values(statusDist),
+                backgroundColor: Object.keys(statusDist).map(k => STATUS_COLORS[k] || '#a29bfe'),
+                borderColor: '#1a1a2e', borderWidth: 2,
+            }],
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { position: 'bottom', labels: { padding: 12, font: { size: 11 } } },
+            },
+        },
+    });
+
+    /* Monthly Bar */
+    const monthly = s.monthly_distribution || {};
+    charts.monthly = new Chart(document.getElementById('monthlyChart'), {
+        type: 'bar',
+        data: {
+            labels: Object.keys(monthly),
+            datasets: [{
+                label: 'Bewerbungen',
+                data: Object.values(monthly),
+                backgroundColor: 'rgba(108, 92, 231, 0.6)',
+                borderColor: '#6c5ce7', borderWidth: 1, borderRadius: 4,
+            }],
+        },
+        options: {
+            responsive: true,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { grid: { color: 'rgba(37,37,66,0.8)' } },
+                y: { grid: { color: 'rgba(37,37,66,0.8)' }, beginAtZero: true,
+                     ticks: { stepSize: 5 } },
+            },
+        },
+    });
+
+    /* Provider Bar (top 10) */
+    const providers = s.top_providers || {};
+    const provEntries = Object.entries(providers).slice(0, 10);
+    charts.provider = new Chart(document.getElementById('providerChart'), {
+        type: 'bar',
+        data: {
+            labels: provEntries.map(e => e[0].length > 25 ? e[0].slice(0, 22) + '…' : e[0]),
+            datasets: [{
+                label: 'Bewerbungen',
+                data: provEntries.map(e => e[1]),
+                backgroundColor: 'rgba(0, 206, 201, 0.5)',
+                borderColor: '#00cec9', borderWidth: 1, borderRadius: 4,
+            }],
+        },
+        options: {
+            indexAxis: 'y', responsive: true,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { grid: { color: 'rgba(37,37,66,0.8)' }, beginAtZero: true },
+                y: { grid: { display: false } },
+            },
+        },
+    });
+
+    /* Rate Histogram */
+    const apps = dashboardData.applications || [];
+    const rates = apps.map(a => a.rate_eur_h).filter(Boolean);
+    const buckets = {};
+    rates.forEach(r => {
+        const b = Math.floor(r / 10) * 10;
+        const label = `${b}–${b + 10}`;
+        buckets[label] = (buckets[label] || 0) + 1;
+    });
+    const sortedBuckets = Object.entries(buckets).sort((a, b) => {
+        return parseInt(a[0]) - parseInt(b[0]);
+    });
+    charts.rate = new Chart(document.getElementById('rateChart'), {
+        type: 'bar',
+        data: {
+            labels: sortedBuckets.map(e => e[0] + '€'),
+            datasets: [{
+                label: 'Anzahl',
+                data: sortedBuckets.map(e => e[1]),
+                backgroundColor: 'rgba(253, 203, 110, 0.5)',
+                borderColor: '#fdcb6e', borderWidth: 1, borderRadius: 4,
+            }],
+        },
+        options: {
+            responsive: true,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { grid: { color: 'rgba(37,37,66,0.8)' } },
+                y: { grid: { color: 'rgba(37,37,66,0.8)' }, beginAtZero: true },
+            },
+        },
+    });
+}
+
+/* ── Pipeline Trigger ─────────────────────────────────────────────────── */
+function openPipelineModal() {
+    document.getElementById('pipelineModal').classList.add('active');
+    document.getElementById('pipelineResult').className = 'result';
+    document.getElementById('pipelineResult').style.display = 'none';
+}
+
+function closePipelineModal() {
+    document.getElementById('pipelineModal').classList.remove('active');
+}
+
+async function triggerPipeline() {
+    const token = document.getElementById('pipelineToken').value.trim();
+    if (!token) { showPipelineResult('err', 'Bitte Token eingeben'); return; }
+
+    const btn = document.getElementById('triggerBtn');
+    btn.disabled = true; btn.textContent = '⏳ Wird gestartet…';
+
+    try {
+        const resp = await fetch(
+            `https://gitlab.com/api/v4/projects/${PROJECT_ID}/pipeline`,
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'PRIVATE-TOKEN': token,
+                },
+                body: JSON.stringify({
+                    ref: 'main',
+                    variables: [
+                        { key: 'APPLICATIONS_PIPELINE', value: 'true' },
+                    ],
+                }),
+            }
+        );
+        const data = await resp.json();
+        if (resp.ok) {
+            showPipelineResult('ok',
+                `✅ Pipeline #${data.iid} gestartet → <a href="${data.web_url}" target="_blank" style="color:var(--green)">Öffnen</a>`);
+        } else {
+            showPipelineResult('err', `❌ ${data.message || data.error || 'Fehler'}`);
+        }
+    } catch (err) {
+        showPipelineResult('err', `❌ Netzwerkfehler: ${err.message}`);
+    } finally {
+        btn.disabled = false; btn.textContent = '🚀 Starten';
+    }
+}
+
+function showPipelineResult(type, msg) {
+    const el = document.getElementById('pipelineResult');
+    el.className = `result ${type}`;
+    el.innerHTML = msg;
+    el.style.display = 'block';
+}
+
+/* Click outside modal to close */
+document.getElementById('pipelineModal').addEventListener('click', e => {
+    if (e.target === e.currentTarget) closePipelineModal();
+});
+
+/* ── Init ─────────────────────────────────────────────────────────────── */
+loadDashboard();
+</script>
+</body>
+</html>
