@@ -1,5 +1,28 @@
-"""Job application management."""
+"""Application Tracking System (ADR-004).
 
-from .service import ApplicationService
+SQLite/GCS-backed tracking for 190+ job applications.
+CI-triggered pipeline, no permanent server.
+"""
 
-__all__ = ['ApplicationService']
+from .models import Application, CrawlResult, ApplicationHistory, Base
+from .database import (
+    get_engine,
+    get_session,
+    init_db,
+    download_db,
+    upload_db,
+    gcs_managed_db,
+)
+
+__all__ = [
+    "Application",
+    "CrawlResult",
+    "ApplicationHistory",
+    "Base",
+    "get_engine",
+    "get_session",
+    "init_db",
+    "download_db",
+    "upload_db",
+    "gcs_managed_db",
+]
