@@ -5,6 +5,8 @@ CI-triggered pipeline, no permanent server.
 
 Sprint 1: CSV import/export, SQLAlchemy models
 Sprint 2: Crawl integration (crawl → match → stage → CRM)
+Sprint 3: Pages frontend dashboard
+Sprint 4: Vorhölle review layer (pending_review → approve/dismiss)
 """
 
 from .models import Application, CrawlResult, ApplicationHistory, Base
@@ -25,6 +27,14 @@ from .crawl_service import (
     stage_all_approved,
     sync_crm_labels,
     get_crm_label,
+)
+from .review_service import (
+    promote_to_review,
+    approve_crawl_result,
+    dismiss_crawl_result,
+    get_review_queue,
+    approve_all_above,
+    get_review_summary,
 )
 
 __all__ = [
@@ -49,4 +59,11 @@ __all__ = [
     "stage_all_approved",
     "sync_crm_labels",
     "get_crm_label",
+    # Review layer (Sprint 4)
+    "promote_to_review",
+    "approve_crawl_result",
+    "dismiss_crawl_result",
+    "get_review_queue",
+    "approve_all_above",
+    "get_review_summary",
 ]
