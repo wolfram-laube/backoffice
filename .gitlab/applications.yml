@@ -416,11 +416,37 @@ apptrack:update-matches:
     - python3 scripts/ci/apptrack_update_matches.py --profile wolfram -v
 
 
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  APPTRACK: VORHÖLLE REVIEW PROMOTION (Sprint 4)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+apptrack:promote-review:
+  extends: .applications-base
+  stage: test
+  needs:
+    - job: apptrack:update-matches
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $APPLICATIONS_PIPELINE == "true"
+    - if: ($CI_PIPELINE_SOURCE == "web" || $CI_PIPELINE_SOURCE == "api") && $APPTRACK_REVIEW == "true"
+    - when: manual
+      allow_failure: true
+  before_script:
+    - pip install sqlalchemy google-cloud-storage --quiet
+  script:
+    - python3 scripts/ci/apptrack_promote_review.py --min-score 70 --notify -v
+  artifacts:
+    paths:
+      - output/apptrack_review_queue.json
+    expire_in: 7 days
+
+
 apptrack:stage-approved:
   extends: .applications-base
   stage: deploy
   needs:
-    - job: apptrack:update-matches
+    - job: apptrack:promote-review
+      optional: true
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule" && $APPLICATIONS_PIPELINE == "true"
     - if: ($CI_PIPELINE_SOURCE == "web" || $CI_PIPELINE_SOURCE == "api") && $APPTRACK_STAGE == "true"
@@ -448,12 +474,14 @@ apptrack:test:
         - modules/applications/**/*
         - scripts/ci/apptrack_*.py
         - tests/unit/test_crawl_service.py
+        - tests/unit/test_review_service.py
+        - modules/applications/review_service.py
     - when: manual
       allow_failure: true
   before_script:
     - pip install sqlalchemy pytest --quiet
   script:
-    - python3 -m pytest tests/unit/test_crawl_service.py -v --tb=short
+    - python3 -m pytest tests/unit/test_crawl_service.py tests/unit/test_review_service.py -v --tb=short
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

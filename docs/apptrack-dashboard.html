@@ -257,6 +257,78 @@
             .controls { flex-direction: column; }
             .search-box { min-width: unset; }
         }
+
+        /* ── Tabs ───────────────────────────────────────── */
+        .tab-bar {
+            display: flex; gap: 0; margin-bottom: 20px;
+            border-bottom: 2px solid var(--surface2);
+        }
+        .tab-btn {
+            padding: 12px 24px; cursor: pointer;
+            background: none; border: none; color: var(--subtext);
+            font-size: 0.95rem; font-weight: 500;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px; transition: all 0.2s;
+        }
+        .tab-btn:hover { color: var(--text); }
+        .tab-btn.active {
+            color: var(--accent); border-bottom-color: var(--accent);
+        }
+        .tab-btn .badge {
+            background: var(--accent); color: white;
+            padding: 1px 8px; border-radius: 12px;
+            font-size: 0.75rem; margin-left: 6px;
+        }
+        .tab-panel { display: none; }
+        .tab-panel.active { display: block; }
+
+        /* ── Review Queue ───────────────────────────────── */
+        .review-card {
+            background: var(--surface); border-radius: 12px;
+            padding: 16px 20px; margin-bottom: 12px;
+            border: 1px solid var(--surface2);
+            transition: border-color 0.2s;
+        }
+        .review-card:hover { border-color: var(--accent); }
+        .review-header {
+            display: flex; justify-content: space-between;
+            align-items: flex-start; gap: 12px; margin-bottom: 8px;
+        }
+        .review-title { font-weight: 600; font-size: 1rem; flex: 1; }
+        .review-score {
+            font-size: 1.1rem; font-weight: 700;
+            padding: 2px 10px; border-radius: 8px;
+        }
+        .review-score.high { background: rgba(0,206,201,0.15); color: var(--green); }
+        .review-score.mid { background: rgba(253,203,110,0.15); color: var(--yellow); }
+        .review-meta {
+            display: flex; gap: 16px; flex-wrap: wrap;
+            color: var(--subtext); font-size: 0.85rem; margin-bottom: 10px;
+        }
+        .review-meta span { display: flex; align-items: center; gap: 4px; }
+        .review-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+        .review-tag {
+            background: var(--surface2); color: var(--subtext);
+            padding: 2px 8px; border-radius: 6px; font-size: 0.75rem;
+        }
+        .review-tag.ai { background: rgba(108,92,231,0.2); color: var(--purple); }
+        .review-actions { display: flex; gap: 8px; }
+        .review-actions .btn { font-size: 0.85rem; padding: 6px 16px; }
+        .review-actions .btn.approve { background: var(--green); color: #0f0f1a; }
+        .review-actions .btn.dismiss { background: var(--surface2); color: var(--subtext); }
+        .review-empty {
+            text-align: center; padding: 60px 20px; color: var(--subtext);
+        }
+        .review-empty .icon { font-size: 3rem; margin-bottom: 12px; }
+        .review-summary-bar {
+            display: flex; gap: 16px; margin-bottom: 20px; flex-wrap: wrap;
+        }
+        .review-summary-item {
+            background: var(--surface); border-radius: 10px;
+            padding: 12px 20px; flex: 1; min-width: 150px;
+        }
+        .review-summary-item .label { color: var(--subtext); font-size: 0.8rem; }
+        .review-summary-item .value { font-size: 1.4rem; font-weight: 700; }
     </style>
 </head>
 <body>
@@ -282,6 +354,19 @@
     <!-- Main content (hidden until loaded) -->
     <div id="mainContent" style="display: none;">
 
+
+        <!-- Tab Bar -->
+        <div class="tab-bar">
+            <button class="tab-btn active" onclick="switchTab('applications')">
+                📋 Bewerbungen
+            </button>
+            <button class="tab-btn" onclick="switchTab('review')">
+                🔥 Vorhölle <span class="badge" id="reviewBadge" style="display:none">0</span>
+            </button>
+        </div>
+
+        <!-- Tab: Applications -->
+        <div class="tab-panel active" id="tab-applications">
         <!-- Stats Cards -->
         <div class="stats-grid" id="statsGrid"></div>
 
@@ -356,6 +441,21 @@
                 </table>
             </div>
             <div class="pagination" id="pagination"></div>
+        </div>
+        </div><!-- /tab-applications -->
+
+        <!-- Tab: Review Queue (Vorhölle) -->
+        <div class="tab-panel" id="tab-review">
+            <div class="review-summary-bar" id="reviewSummary"></div>
+            <div id="reviewQueue">
+                <div class="review-empty">
+                    <div class="icon">🔥</div>
+                    <div>Vorhölle ist leer — keine Matches pending.</div>
+                    <div style="margin-top:8px; font-size:0.85rem">
+                        Starte die Pipeline um neue Matches zu promoten.
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -437,6 +537,7 @@ async function loadDashboard() {
             } catch (e) { /* try next */ }
         }
         if (!resp || !resp.ok) throw new Error('dashboard.json nicht gefunden');
+    window._dashboardData = null;
 
         dashboardData = await resp.json();
         document.getElementById('loadingState').style.display = 'none';
@@ -762,6 +863,7 @@ async function triggerPipeline() {
             }
         );
         const data = await resp.json();
+    window._dashboardData = data;
         if (resp.ok) {
             showPipelineResult('ok',
                 `✅ Pipeline #${data.iid} gestartet → <a href="${data.web_url}" target="_blank" style="color:var(--green)">Öffnen</a>`);
@@ -786,6 +888,163 @@ function showPipelineResult(type, msg) {
 document.getElementById('pipelineModal').addEventListener('click', e => {
     if (e.target === e.currentTarget) closePipelineModal();
 });
+
+
+/* ── Tab Switching ────────────────────────────────────────────────────── */
+function switchTab(tab) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    document.querySelector(`[onclick="switchTab('${tab}')"]`).classList.add('active');
+    document.getElementById(`tab-${tab}`).classList.add('active');
+    if (tab === 'review') loadReviewQueue();
+}
+
+/* ── Review Queue ─────────────────────────────────────────────────────── */
+let reviewData = null;
+
+async function loadReviewQueue() {
+    const container = document.getElementById('reviewQueue');
+    const paths = ['apptrack_review_queue.json', '../apptrack_review_queue.json',
+                   'output/apptrack_review_queue.json'];
+    let resp = null;
+    for (const p of paths) {
+        try { resp = await fetch(p); if (resp.ok) break; } catch {}
+    }
+    if (!resp || !resp.ok) {
+        // Try to extract from dashboard.json crawl_results
+        if (window._dashboardData && window._dashboardData.crawl_results) {
+            const pending = window._dashboardData.crawl_results.filter(
+                cr => cr.status === 'pending_review'
+            );
+            renderReviewFromCrawl(pending);
+            return;
+        }
+        container.innerHTML = `<div class="review-empty">
+            <div class="icon">📭</div>
+            <div>Keine Review-Daten verfügbar.</div>
+            <div style="margin-top:8px; font-size:0.85rem">
+                Starte <code>apptrack:promote-review</code> in der Pipeline.
+            </div></div>`;
+        return;
+    }
+    reviewData = await resp.json();
+    renderReviewQueue(reviewData.queue || []);
+    renderReviewSummary(reviewData.summary || {});
+}
+
+function renderReviewQueue(queue) {
+    const container = document.getElementById('reviewQueue');
+    const badge = document.getElementById('reviewBadge');
+    badge.textContent = queue.length;
+    badge.style.display = queue.length > 0 ? 'inline' : 'none';
+
+    if (!queue.length) {
+        container.innerHTML = `<div class="review-empty">
+            <div class="icon">✨</div>
+            <div>Vorhölle ist leer — alle Matches wurden bearbeitet.</div></div>`;
+        return;
+    }
+
+    container.innerHTML = queue.map(item => {
+        const scoreClass = (item.match_score || 0) >= 85 ? 'high' : 'mid';
+        const tags = (item.keywords || []).map(k =>
+            `<span class="review-tag">${esc(k)}</span>`).join('');
+        const aiTag = item.is_ai
+            ? '<span class="review-tag ai">🤖 AI Project</span>' : '';
+        const remote = item.remote_percent
+            ? `<span>🏠 ${item.remote_percent}% Remote</span>` : '';
+        return `<div class="review-card" data-id="${item.id}">
+            <div class="review-header">
+                <div class="review-title">${esc(item.title)}</div>
+                <div class="review-score ${scoreClass}">${item.match_score || '—'}%</div>
+            </div>
+            <div class="review-meta">
+                <span>🏢 ${esc(item.company)}</span>
+                <span>📍 ${esc(item.location)}</span>
+                ${remote}
+                <span>🔗 ${esc(item.source)}/${esc(item.external_id)}</span>
+            </div>
+            <div class="review-tags">${aiTag}${tags}</div>
+            <div class="review-actions">
+                <button class="btn approve" onclick="reviewAction(${item.id}, 'approve')">
+                    ✅ Approve
+                </button>
+                <button class="btn dismiss" onclick="reviewAction(${item.id}, 'dismiss')">
+                    ❌ Dismiss
+                </button>
+                ${item.url ? `<a class="btn secondary" href="${esc(item.url)}" target="_blank" style="text-decoration:none">🔗 Öffnen</a>` : ''}
+            </div>
+        </div>`;
+    }).join('');
+}
+
+function renderReviewFromCrawl(pending) {
+    const queue = pending.map(cr => ({
+        id: cr.id, source: cr.source || '—', external_id: cr.external_id || '—',
+        title: cr.title || '—', match_score: cr.match_score,
+        is_ai: (cr.match_reasons || {}).is_ai || false,
+        keywords: (cr.match_reasons || {}).keywords || [],
+        company: (cr.raw_data || {}).company || '—',
+        location: (cr.raw_data || {}).location || '—',
+        remote_percent: (cr.raw_data || {}).remote_percent,
+        url: (cr.raw_data || {}).url || '',
+    }));
+    renderReviewQueue(queue);
+}
+
+function renderReviewSummary(summary) {
+    const container = document.getElementById('reviewSummary');
+    if (!summary.status_counts) return;
+    const sc = summary.status_counts;
+    const dist = summary.score_distribution || {};
+    container.innerHTML = `
+        <div class="review-summary-item">
+            <div class="label">🔥 Pending Review</div>
+            <div class="value" style="color:var(--yellow)">${sc.pending_review || 0}</div>
+        </div>
+        <div class="review-summary-item">
+            <div class="label">✅ Applied</div>
+            <div class="value" style="color:var(--green)">${sc.applied || 0}</div>
+        </div>
+        <div class="review-summary-item">
+            <div class="label">❌ Dismissed</div>
+            <div class="value" style="color:var(--red)">${sc.dismissed || 0}</div>
+        </div>
+        <div class="review-summary-item">
+            <div class="label">📊 Score Range</div>
+            <div class="value">${dist.min || 0}–${dist.max || 0}%</div>
+        </div>`;
+}
+
+async function reviewAction(id, action) {
+    const card = document.querySelector(`.review-card[data-id="${id}"]`);
+    if (!card) return;
+
+    // Visual feedback
+    card.style.opacity = '0.5';
+    card.style.pointerEvents = 'none';
+
+    // Note: In production, this triggers a pipeline variable
+    // For now, log the action (actual API integration via pipeline trigger)
+    console.log(`Review action: ${action} for CrawlResult #${id}`);
+
+    // Animate removal
+    setTimeout(() => {
+        card.style.transition = 'all 0.3s';
+        card.style.maxHeight = '0';
+        card.style.overflow = 'hidden';
+        card.style.marginBottom = '0';
+        card.style.padding = '0';
+        card.style.opacity = '0';
+        setTimeout(() => card.remove(), 300);
+    }, 200);
+
+    // Update badge
+    const badge = document.getElementById('reviewBadge');
+    const remaining = document.querySelectorAll('.review-card').length - 1;
+    badge.textContent = remaining;
+    if (remaining <= 0) badge.style.display = 'none';
+}
 
 /* ── Init ─────────────────────────────────────────────────────────────── */
 loadDashboard();
