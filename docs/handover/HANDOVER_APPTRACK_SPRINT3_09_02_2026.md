@@ -1,146 +1,131 @@
-# HANDOVER: AppTrack Sprint 3 — Pages Frontend Dashboard
+# HANDOVER: AppTrack Sprint 3 — Pages Frontend
 
 **Datum:** 2026-02-09
-**Session:** Sprint 2 Completion + Sprint 3 Dashboard
+**Session:** Sprint 3 Kickoff
 **Author:** Wolfram Laube + Claude
 
 ---
 
-## ✅ Session Summary
+## 🎯 Sprint 3 Scope
 
-### Sprint 2 Wrap-Up (completed this session)
+**Goal:** GitLab Pages HTML dashboard for the AppTrack system.
+
+**GitLab Milestone:** "AppTrack Sprint 3 — Pages Frontend" (id: 7297434, due: 2026-02-15)
+**Issue:** #55 — `[Sprint 3] Pages Frontend — AppTrack Dashboard on GitLab Pages`
+**EPIC:** #52 — `[EPIC] Application Tracking System (ADR-004)`
+
+### Deliverables
+- [ ] HTML dashboard that reads `dashboard.json` from GCS export
+- [ ] Pipeline trigger button on Pages
+- [ ] Status filter, search, sorting
+- [ ] Statistics charts (application funnel, timeline, source breakdown)
+
+---
+
+## ✅ Sprint 2 Recap (completed this session)
 
 | Task | Status |
 |------|--------|
-| MR !19 reviewed + merged | ✓ (already merged at session start) |
-| `test:unit` on main verified | ✓ (229 passed after fix) |
-| Issue #50 fixed (`sqlalchemy` missing in requirements.txt) | ✓ (commit `c17ab7f5`) |
-| `pyyaml` added to `.applications-base` | ✓ (commit `5e1e0b31`) |
-| Full pipeline: crawl → ingest → match → update → stage | ✓ (Pipeline #553) |
-| CRM Issues verified (#411–#415 with labels) | ✓ |
-| Issue #50 closed with root cause comment | ✓ |
-
-### Sprint 3: Pages Frontend Dashboard
-
-| Task | Status |
-|------|--------|
-| Issue #55 created | ✓ |
-| Epic #52 updated (Sprint 2 ✅, Sprint 3 linked) | ✓ |
-| Feature branch `feature/55-apptrack-sprint3-pages` | ✓ |
-| `docs/apptrack-dashboard.html` created | ✓ |
-| `tests/unit/test_dashboard_data.py` created | ✓ |
-| `mkdocs.yml` nav entry | 🔲 (needs commit) |
-| `.gitlab/applications.yml` test job update | 🔲 (needs commit) |
-| Commit + MR | 🔲 |
-| Pipeline verification | 🔲 |
+| MR !19 reviewed & merged | ✅ (squash: `bfad818c`) |
+| Issue #50 fixed (`test:unit` failure) | ✅ (added sqlalchemy + google-cloud-storage to requirements.txt) |
+| Tests on main verified | ✅ (229 passed, 1 skipped) |
+| Full pipeline: crawl → ingest → match → update → stage | ✅ (Pipeline #553) |
+| CRM Issue creation verified | ✅ (#411–#415 with labels) |
+| GitLab Milestones created | ✅ (Sprint 1 closed, Sprint 2 closed, Sprint 3 active) |
+| EPIC #29 GitHub Mirroring closed | ✅ (all 3 mirrors active: backoffice, corporate, clarissa) |
+| Issue #54 CI failure closed | ✅ (pyyaml fix in 5e1e0b31) |
 
 ---
 
-## 📁 Files Created/Modified
+## 📐 Architecture Context
 
-### New Files
-
+### Data Flow for Pages
 ```
-docs/apptrack-dashboard.html           ← Main dashboard page
-tests/unit/test_dashboard_data.py      ← 22 tests (schema, stats, status, integration)
-docs/handover/HANDOVER_APPTRACK_SPRINT3_09_02_2026.md  ← This file
-```
+Schedule/Manual trigger
+  → applications:crawl → projects.json
+    → apptrack:ingest-crawl → crawl_results (GCS SQLite)
+      → applications:match → matches.json
+        → apptrack:update-matches → match_score on crawl_results
+          → apptrack:stage-approved → Application records + CRM Issues
 
-### Files to Modify (next commit)
-
-```
-mkdocs.yml                             ← Add nav entry for dashboard
-.gitlab/applications.yml               ← Add apptrack:dashboard-test job
+applications:export → public/dashboard.json + output/bewerbungen_export.csv
+  → pages job → GitLab Pages (static HTML reads dashboard.json)
 ```
 
----
+### Existing Pages Infrastructure
+- `pages` job already exists in `.gitlab/pages.yml` → deploys `public/` directory
+- `applications:export` job exists → generates `public/dashboard.json`
+- Pages URL: https://wolfram_laube.gitlab.io/blauweiss_llc/ops/backoffice/
 
-## 🎯 Dashboard Features
+### Database
+- **GCS Bucket:** `gs://blauweiss-apptrack` (europe-west3)
+- **DB:** `applications.db` (408 KB, SQLite)
+- **Tables:** Application, CrawlResult, ApplicationHistory
+- **Records:** 187 applications (from CSV import) + crawl results
 
-### `docs/apptrack-dashboard.html`
-
-- **Stats Cards:** Total, Versendet, In Kontakt, Abgelehnt, Ø Rate, Ø Match Score
-- **Interactive Table:** Sortable columns, pagination (25/page), source links
-- **Search & Filter:** Full-text search, status dropdown, month dropdown
-- **Charts (Chart.js):**
-  - Status distribution (doughnut)
-  - Monthly trend (bar)
-  - Top providers (horizontal bar)
-  - Rate histogram (bar, 10€ buckets)
-- **Pipeline Trigger:** Modal with PAT input, triggers `APPLICATIONS_PIPELINE=true`
-- **Design:** Dark theme matching existing portal (same CSS variables)
-- **Data Source:** Fetches `dashboard.json` at runtime (relative path)
-
-### `tests/unit/test_dashboard_data.py` — 22 Tests
-
+### Key Files
 ```
-TestDashboardJsonSchema     (3)  — Required keys, field presence, statistics structure
-TestStatisticsComputation   (7)  — Empty, count, rate avg/min/max, monthly, providers, match
-TestStatusClassification    (7)  — versendet, abgelehnt, in_kontakt, verhandlung, etc.
-TestDashboardIntegration    (4)  — DB seed → export, crawl summary, date serialization
+.gitlab/
+├── applications.yml     ← AppTrack CI jobs
+├── pages.yml            ← Pages deployment
+public/
+├── dashboard.json       ← Generated by applications:export
+├── index.html           ← Current Pages entry point (needs dashboard UI)
+modules/applications/
+├── __init__.py
+├── models.py            ← SQLAlchemy models
+├── database.py          ← GCS sync, session management
+├── crawl_service.py     ← Crawl integration logic
+scripts/ci/
+├── applications_export_json.py  ← Generates dashboard.json
 ```
-
----
-
-## 🔧 Technical Details
-
-### Dashboard Data Flow
-
-```
-applications:export (CI job)
-  → downloads DB from GCS
-  → runs export_json()
-  → outputs public/dashboard.json
-  → deployed via pages job to GitLab Pages
-
-apptrack-dashboard.html (browser)
-  → fetch('dashboard.json')
-  → render stats, charts, table
-  → pipeline trigger via GitLab API
-```
-
-### Pages URL
-- Portal: https://bewerbung-tool-372f49.gitlab.io/
-- Dashboard: https://bewerbung-tool-372f49.gitlab.io/apptrack-dashboard.html
-
-### GitLab Artifacts
-
-| Item | Link |
-|------|------|
-| Epic #52 | `ops/backoffice/-/issues/52` |
-| Issue #55 | `ops/backoffice/-/issues/55` |
-| Branch | `feature/55-apptrack-sprint3-pages` |
-
----
-
-## 🔲 Next Steps (to complete Sprint 3)
-
-### Immediate (next session)
-- [ ] Commit files to `feature/55-apptrack-sprint3-pages`
-- [ ] Update `mkdocs.yml` with nav entry: `"📊 AppTrack": apptrack-dashboard.html`
-- [ ] Update `.gitlab/applications.yml` with `apptrack:dashboard-test` job
-- [ ] Run tests locally/CI (22 tests)
-- [ ] Create MR !20 (or next available)
-- [ ] Review + merge
-- [ ] Trigger `applications:export` to generate `dashboard.json`
-- [ ] Verify dashboard on GitLab Pages
-
-### Optional Enhancements
-- [ ] CSV download button on dashboard
-- [ ] Detail view modal (click row → full application details)
-- [ ] Auto-refresh (poll dashboard.json every 5 min)
-- [ ] Dark/light theme toggle
-- [ ] Export filtered results
 
 ---
 
 ## 🔑 Credentials (Reference)
 
-- GitLab PAT: `glpat--wmS4xEWjjWdOgaOd7oDWG86MQp1OnN4Y3gK.01.101dpjjbj`
-- User: wolfram.laube (ID: 1349601)
-- GCP SA: `gitlab-runner-controller@myk8sproject-207017.iam.gserviceaccount.com`
-- GCS Bucket: `blauweiss-apptrack` (europe-west3)
-- Backoffice: 77555895
-- Corporate: 77075415
-- CRM: 78171527
-- Pages URL: https://bewerbung-tool-372f49.gitlab.io/
+- **GitLab PAT:** `glpat--wmS4xEWjjWdOgaOd7oDWG86MQp1OnN4Y3gK.01.101dpjjbj`
+- **User:** wolfram.laube (ID: 1349601)
+- **GCP SA:** `gitlab-runner-controller@myk8sproject-207017.iam.gserviceaccount.com`
+- **GCS Bucket:** `blauweiss-apptrack` (europe-west3)
+- **Backoffice Project:** 77555895
+- **Corporate Project:** 77075415
+- **CRM Project:** 78171527
+
+### Milestones
+| Sprint | Milestone ID | State |
+|--------|-------------|-------|
+| Sprint 1 — Foundation | 7297433 | closed |
+| Sprint 2 — Crawl Integration | 7297435 | closed |
+| Sprint 3 — Pages Frontend | 7297434 | active |
+
+---
+
+## 📋 Backlog (not Sprint 3)
+
+- [ ] Issue #26: NSAI JKU Bachelor Paper Draft
+- [ ] Issue #27: EPIC Neurosymbolic AI Runner Selection
+- [ ] Issue #48: Vorhölle Match Staging Service
+- [ ] Issue #49: JOB-MATCH 97% Cloud Architect (pending)
+- [x] ~~Issue #29: GitHub Mirroring EPIC~~ → closed (all 3 mirrors active)
+- [x] ~~Issue #50: test:unit failure~~ → closed (requirements.txt fix)
+- [x] ~~Issue #54: CI failure c17ab7f5~~ → closed (pyyaml fix)
+
+### GitHub Mirrors (all bidirectional)
+| Repo | Push (GL→GH) | Pull (GH→GL) | Mechanism |
+|------|---|---|---|
+| backoffice | ✅ Push Mirror | ✅ Actions Workflow | mirror-to-gitlab.yml |
+| corporate | ✅ Push Mirror | ✅ Actions Workflow | mirror-to-gitlab.yml |
+| clarissa | ✅ Push Mirror | ✅ Actions Workflow | mirror-to-gitlab.yml |
+
+Note: GitHub Push Protection disabled on backoffice (secrets in handover docs).
+
+### Open Issues Summary (5)
+| # | Title | Milestone |
+|---|-------|-----------|
+| #52 | EPIC AppTrack | Sprint 3 |
+| #55 | Sprint 3 Pages Frontend | Sprint 3 |
+| #49 | JOB-MATCH 97% Cloud Architect | — |
+| #48 | Vorhölle Service | — |
+| #27 | EPIC Neurosymbolic AI | — |
+| #26 | NSAI Paper Draft | — |
