@@ -51,6 +51,7 @@ nav:
   - "🎯 Operations":
     - "🚀 Quick Start": ops/quickstart.md
     - "📊 CRM": ops/crm.md
+    - "📊 AppTrack": apptrack-dashboard.html
     - "🚀 Applications Pipeline": ops/applications-pipeline.md
     - "🔗 API Reference": ops/api-reference.md
   - "🧠 Services":
@@ -67,6 +68,7 @@ nav:
     - "Feature Workflow": runbook/feature-workflow.md
     - "Git Workflow": runbook/git-workflow.md
   - "📚 Handover":
+    - "AppTrack Sprint 3 (09.02.2026)": handover/HANDOVER_APPTRACK_SPRINT3_09_02_2026.md
     - "MAB Cloud Run (05.02.2026)": handover/HANDOVER_MAB_CLOUD_RUN_05_02_2026.md
     - "CI Metrics (05.02.2026)": handover/HANDOVER_CI_METRICS_05_02_2026.md
     - "CI Refactoring (03.02.2026)": handover/HANDOVER_CI_REFACTOR_03_02_2026.md
