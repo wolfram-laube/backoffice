@@ -26,7 +26,7 @@
   tags:
     - shell
   before_script:
-    - pip install requests beautifulsoup4 lxml --quiet
+    - pip install requests beautifulsoup4 lxml pyyaml --quiet
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  STAGE 1: CRAWL
