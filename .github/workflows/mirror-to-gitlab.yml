@@ -1,0 +1,40 @@
+name: Mirror to GitLab
+
+on:
+  push:
+    branches: [ '**' ]
+  delete:
+
+jobs:
+  mirror-push:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Push branch to GitLab
+        env:
+          GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
+        run: |
+          git remote add gitlab https://oauth2:${GITLAB_TOKEN}@gitlab.com/wolfram_laube/blauweiss_llc/ops/backoffice.git
+          BRANCH=${GITHUB_REF#refs/heads/}
+          echo "Syncing branch: $BRANCH"
+          git push gitlab "$BRANCH" --force
+          git push gitlab --tags --force 2>/dev/null || true
+
+  mirror-delete:
+    if: github.event_name == 'delete' && github.event.ref_type == 'branch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete branch on GitLab
+        env:
+          GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
+        run: |
+          BRANCH="${{ github.event.ref }}"
+          echo "Deleting branch on GitLab: $BRANCH"
+          curl -s --request DELETE \
+            --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
+            "https://gitlab.com/api/v4/projects/77555895/repository/branches/${BRANCH}"
+
