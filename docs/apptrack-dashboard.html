@@ -329,6 +329,143 @@
         }
         .review-summary-item .label { color: var(--subtext); font-size: 0.8rem; }
         .review-summary-item .value { font-size: 1.4rem; font-weight: 700; }
+        /* ── Detail Panel (Slide-Over) ──────────────── */
+        .detail-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+            z-index: 1000; display: none; opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .detail-overlay.active { display: flex; justify-content: flex-end; }
+        .detail-overlay.visible { opacity: 1; }
+        .detail-panel {
+            width: min(720px, 90vw); height: 100vh; overflow-y: auto;
+            background: var(--bg); border-left: 1px solid var(--surface2);
+            padding: 24px; transform: translateX(100%);
+            transition: transform 0.3s ease;
+        }
+        .detail-overlay.visible .detail-panel { transform: translateX(0); }
+        .detail-close {
+            position: absolute; top: 16px; right: 16px;
+            background: var(--surface2); border: none; color: var(--text);
+            width: 36px; height: 36px; border-radius: 50%; cursor: pointer;
+            font-size: 1.2rem; display: flex; align-items: center; justify-content: center;
+        }
+        .detail-close:hover { background: var(--accent); }
+
+        /* Detail Header */
+        .detail-header { margin-bottom: 20px; position: relative; }
+        .detail-title { font-size: 1.3rem; font-weight: 700; margin-bottom: 8px; padding-right: 40px; }
+        .detail-badges { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+        .detail-badge {
+            padding: 3px 10px; border-radius: 6px; font-size: 0.78rem; font-weight: 600;
+        }
+        .detail-badge.score { background: rgba(0,206,201,0.15); color: var(--green); }
+        .detail-badge.ai { background: rgba(108,92,231,0.2); color: var(--purple); }
+        .detail-badge.status { background: var(--surface2); color: var(--subtext); }
+        .detail-badge.remote { background: rgba(253,203,110,0.15); color: var(--yellow); }
+
+        .detail-meta-grid {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px;
+            background: var(--surface); border-radius: 10px; padding: 14px 18px;
+            margin-bottom: 16px; font-size: 0.88rem;
+        }
+        .detail-meta-grid .label { color: var(--subtext); }
+        .detail-meta-grid .value { font-weight: 500; }
+
+        /* Match Breakdown */
+        .match-breakdown { margin-bottom: 16px; }
+        .match-breakdown h4 { font-size: 0.9rem; margin-bottom: 8px; color: var(--subtext); }
+        .match-bar { display: flex; gap: 4px; flex-wrap: wrap; }
+        .match-tag {
+            padding: 2px 8px; border-radius: 4px; font-size: 0.75rem;
+            background: var(--surface); color: var(--text);
+        }
+        .match-tag.hit { background: rgba(0,206,201,0.15); color: var(--green); }
+
+        /* Section Tabs in Detail */
+        .detail-tabs {
+            display: flex; gap: 0; border-bottom: 2px solid var(--surface2);
+            margin-bottom: 16px;
+        }
+        .detail-tab {
+            padding: 8px 16px; cursor: pointer; background: none; border: none;
+            color: var(--subtext); font-size: 0.85rem; font-weight: 500;
+            border-bottom: 2px solid transparent; margin-bottom: -2px;
+        }
+        .detail-tab:hover { color: var(--text); }
+        .detail-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+        .detail-section { display: none; }
+        .detail-section.active { display: block; }
+
+        /* Draft Editor */
+        .draft-controls { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+        .draft-controls select, .draft-controls input {
+            background: var(--surface); border: 1px solid var(--surface2);
+            color: var(--text); padding: 6px 12px; border-radius: 6px; font-size: 0.85rem;
+        }
+        .draft-editor {
+            width: 100%; min-height: 280px; resize: vertical;
+            background: var(--surface); border: 1px solid var(--surface2);
+            color: var(--text); padding: 14px; border-radius: 8px;
+            font-family: 'JetBrains Mono', monospace; font-size: 0.82rem;
+            line-height: 1.6;
+        }
+        .draft-editor:focus { border-color: var(--accent); outline: none; }
+        .draft-subject {
+            width: 100%; background: var(--surface); border: 1px solid var(--surface2);
+            color: var(--text); padding: 8px 12px; border-radius: 6px;
+            font-size: 0.9rem; margin-bottom: 10px;
+        }
+
+        /* Attachments */
+        .att-list { display: flex; flex-direction: column; gap: 6px; margin: 12px 0; }
+        .att-item {
+            display: flex; align-items: center; gap: 10px;
+            background: var(--surface); padding: 8px 14px; border-radius: 8px;
+        }
+        .att-item input[type="checkbox"] { accent-color: var(--accent); }
+        .att-item .att-name { flex: 1; font-size: 0.85rem; }
+        .att-item .att-size { color: var(--subtext); font-size: 0.75rem; }
+
+        /* Action Row */
+        .detail-actions {
+            display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap;
+            padding-top: 16px; border-top: 1px solid var(--surface2);
+        }
+        .detail-actions .btn.gmail { background: #c71610; color: white; }
+        .detail-actions .btn.gmail:hover { background: #a11; }
+
+        /* Communication Log */
+        .comm-log { margin-top: 12px; }
+        .comm-entry {
+            background: var(--surface); border-radius: 8px; padding: 12px;
+            margin-bottom: 8px; border-left: 3px solid var(--accent);
+        }
+        .comm-entry .comm-date { color: var(--subtext); font-size: 0.75rem; }
+        .comm-entry .comm-text { font-size: 0.85rem; margin-top: 4px; }
+        .comm-entry .comm-rating { color: var(--yellow); font-size: 0.85rem; margin-top: 4px; }
+        .comm-add { display: flex; gap: 8px; margin-top: 12px; }
+        .comm-add textarea {
+            flex: 1; min-height: 60px; resize: vertical;
+            background: var(--surface); border: 1px solid var(--surface2);
+            color: var(--text); padding: 8px; border-radius: 6px; font-size: 0.85rem;
+        }
+        .rating-stars { display: flex; gap: 2px; margin-top: 6px; }
+        .rating-stars span {
+            cursor: pointer; font-size: 1.1rem; color: var(--surface2);
+            transition: color 0.15s;
+        }
+        .rating-stars span.active { color: var(--yellow); }
+        .rating-stars span:hover { color: var(--yellow); }
+
+        /* Status Workflow */
+        .status-flow { display: flex; gap: 6px; flex-wrap: wrap; margin: 12px 0; }
+        .status-flow .btn {
+            font-size: 0.78rem; padding: 5px 12px; border-radius: 6px;
+            transition: all 0.2s;
+        }
+        .status-flow .btn.current { border: 2px solid var(--accent); }
+
     </style>
 </head>
 <body>
@@ -617,6 +754,7 @@ function applyFilters() {
 
     sortApps();
     currentPage = 0;
+    window._filteredApps = filtered;
     renderTable();
 }
 
@@ -864,6 +1002,7 @@ async function triggerPipeline() {
         );
         const data = await resp.json();
     window._dashboardData = data;
+    window._allApps = data.applications || [];
         if (resp.ok) {
             showPipelineResult('ok',
                 `✅ Pipeline #${data.iid} gestartet → <a href="${data.web_url}" target="_blank" style="color:var(--green)">Öffnen</a>`);
@@ -1046,8 +1185,518 @@ async function reviewAction(id, action) {
     if (remaining <= 0) badge.style.display = 'none';
 }
 
+/* ── Detail Panel ─────────────────────────────────────────────────────── */
+const PROJECT_ID_CONST = '77555895';
+const CORP_PROJECT_ID = '77075415';
+let currentDetail = null;
+let currentRating = 0;
+let commEntries = {};  // keyed by project_id
+
+const STATUS_OPTIONS = [
+    { key: 'versendet', label: '📤 Versendet', color: '#636e72' },
+    { key: 'in_kontakt', label: '🤝 In Kontakt', color: '#0984e3' },
+    { key: 'interview', label: '🎤 Interview', color: '#6c5ce7' },
+    { key: 'telefonat', label: '📞 Telefonat', color: '#00b894' },
+    { key: 'verhandlung', label: '💰 Verhandlung', color: '#fdcb6e' },
+    { key: 'vertrag', label: '✅ Vertrag', color: '#00cec9' },
+    { key: 'absage', label: '❌ Absage', color: '#d63031' },
+    { key: 'nicht_beworben', label: '⏸️ Nicht beworben', color: '#b2bec3' },
+];
+
+const ATTACHMENTS = {
+    'att-cv-de': { file: 'Profil_Laube_w_Summary_DE.pdf', label: 'CV Deutsch' },
+    'att-cv-en': { file: 'Profil_Laube_w_Summary_EN.pdf', label: 'CV English' },
+    'att-cert': { file: 'Studienerfolg_08900915_1.pdf', label: 'AI Bachelor JKU' },
+};
+
+function openDetail(item) {
+    currentDetail = item;
+    const overlay = document.getElementById('detailOverlay');
+    overlay.classList.add('active');
+    requestAnimationFrame(() => overlay.classList.add('visible'));
+
+    // Title
+    document.getElementById('detailTitle').textContent = item.project_title || item.title || '—';
+
+    // Badges
+    const badges = document.getElementById('detailBadges');
+    const score = item.match_score || 0;
+    const scoreClass = score >= 85 ? 'score' : score >= 70 ? 'remote' : 'status';
+    let badgeHtml = `<span class="detail-badge ${scoreClass}">${score}% Match</span>`;
+    if (item.status) badgeHtml += `<span class="detail-badge status">${item.status}</span>`;
+    const raw = item.raw_data || {};
+    const reasons = item.match_reasons || {};
+    if (reasons.is_ai) badgeHtml += '<span class="detail-badge ai">🤖 AI</span>';
+    const remPct = raw.remote_percent || item.remote_percent;
+    if (remPct) badgeHtml += `<span class="detail-badge remote">🏠 ${remPct}% Remote</span>`;
+    badges.innerHTML = badgeHtml;
+
+    // Meta grid
+    const meta = document.getElementById('detailMeta');
+    meta.innerHTML = [
+        ['🏢 Provider', item.provider || raw.company || '—'],
+        ['📍 Ort', item.location || raw.location || '—'],
+        ['💶 Rate', item.rate_eur_h ? `${item.rate_eur_h} EUR/h` : '—'],
+        ['📅 Start', raw.start_date || item.start || '—'],
+        ['⏱️ Dauer', raw.duration || item.duration || '—'],
+        ['🔗 Quelle', item.source ? `${item.source}/${item.external_id || ''}` : '—'],
+        ['📆 Erfasst', item.date_recorded || (item.crawled_at || '').slice(0,10) || '—'],
+        ['🔗 Link', raw.url || item.url ? `<a href="${raw.url || item.url}" target="_blank" style="color:var(--accent)">Öffnen ↗</a>` : '—'],
+    ].map(([l,v]) => `<div class="label">${l}</div><div class="value">${v}</div>`).join('');
+
+    // Match breakdown
+    const mb = document.getElementById('matchBreakdown');
+    const kws = reasons.keywords || [];
+    if (kws.length) {
+        mb.innerHTML = `<h4>🎯 Match Keywords</h4><div class="match-bar">
+            ${kws.map(k => `<span class="match-tag hit">${esc(k)}</span>`).join('')}</div>`;
+    } else mb.innerHTML = '';
+
+    // Pre-fill draft
+    const contactEmail = item.contact_email || '';
+    document.getElementById('draftTo').value = contactEmail;
+    regenerateDraft();
+
+    // Status flow
+    renderStatusFlow(item.status || 'versendet');
+
+    // Load comm entries
+    renderCommLog(item.project_id || item.external_id || '');
+
+    // Reset to draft tab
+    switchDetailTab('draft');
+}
+
+function closeDetail() {
+    const overlay = document.getElementById('detailOverlay');
+    overlay.classList.remove('visible');
+    setTimeout(() => overlay.classList.remove('active'), 300);
+    currentDetail = null;
+}
+
+function switchDetailTab(tab) {
+    document.querySelectorAll('.detail-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.detail-section').forEach(s => s.classList.remove('active'));
+    document.querySelector(`.detail-tab[onclick="switchDetailTab('${tab}')"]`).classList.add('active');
+    document.getElementById(`dtab-${tab}`).classList.add('active');
+}
+
+/* ── Draft Generation ─────────────────────────────────────────────────── */
+
+function regenerateDraft() {
+    if (!currentDetail) return;
+    const profile = document.getElementById('draftProfile').value;
+    const item = currentDetail;
+    const title = item.project_title || item.title || '';
+    const raw = item.raw_data || {};
+    const url = raw.url || item.url || '';
+    const reasons = item.match_reasons || {};
+
+    document.getElementById('draftSubject').value = `Bewerbung: ${title.slice(0,60)}`;
+
+    const isAi = reasons.is_ai || false;
+    const titleLower = title.toLowerCase();
+    const hasAiKw = ['ai', 'ki', 'llm', 'ml', 'machine learning', 'nlp', 'rag', 'genai', 'data scien']
+        .some(k => titleLower.includes(k));
+    const useAi = profile === 'wolfram_ai' || isAi || hasAiKw;
+
+    let body;
+    if (profile === 'team') {
+        body = generateTeamDraft(title, url);
+    } else if (useAi) {
+        body = generateAiDraft(title, url);
+    } else {
+        body = generateStandardDraft(title, url);
+    }
+    document.getElementById('draftBody').value = body;
+
+    // Auto-check AI cert if AI project
+    document.getElementById('att-cert').checked = useAi;
+}
+
+function generateStandardDraft(title, url) {
+    return `Sehr geehrte Damen und Herren,
+
+mit großem Interesse habe ich Ihre Ausschreibung "${title}" gesehen.
+
+Als Senior Solution/Cloud/DevOps Architect mit 25+ Jahren IT-Erfahrung und aktuellen CKA/CKAD-Zertifizierungen (2024) bringe ich die ideale Kombination aus Enterprise-Architektur und moderner Cloud-Expertise mit.
+
+Mein Profil in Kürze:
+• Cloud-Architektur: AWS, Azure, GCP — zuletzt bei 50Hertz (KRITIS/Übertragungsnetz)
+• Kubernetes: CKA/CKAD-zertifiziert, produktiver Betrieb (50Hertz, Disy, AOK)
+• IaC & Automatisierung: Terraform, Helm, GitLab CI/CD, Python/Java/Bash
+• Sicherheit: Erfahrung im KRITIS-Umfeld mit höchsten Sicherheitsanforderungen
+
+Verfügbarkeit: Ab sofort, 100% Remote
+Stundensatz: 105 EUR/h (verhandelbar)
+
+Gerne sende ich Ihnen mein detailliertes Profil zu oder stehe für ein kurzes Kennenlerngespräch zur Verfügung.
+
+Mit freundlichen Grüßen,
+
+Wolfram Laube
+Senior Solution Architect
++43 664 4011521
+wolfram.laube@blauweiss-edv.at
+
+Projektlink: ${url}`;
+}
+
+function generateAiDraft(title, url) {
+    return `Sehr geehrte Damen und Herren,
+
+als AI/ML-spezialisierter Solution Architect mit laufendem AI-Bachelor an der JKU Linz und 25+ Jahren IT-Erfahrung bewerbe ich mich auf "${title}".
+
+Meine AI/ML-Qualifikationen:
+• AI Bachelor JKU Linz (Abschluss Q1/2026) — Deep Learning, NLP, Computer Vision
+• IBM-zertifiziert: Applied AI, Advanced Machine Learning, Advanced Data Science
+• Python: 10+ Jahre, TensorFlow, PyTorch, Keras, scikit-learn
+• Praktisch: RAG-Pipelines, LLM-Integration, MLOps auf Kubernetes
+
+Einzigartige Kombination:
+AI-Expertise + 25 Jahre Enterprise-Architektur + CKA/CKAD = Ich kann AI-Lösungen nicht nur entwickeln, sondern auch produktionsreif deployen.
+
+Verfügbarkeit: Ab sofort, 100% Remote
+Stundensatz: 105 EUR/h (verhandelbar)
+
+Gerne sende ich Ihnen mein detailliertes Profil zu.
+
+Mit freundlichen Grüßen,
+
+Wolfram Laube
+Senior Solution Architect | AI Bachelor JKU 2026
++43 664 4011521
+wolfram.laube@blauweiss-edv.at
+
+Projektlink: ${url}`;
+}
+
+function generateTeamDraft(title, url) {
+    return `Sehr geehrte Damen und Herren,
+
+wir bewerben uns als Team auf Ihre Ausschreibung "${title}".
+
+Unser Angebot — Enterprise + AI Engineering:
+• Wolfram Laube — Senior Solution Architect (25Y+, CKA/CKAD, AI Bachelor JKU)
+• Ian Matejka — AI/ML Engineer (LLM, RAG, Computer Vision, MLOps)
+
+Gemeinsam decken wir das volle Spektrum ab: Von der Cloud-Architektur über AI/ML-Entwicklung bis zum produktiven Deployment auf Kubernetes.
+
+Verfügbarkeit: Ab sofort, 100% Remote
+Team-Rate: Auf Anfrage
+
+Gerne stellen wir uns in einem gemeinsamen Call vor.
+
+Mit freundlichen Grüßen,
+
+Wolfram Laube & Ian Matejka
+Blauweiss LLC
++43 664 4011521
+wolfram.laube@blauweiss-edv.at
+
+Projektlink: ${url}`;
+}
+
+/* ── Gmail Draft ──────────────────────────────────────────────────────── */
+
+async function createGmailDraft() {
+    const to = document.getElementById('draftTo').value.trim();
+    const subject = document.getElementById('draftSubject').value.trim();
+    const body = document.getElementById('draftBody').value.trim();
+    if (!subject || !body) { alert('Betreff und Text sind erforderlich.'); return; }
+
+    // Gather selected attachments
+    const atts = [];
+    for (const [id, info] of Object.entries(ATTACHMENTS)) {
+        if (document.getElementById(id)?.checked) atts.push(info.file);
+    }
+
+    const draftData = {
+        to, subject, body,
+        attachments: atts,
+        profile: document.getElementById('draftProfile').value,
+        project_id: currentDetail?.project_id || currentDetail?.external_id || '',
+        project_title: currentDetail?.project_title || currentDetail?.title || '',
+    };
+
+    // Trigger pipeline with draft data
+    const token = prompt('GitLab PAT eingeben (für Pipeline-Trigger):');
+    if (!token) return;
+
+    const btn = event.target;
+    btn.disabled = true; btn.textContent = '⏳ Wird erstellt…';
+
+    try {
+        const draftB64 = btoa(unescape(encodeURIComponent(JSON.stringify([draftData]))));
+        const resp = await fetch(
+            `https://gitlab.com/api/v4/projects/${PROJECT_ID_CONST}/pipeline`,
+            {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'PRIVATE-TOKEN': token },
+                body: JSON.stringify({
+                    ref: 'main',
+                    variables: [
+                        { key: 'APPTRACK_SINGLE_DRAFT', value: 'true' },
+                        { key: 'DRAFT_DATA_B64', value: draftB64 },
+                    ],
+                }),
+            }
+        );
+        const data = await resp.json();
+        if (resp.ok) {
+            alert(`✅ Pipeline #${data.iid} gestartet! Gmail Draft wird erstellt.`);
+            // Update status to versendet
+            if (currentDetail) currentDetail.status = 'versendet';
+            renderStatusFlow('versendet');
+            addAutoCommEntry('📧 Gmail Draft erstellt via Pipeline #' + data.iid);
+        } else {
+            alert(`❌ Fehler: ${data.message || data.error || 'Unbekannt'}`);
+        }
+    } catch (err) {
+        alert(`❌ Netzwerkfehler: ${err.message}`);
+    } finally {
+        btn.disabled = false; btn.textContent = '📧 → Gmail Draft';
+    }
+}
+
+function copyDraft() {
+    const body = document.getElementById('draftBody').value;
+    navigator.clipboard.writeText(body).then(() => {
+        const btn = event.target;
+        btn.textContent = '✅ Kopiert!';
+        setTimeout(() => { btn.textContent = '📋 Kopieren'; }, 1500);
+    });
+}
+
+/* ── Status Workflow ──────────────────────────────────────────────────── */
+
+function renderStatusFlow(currentStatus) {
+    const flow = document.getElementById('statusFlow');
+    flow.innerHTML = STATUS_OPTIONS.map(s => {
+        const isCurrent = s.key === currentStatus;
+        return `<button class="btn ${isCurrent ? 'current' : 'secondary'}"
+                    style="${isCurrent ? `background:${s.color};color:white;` : ''}"
+                    onclick="changeStatus('${s.key}')">${s.label}</button>`;
+    }).join('');
+}
+
+function changeStatus(newStatus) {
+    if (!currentDetail) return;
+    const oldStatus = currentDetail.status;
+    currentDetail.status = newStatus;
+    renderStatusFlow(newStatus);
+    addAutoCommEntry(`📊 Status: ${oldStatus || '—'} → ${newStatus}`);
+
+    // Update in main data
+    if (window._allApps) {
+        const app = window._allApps.find(a =>
+            (a.project_id || a.external_id) === (currentDetail.project_id || currentDetail.external_id)
+        );
+        if (app) app.status = newStatus;
+    }
+}
+
+/* ── Communication Log ────────────────────────────────────────────────── */
+
+function addAutoCommEntry(text) {
+    const id = currentDetail?.project_id || currentDetail?.external_id || 'unknown';
+    if (!commEntries[id]) commEntries[id] = [];
+    commEntries[id].push({
+        date: new Date().toISOString(),
+        text: text,
+        rating: 0,
+        auto: true,
+    });
+    renderCommLog(id);
+}
+
+function addCommEntry() {
+    const text = document.getElementById('commText').value.trim();
+    if (!text) return;
+    const id = currentDetail?.project_id || currentDetail?.external_id || 'unknown';
+    if (!commEntries[id]) commEntries[id] = [];
+    commEntries[id].push({
+        date: new Date().toISOString(),
+        text: text,
+        rating: currentRating,
+        auto: false,
+    });
+    document.getElementById('commText').value = '';
+    setRating(0);
+    renderCommLog(id);
+}
+
+function renderCommLog(id) {
+    const log = document.getElementById('commLog');
+    const entries = commEntries[id] || [];
+    if (!entries.length) {
+        log.innerHTML = '<div style="text-align:center; padding:20px; color:var(--subtext); font-size:0.85rem">Noch keine Kommunikation erfasst.</div>';
+        return;
+    }
+    log.innerHTML = entries.slice().reverse().map(e => {
+        const stars = e.rating ? '⭐'.repeat(e.rating) : '';
+        const dateStr = new Date(e.date).toLocaleString('de-AT', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+        return `<div class="comm-entry${e.auto ? ' auto' : ''}">
+            <div class="comm-date">${dateStr}${e.auto ? ' (auto)' : ''}</div>
+            <div class="comm-text">${esc(e.text)}</div>
+            ${stars ? `<div class="comm-rating">${stars}</div>` : ''}
+        </div>`;
+    }).join('');
+}
+
+function setRating(n) {
+    currentRating = n;
+    document.querySelectorAll('#commRating span').forEach((star, i) => {
+        star.classList.toggle('active', i < n);
+    });
+}
+
+/* ── Wire into existing table rows ────────────────────────────────────── */
+
+const _origRenderTable = typeof renderTable === 'function' ? renderTable : null;
+function patchTableClickHandlers() {
+    document.querySelectorAll('#tableBody tr').forEach(tr => {
+        tr.style.cursor = 'pointer';
+        tr.addEventListener('click', () => {
+            const idx = parseInt(tr.dataset.idx);
+            if (window._allApps && window._allApps[idx]) {
+                openDetail(window._allApps[idx]);
+            }
+        });
+    });
+}
+
+// Patch renderTable to add click handlers and data-idx
+const origRenderTableFn = renderTable;
+renderTable = function() {
+    origRenderTableFn();
+    // Add data-idx to rows
+    const tbody = document.getElementById('tableBody');
+    const rows = tbody.querySelectorAll('tr');
+    const startIdx = (typeof currentPage !== 'undefined' ? currentPage : 0) * (typeof pageSize !== 'undefined' ? pageSize : 25);
+    rows.forEach((tr, i) => {
+        tr.dataset.idx = startIdx + i;
+        tr.style.cursor = 'pointer';
+        tr.onclick = () => {
+            if (window._filteredApps && window._filteredApps[startIdx + i]) {
+                openDetail(window._filteredApps[startIdx + i]);
+            }
+        };
+    });
+};
+
+// Also make review cards clickable for detail
+const origRenderReviewQueue = typeof renderReviewQueue === 'function' ? renderReviewQueue : null;
+if (origRenderReviewQueue) {
+    const _origRRQ = renderReviewQueue;
+    renderReviewQueue = function(queue) {
+        _origRRQ(queue);
+        // Add click to review card titles
+        document.querySelectorAll('.review-card .review-title').forEach((el, i) => {
+            el.style.cursor = 'pointer';
+            el.addEventListener('click', () => {
+                if (queue[i]) openDetail(queue[i]);
+            });
+        });
+    };
+}
+
+
 /* ── Init ─────────────────────────────────────────────────────────────── */
 loadDashboard();
 </script>
+    <!-- Detail Panel (Slide-Over) -->
+    <div class="detail-overlay" id="detailOverlay" onclick="if(event.target===this)closeDetail()">
+        <div class="detail-panel" id="detailPanel">
+            <button class="detail-close" onclick="closeDetail()">✕</button>
+            <div class="detail-header">
+                <div class="detail-title" id="detailTitle">—</div>
+                <div class="detail-badges" id="detailBadges"></div>
+                <div class="detail-meta-grid" id="detailMeta"></div>
+                <div class="match-breakdown" id="matchBreakdown"></div>
+            </div>
+
+            <div class="detail-tabs">
+                <button class="detail-tab active" onclick="switchDetailTab('draft')">✉️ Anschreiben</button>
+                <button class="detail-tab" onclick="switchDetailTab('status')">📊 Status</button>
+                <button class="detail-tab" onclick="switchDetailTab('comms')">💬 Kommunikation</button>
+            </div>
+
+            <!-- Draft Tab -->
+            <div class="detail-section active" id="dtab-draft">
+                <div class="draft-controls">
+                    <select id="draftProfile" onchange="regenerateDraft()">
+                        <option value="wolfram">👤 Wolfram (Standard)</option>
+                        <option value="wolfram_ai">🤖 Wolfram (AI Focus)</option>
+                        <option value="team">👥 Team (Wolfram+Ian)</option>
+                    </select>
+                    <input type="email" id="draftTo" placeholder="Empfänger-Email…" style="flex:1">
+                </div>
+                <input type="text" class="draft-subject" id="draftSubject" placeholder="Betreff…">
+                <textarea class="draft-editor" id="draftBody" placeholder="Anschreiben wird generiert…"></textarea>
+
+                <h4 style="margin:14px 0 6px; font-size:0.85rem; color:var(--subtext)">📎 Attachments</h4>
+                <div class="att-list" id="attList">
+                    <div class="att-item">
+                        <input type="checkbox" id="att-cv-de" checked>
+                        <span class="att-name">📄 Profil_Laube_w_Summary_DE.pdf</span>
+                        <span class="att-size">CV Deutsch</span>
+                    </div>
+                    <div class="att-item">
+                        <input type="checkbox" id="att-cv-en">
+                        <span class="att-name">📄 Profil_Laube_w_Summary_EN.pdf</span>
+                        <span class="att-size">CV English</span>
+                    </div>
+                    <div class="att-item">
+                        <input type="checkbox" id="att-cert">
+                        <span class="att-name">📄 Studienerfolg_08900915_1.pdf</span>
+                        <span class="att-size">AI Bachelor JKU</span>
+                    </div>
+                </div>
+
+                <div class="detail-actions">
+                    <button class="btn gmail" onclick="createGmailDraft()">📧 → Gmail Draft</button>
+                    <button class="btn secondary" onclick="copyDraft()">📋 Kopieren</button>
+                    <button class="btn secondary" onclick="regenerateDraft()">🔄 Neu generieren</button>
+                </div>
+            </div>
+
+            <!-- Status Tab -->
+            <div class="detail-section" id="dtab-status">
+                <h4 style="font-size:0.85rem; color:var(--subtext); margin-bottom:8px">Status ändern</h4>
+                <div class="status-flow" id="statusFlow"></div>
+                <div style="margin-top:16px">
+                    <h4 style="font-size:0.85rem; color:var(--subtext); margin-bottom:8px">📋 History</h4>
+                    <div id="statusHistory" style="font-size:0.85rem; color:var(--subtext)">Keine Einträge.</div>
+                </div>
+            </div>
+
+            <!-- Communication Tab -->
+            <div class="detail-section" id="dtab-comms">
+                <div class="comm-add">
+                    <div style="flex:1">
+                        <textarea id="commText" placeholder="Notiz zur Kommunikation…"></textarea>
+                        <div style="display:flex; gap:12px; align-items:center; margin-top:6px">
+                            <span style="font-size:0.8rem; color:var(--subtext)">Bewertung:</span>
+                            <div class="rating-stars" id="commRating">
+                                <span onclick="setRating(1)">★</span>
+                                <span onclick="setRating(2)">★</span>
+                                <span onclick="setRating(3)">★</span>
+                                <span onclick="setRating(4)">★</span>
+                                <span onclick="setRating(5)">★</span>
+                            </div>
+                            <button class="btn" onclick="addCommEntry()" style="font-size:0.8rem; padding:4px 12px">💾 Speichern</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="comm-log" id="commLog">
+                    <div style="text-align:center; padding:20px; color:var(--subtext); font-size:0.85rem">
+                        Noch keine Kommunikation erfasst.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
 </body>
 </html>

@@ -504,3 +504,26 @@ apptrack:dashboard-test:
     - pip install sqlalchemy pytest --quiet
   script:
     - python3 -m pytest tests/unit/test_dashboard_data.py -v --tb=short
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  APPTRACK: SINGLE DRAFT CREATION (Sprint 5 — Portal Integration)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+apptrack:create-draft:
+  extends: .applications-base
+  stage: deploy
+  needs: []
+  rules:
+    - if: ($CI_PIPELINE_SOURCE == "web" || $CI_PIPELINE_SOURCE == "api") && $APPTRACK_SINGLE_DRAFT == "true"
+  variables:
+    CORP_PROJECT_ID: "77075415"
+  before_script:
+    - pip install requests --quiet
+  script:
+    - python3 scripts/ci/apptrack_create_single_draft.py
+  artifacts:
+    paths:
+      - output/apptrack_draft_results.json
+      - output/apptrack_draft_dryrun.json
+    expire_in: 7 days
