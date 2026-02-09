@@ -3,6 +3,10 @@ google-auth-oauthlib>=1.0.0
 google-api-python-client>=2.100.0
 google-auth>=2.23.0
 
+# AppTrack (Sprint 1+2)
+sqlalchemy>=2.0.0
+google-cloud-storage>=2.14.0
+
 # Utilities
 pyperclip>=1.8.2
 pyyaml>=6.0.1
