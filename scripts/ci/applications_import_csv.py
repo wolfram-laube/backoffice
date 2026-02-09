@@ -28,7 +28,7 @@ from modules.applications.database import get_engine, get_session, get_db_path
 logger = logging.getLogger(__name__)
 
 # Default CSV path (in repo root or CI artifact)
-DEFAULT_CSV = "bewerbungen_komplett_SORTED_Jan_31_2026.csv"
+DEFAULT_CSV = "data/bewerbungen_komplett_SORTED_Jan_31_2026.csv"
 
 
 # ---------------------------------------------------------------------------

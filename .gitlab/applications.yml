@@ -313,7 +313,7 @@ applications:import-csv:
   before_script:
     - pip install sqlalchemy google-cloud-storage --quiet
   script:
-    - python3 scripts/ci/applications_import_csv.py --csv bewerbungen_komplett_SORTED_Jan_31_2026.csv --db $APPTRACK_DB_PATH -v
+    - python3 scripts/ci/applications_import_csv.py --csv data/bewerbungen_komplett_SORTED_Jan_31_2026.csv --db $APPTRACK_DB_PATH -v
     - |
       python3 -c "
       import os, sys
