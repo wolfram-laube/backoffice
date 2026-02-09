@@ -370,3 +370,87 @@ applications:test:
     - pip install sqlalchemy pytest --quiet
   script:
     - python3 -m pytest tests/unit/test_applications.py -v --tb=short
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  APPTRACK: CRAWL → DB INTEGRATION (Sprint 2)
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+#  Wires crawl pipeline output into AppTrack SQLite/GCS database:
+#    crawl output → crawl_results table → match scores → Application records
+#
+# ═══════════════════════════════════════════════════════════════════════════════
+
+apptrack:ingest-crawl:
+  extends: .applications-base
+  stage: build
+  needs:
+    - job: applications:crawl
+      artifacts: true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $APPLICATIONS_PIPELINE == "true"
+    - if: ($CI_PIPELINE_SOURCE == "web" || $CI_PIPELINE_SOURCE == "api") && $APPTRACK_INGEST == "true"
+    - when: manual
+      allow_failure: true
+  before_script:
+    - pip install sqlalchemy google-cloud-storage --quiet
+  script:
+    - python3 scripts/ci/apptrack_ingest_crawl.py -v
+
+
+apptrack:update-matches:
+  extends: .applications-base
+  stage: test
+  needs:
+    - job: apptrack:ingest-crawl
+    - job: applications:match
+      artifacts: true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $APPLICATIONS_PIPELINE == "true"
+    - if: ($CI_PIPELINE_SOURCE == "web" || $CI_PIPELINE_SOURCE == "api") && $APPTRACK_MATCH == "true"
+    - when: manual
+      allow_failure: true
+  before_script:
+    - pip install sqlalchemy google-cloud-storage --quiet
+  script:
+    - python3 scripts/ci/apptrack_update_matches.py --profile wolfram -v
+
+
+apptrack:stage-approved:
+  extends: .applications-base
+  stage: deploy
+  needs:
+    - job: apptrack:update-matches
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $APPLICATIONS_PIPELINE == "true"
+    - if: ($CI_PIPELINE_SOURCE == "web" || $CI_PIPELINE_SOURCE == "api") && $APPTRACK_STAGE == "true"
+    - when: manual
+      allow_failure: true
+  variables:
+    CRM_PROJECT_ID: "78171527"
+  before_script:
+    - pip install sqlalchemy google-cloud-storage requests --quiet
+  script:
+    - python3 scripts/ci/apptrack_stage_approved.py --min-score 70 -v
+  artifacts:
+    paths:
+      - output/apptrack_stage_results.json
+    expire_in: 7 days
+
+
+apptrack:test:
+  extends: .applications-base
+  needs: []
+  stage: test
+  rules:
+    - if: ($CI_PIPELINE_SOURCE == "web" || $CI_PIPELINE_SOURCE == "api") && $APPLICATIONS_TEST == "true"
+    - changes:
+        - modules/applications/**/*
+        - scripts/ci/apptrack_*.py
+        - tests/unit/test_crawl_service.py
+    - when: manual
+      allow_failure: true
+  before_script:
+    - pip install sqlalchemy pytest --quiet
+  script:
+    - python3 -m pytest tests/unit/test_crawl_service.py -v --tb=short
